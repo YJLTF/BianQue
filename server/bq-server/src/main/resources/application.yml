@@ -1,0 +1,20 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: bianque-server
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+bianque:
+  execution:
+    # mock：拟真演示通道（默认）；local：本机 as.sh 真实执行
+    mode: mock
+    as-sh-path: ../docs/research/arthas-inspect/as.sh
+  docs:
+    unpack-root: ""   # 空值时按运行目录自动探测 docs/arthas-docs/4.3.5
+  session:
+    ttl-minutes: 30

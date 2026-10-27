@@ -1,0 +1,36 @@
+# 扁鹊 BianQue CI 流水线（S0 起生效；接入内网 GitLab Runner 后启用）
+# 门禁顺序：密钥扫描 → 后端构建+单测 → 前端构建 → 文档管线校验 → 靶场冒烟
+
+stages:
+  - check
+  - build
+  - verify
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+
+secret-scan:
+  stage: check
+  script:
+    - echo "gitleaks detect --source . --no-git（接入后替换）"
+  allow_failure: false
+
+backend-build:
+  stage: build
+  image: maven:3.9-eclipse-temurin-21
+  script:
+    - cd server && mvn -B -ntp package
+  cache:
+    paths: [ .m2/repository/ ]
+
+frontend-build:
+  stage: build
+  image: node:20
+  script:
+    - cd web && npm ci && npm run build
+
+docs-pipeline:
+  stage: verify
+  image: python:3.12
+  script:
+    - python docs-center/build.py

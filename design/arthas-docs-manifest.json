@@ -1,0 +1,725 @@
+{
+ "unpack_root": "docs/arthas-docs/4.3.5/",
+ "source": "arthas-packaging-4.3.5-doc.zip",
+ "product": "BianQue 扁鹊平台·文档中心",
+ "locale": [
+  "zh-cn",
+  "en"
+ ],
+ "pages": [
+  {
+   "slug": "advanced-use",
+   "title": "其他特性",
+   "category": "平台特性",
+   "zh_path": "doc/advanced-use.html",
+   "en_path": "doc/en/advanced-use.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "advice-class",
+   "title": "表达式核心变量",
+   "category": "表达式与技巧",
+   "zh_path": "doc/advice-class.html",
+   "en_path": "doc/en/advice-class.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "agent",
+   "title": "以 Java Agent 的方式启动",
+   "category": "集成与扩展",
+   "zh_path": "doc/agent.html",
+   "en_path": "doc/en/agent.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "ai",
+   "title": "AI 相关",
+   "category": "集成与扩展",
+   "zh_path": "doc/ai.html",
+   "en_path": "doc/en/ai.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "arthas-properties",
+   "title": "Arthas Properties",
+   "category": "集成与扩展",
+   "zh_path": "doc/arthas-properties.html",
+   "en_path": "doc/en/arthas-properties.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "arthas-tutorials",
+   "title": "Arthas Tutorials",
+   "category": "入门",
+   "zh_path": "doc/arthas-tutorials.html",
+   "en_path": null,
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "arthas3",
+   "title": "arthas",
+   "category": "入门",
+   "zh_path": "doc/arthas3.html",
+   "en_path": null,
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "async",
+   "title": "Arthas 后台异步任务",
+   "category": "平台特性",
+   "zh_path": "doc/async.html",
+   "en_path": "doc/en/async.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "auth",
+   "title": "auth",
+   "category": "鉴权与开关",
+   "zh_path": "doc/auth.html",
+   "en_path": "doc/en/auth.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "base64",
+   "title": "base64",
+   "category": "基础命令",
+   "zh_path": "doc/base64.html",
+   "en_path": "doc/en/base64.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "batch-support",
+   "title": "批处理功能",
+   "category": "集成与扩展",
+   "zh_path": "doc/batch-support.html",
+   "en_path": "doc/en/batch-support.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "cat",
+   "title": "cat",
+   "category": "基础命令",
+   "zh_path": "doc/cat.html",
+   "en_path": "doc/en/cat.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "classloader-metaspace",
+   "title": "classloader-metaspace",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/classloader-metaspace.html",
+   "en_path": "doc/en/classloader-metaspace.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "classloader",
+   "title": "classloader",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/classloader.html",
+   "en_path": "doc/en/classloader.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "cls",
+   "title": "cls",
+   "category": "基础命令",
+   "zh_path": "doc/cls.html",
+   "en_path": "doc/en/cls.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "commands",
+   "title": "命令列表",
+   "category": "平台特性",
+   "zh_path": "doc/commands.html",
+   "en_path": "doc/en/commands.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "contact-us",
+   "title": "联系我们",
+   "category": "入门",
+   "zh_path": "doc/contact-us.html",
+   "en_path": "doc/en/contact-us.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "dashboard",
+   "title": "dashboard",
+   "category": "JVM 相关",
+   "zh_path": "doc/dashboard.html",
+   "en_path": "doc/en/dashboard.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "docker",
+   "title": "Docker",
+   "category": "平台特性",
+   "zh_path": "doc/docker.html",
+   "en_path": "doc/en/docker.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "download",
+   "title": "下载",
+   "category": "入门",
+   "zh_path": "doc/download.html",
+   "en_path": "doc/en/download.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "dump",
+   "title": "dump",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/dump.html",
+   "en_path": "doc/en/dump.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "echo",
+   "title": "echo",
+   "category": "基础命令",
+   "zh_path": "doc/echo.html",
+   "en_path": "doc/en/echo.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "external-command",
+   "title": "加载外部命令",
+   "category": "集成与扩展",
+   "zh_path": "doc/external-command.html",
+   "en_path": "doc/en/external-command.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "faq",
+   "title": "FAQ",
+   "category": "入门",
+   "zh_path": "doc/faq.html",
+   "en_path": "doc/en/faq.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "getstatic",
+   "title": "getstatic",
+   "category": "JVM 相关",
+   "zh_path": "doc/getstatic.html",
+   "en_path": "doc/en/getstatic.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "grep",
+   "title": "grep",
+   "category": "基础命令",
+   "zh_path": "doc/grep.html",
+   "en_path": "doc/en/grep.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "groovy",
+   "title": "Groovy 脚本执行",
+   "category": "集成与扩展",
+   "zh_path": "doc/groovy.html",
+   "en_path": "doc/en/groovy.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "heapdump",
+   "title": "heapdump",
+   "category": "JVM 相关",
+   "zh_path": "doc/heapdump.html",
+   "en_path": "doc/en/heapdump.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "help",
+   "title": "help",
+   "category": "基础命令",
+   "zh_path": "doc/help.html",
+   "en_path": "doc/en/help.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "history",
+   "title": "history",
+   "category": "基础命令",
+   "zh_path": "doc/history.html",
+   "en_path": "doc/en/history.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "http-api",
+   "title": "Http API",
+   "category": "集成与扩展",
+   "zh_path": "doc/http-api.html",
+   "en_path": "doc/en/http-api.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "idea-plugin",
+   "title": "IDEA Plugin",
+   "category": "平台特性",
+   "zh_path": "doc/idea-plugin.html",
+   "en_path": "doc/en/idea-plugin.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "index",
+   "title": "简介",
+   "category": "入门",
+   "zh_path": "doc/index.html",
+   "en_path": "doc/en/index.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "install-detail",
+   "title": "Arthas Install",
+   "category": "入门",
+   "zh_path": "doc/install-detail.html",
+   "en_path": "doc/en/install-detail.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "jad",
+   "title": "jad",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/jad.html",
+   "en_path": "doc/en/jad.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "jfr",
+   "title": "jfr",
+   "category": "性能剖析",
+   "zh_path": "doc/jfr.html",
+   "en_path": "doc/en/jfr.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "jvm",
+   "title": "jvm",
+   "category": "JVM 相关",
+   "zh_path": "doc/jvm.html",
+   "en_path": "doc/en/jvm.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "keymap",
+   "title": "keymap",
+   "category": "基础命令",
+   "zh_path": "doc/keymap.html",
+   "en_path": "doc/en/keymap.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "line",
+   "title": "line",
+   "category": "方法观测",
+   "zh_path": "doc/line.html",
+   "en_path": "doc/en/line.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "logger",
+   "title": "logger",
+   "category": "JVM 相关",
+   "zh_path": "doc/logger.html",
+   "en_path": "doc/en/logger.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "manual-install",
+   "title": "手动安装 Arthas",
+   "category": "入门",
+   "zh_path": "doc/manual-install.html",
+   "en_path": "doc/en/manual-install.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "mbean",
+   "title": "mbean",
+   "category": "JVM 相关",
+   "zh_path": "doc/mbean.html",
+   "en_path": "doc/en/mbean.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "mc",
+   "title": "mc",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/mc.html",
+   "en_path": "doc/en/mc.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "mcp-server",
+   "title": "Arthas MCP Server",
+   "category": "集成与扩展",
+   "zh_path": "doc/mcp-server.html",
+   "en_path": "doc/en/mcp-server.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "memory",
+   "title": "memory",
+   "category": "JVM 相关",
+   "zh_path": "doc/memory.html",
+   "en_path": "doc/en/memory.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "monitor",
+   "title": "monitor",
+   "category": "方法观测",
+   "zh_path": "doc/monitor.html",
+   "en_path": "doc/en/monitor.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "ognl-express",
+   "title": "OGNL 复杂表达式使用技巧",
+   "category": "表达式与技巧",
+   "zh_path": "doc/ognl-express.html",
+   "en_path": "doc/en/ognl-express.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "ognl",
+   "title": "ognl",
+   "category": "JVM 相关",
+   "zh_path": "doc/ognl.html",
+   "en_path": "doc/en/ognl.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "options",
+   "title": "options",
+   "category": "鉴权与开关",
+   "zh_path": "doc/options.html",
+   "en_path": "doc/en/options.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "perfcounter",
+   "title": "perfcounter",
+   "category": "JVM 相关",
+   "zh_path": "doc/perfcounter.html",
+   "en_path": "doc/en/perfcounter.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "profiler",
+   "title": "profiler",
+   "category": "性能剖析",
+   "zh_path": "doc/profiler.html",
+   "en_path": "doc/en/profiler.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "pwd",
+   "title": "pwd",
+   "category": "基础命令",
+   "zh_path": "doc/pwd.html",
+   "en_path": "doc/en/pwd.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "quick-start",
+   "title": "快速入门",
+   "category": "入门",
+   "zh_path": "doc/quick-start.html",
+   "en_path": "doc/en/quick-start.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "quit",
+   "title": "quit",
+   "category": "基础命令",
+   "zh_path": "doc/quit.html",
+   "en_path": "doc/en/quit.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "redefine",
+   "title": "redefine",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/redefine.html",
+   "en_path": "doc/en/redefine.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "release-notes",
+   "title": "Release Notes",
+   "category": "入门",
+   "zh_path": "doc/release-notes.html",
+   "en_path": "doc/en/release-notes.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "reset",
+   "title": "reset",
+   "category": "基础命令",
+   "zh_path": "doc/reset.html",
+   "en_path": "doc/en/reset.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "retransform",
+   "title": "retransform",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/retransform.html",
+   "en_path": "doc/en/retransform.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "save-log",
+   "title": "执行结果存日志",
+   "category": "平台特性",
+   "zh_path": "doc/save-log.html",
+   "en_path": "doc/en/save-log.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "sc",
+   "title": "sc",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/sc.html",
+   "en_path": "doc/en/sc.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "session",
+   "title": "session",
+   "category": "基础命令",
+   "zh_path": "doc/session.html",
+   "en_path": "doc/en/session.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "sm",
+   "title": "sm",
+   "category": "类与 ClassLoader",
+   "zh_path": "doc/sm.html",
+   "en_path": "doc/en/sm.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "spring-boot-starter",
+   "title": "Arthas Spring Boot Starter",
+   "category": "集成与扩展",
+   "zh_path": "doc/spring-boot-starter.html",
+   "en_path": "doc/en/spring-boot-starter.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "stack",
+   "title": "stack",
+   "category": "方法观测",
+   "zh_path": "doc/stack.html",
+   "en_path": "doc/en/stack.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "start-arthas",
+   "title": "启动 Arthas",
+   "category": "入门",
+   "zh_path": "doc/start-arthas.html",
+   "en_path": "doc/en/start-arthas.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "stop",
+   "title": "stop",
+   "category": "基础命令",
+   "zh_path": "doc/stop.html",
+   "en_path": "doc/en/stop.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "sysenv",
+   "title": "sysenv",
+   "category": "JVM 相关",
+   "zh_path": "doc/sysenv.html",
+   "en_path": "doc/en/sysenv.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "sysprop",
+   "title": "sysprop",
+   "category": "JVM 相关",
+   "zh_path": "doc/sysprop.html",
+   "en_path": "doc/en/sysprop.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "tee",
+   "title": "tee",
+   "category": "基础命令",
+   "zh_path": "doc/tee.html",
+   "en_path": "doc/en/tee.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "thread",
+   "title": "thread",
+   "category": "JVM 相关",
+   "zh_path": "doc/thread.html",
+   "en_path": "doc/en/thread.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "trace",
+   "title": "trace",
+   "category": "方法观测",
+   "zh_path": "doc/trace.html",
+   "en_path": "doc/en/trace.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "tt",
+   "title": "tt",
+   "category": "方法观测",
+   "zh_path": "doc/tt.html",
+   "en_path": "doc/en/tt.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "tunnel",
+   "title": "Arthas Tunnel",
+   "category": "集成与扩展",
+   "zh_path": "doc/tunnel.html",
+   "en_path": "doc/en/tunnel.html",
+   "risk": "low",
+   "is_command": false
+  },
+  {
+   "slug": "version",
+   "title": "version",
+   "category": "基础命令",
+   "zh_path": "doc/version.html",
+   "en_path": "doc/en/version.html",
+   "risk": "low",
+   "is_command": true
+  },
+  {
+   "slug": "vmoption",
+   "title": "vmoption",
+   "category": "JVM 相关",
+   "zh_path": "doc/vmoption.html",
+   "en_path": "doc/en/vmoption.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "vmtool",
+   "title": "vmtool",
+   "category": "JVM 相关",
+   "zh_path": "doc/vmtool.html",
+   "en_path": "doc/en/vmtool.html",
+   "risk": "high",
+   "is_command": true
+  },
+  {
+   "slug": "watch",
+   "title": "watch",
+   "category": "方法观测",
+   "zh_path": "doc/watch.html",
+   "en_path": "doc/en/watch.html",
+   "risk": "mid",
+   "is_command": true
+  },
+  {
+   "slug": "web-console",
+   "title": "Web Console",
+   "category": "平台特性",
+   "zh_path": "doc/web-console.html",
+   "en_path": "doc/en/web-console.html",
+   "risk": "low",
+   "is_command": false
+  }
+ ],
+ "categories": [
+  "平台特性",
+  "表达式与技巧",
+  "集成与扩展",
+  "入门",
+  "鉴权与开关",
+  "基础命令",
+  "类与 ClassLoader",
+  "JVM 相关",
+  "性能剖析",
+  "方法观测"
+ ]
+}

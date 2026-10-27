@@ -1,0 +1,920 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>BianQue prototype test</title></head><body style="margin:0;padding:8px"><div id="bianque-proto">
+<style>
+#bianque-proto{
+  --bq-bg: light-dark(#eef1f5, #14161c);
+  --bq-panel: light-dark(#ffffff, #1e222b);
+  --bq-panel2: light-dark(#f2f4f8, #272c37);
+  --bq-text: light-dark(#1c2430, #e8eaf0);
+  --bq-muted: light-dark(#5b6675, #98a1b0);
+  --bq-border: light-dark(#dde2ea, #353b48);
+  --bq-brand: light-dark(#2563eb, #3b82f6);
+  --bq-ok: light-dark(#15803d, #34d399);
+  --bq-warn: light-dark(#b45309, #fbbf24);
+  --bq-danger: light-dark(#dc2626, #f87171);
+  --bq-purple: light-dark(#7c3aed, #a78bfa);
+  --bq-side: light-dark(#1b2735, #10131a);
+  --bq-side-text: #c8d2de;
+  color-scheme: light dark;
+  position: relative;
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", Roboto, "PingFang SC", sans-serif;
+  font-size: 13px; line-height: 1.55; color: var(--bq-text);
+}
+#bianque-proto *{box-sizing:border-box}
+#bianque-proto .lucide{width:15px;height:15px;flex:none}
+.bq-app{display:flex; min-height:660px; background:var(--bq-bg); border:1px solid var(--bq-border); border-radius:14px; overflow:clip}
+/* ---------- sidebar ---------- */
+.bq-side{width:196px; flex:none; background:var(--bq-side); color:var(--bq-side-text); display:flex; flex-direction:column; padding:12px 10px}
+.bq-brand{display:flex; align-items:center; gap:9px; padding:6px 10px 14px; color:#fff; font-weight:600; font-size:14.5px}
+.bq-brand .lucide{width:18px;height:18px;color:#5eead4}
+.bq-brand small{display:block; font-size:10.5px; font-weight:400; color:#8fa0b3}
+.bq-nav-btn{display:flex; align-items:center; gap:9px; width:100%; padding:7px 10px; margin:1px 0; border:0; border-radius:8px; background:transparent; color:var(--bq-side-text); font:inherit; font-size:13px; text-align:left}
+.bq-nav-btn:hover{background:rgba(255,255,255,.07); color:#fff}
+.bq-nav-btn[aria-current="page"]{background:rgba(91,145,246,.28); color:#fff}
+.bq-nav-btn .bq-en{margin-left:auto; font-size:10px; color:#7e8ea1}
+.bq-side-foot{margin-top:auto; padding:10px; border-top:1px solid rgba(255,255,255,.09); display:flex; align-items:center; gap:8px; font-size:12px}
+.bq-ava{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#34d399,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;flex:none}
+/* ---------- main / top ---------- */
+.bq-main{flex:1; min-width:0; display:flex; flex-direction:column}
+.bq-top{display:flex; align-items:center; gap:10px; padding:9px 14px; background:var(--bq-panel); border-bottom:1px solid var(--bq-border)}
+.bq-search{flex:1; max-width:430px; display:flex; align-items:center; gap:7px; background:var(--bq-panel2); border:1px solid var(--bq-border); border-radius:8px; padding:6px 10px; color:var(--bq-muted)}
+.bq-search input{flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--bq-text); font:inherit; font-size:12.5px}
+.bq-kbd{font-size:10.5px; border:1px solid var(--bq-border); border-radius:4px; padding:0 5px; color:var(--bq-muted); background:var(--bq-panel)}
+.bq-badge{display:inline-flex; align-items:center; gap:4px; border-radius:99px; padding:1.5px 9px; font-size:11px; font-weight:500; white-space:nowrap}
+.bq-badge.ok{background:color-mix(in srgb, var(--bq-ok) 14%, transparent); color:var(--bq-ok)}
+.bq-badge.warn{background:color-mix(in srgb, var(--bq-warn) 15%, transparent); color:var(--bq-warn)}
+.bq-badge.danger{background:color-mix(in srgb, var(--bq-danger) 13%, transparent); color:var(--bq-danger)}
+.bq-badge.info{background:color-mix(in srgb, var(--bq-brand) 13%, transparent); color:var(--bq-brand)}
+.bq-badge.purple{background:color-mix(in srgb, var(--bq-purple) 14%, transparent); color:var(--bq-purple)}
+.bq-badge.mut{background:var(--bq-panel2); color:var(--bq-muted)}
+.bq-top .spacer{flex:1}
+/* ---------- views ---------- */
+.bq-view{padding:14px 16px 18px; display:flex; flex-direction:column; gap:12px}
+.bq-view[hidden]{display:none}
+.bq-h{font-size:15px; font-weight:600; margin:0; display:flex; align-items:center; gap:8px}
+.bq-sub{font-size:11.5px; color:var(--bq-muted)}
+.bq-cards{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+.bq-card{background:var(--bq-panel); border:1px solid var(--bq-border); border-radius:11px; padding:11px 13px}
+.bq-card .k{font-size:11.5px; color:var(--bq-muted)}
+.bq-card .v{font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; margin-top:2px}
+.bq-card .d{font-size:11px; color:var(--bq-muted); margin-top:1px}
+.bq-grid{display:grid; gap:12px}
+.g21{grid-template-columns:1.5fr 1fr}
+.g22{grid-template-columns:1fr 1fr}
+.g31{grid-template-columns:198px minmax(0,1.25fr) minmax(0,1fr)}
+.bq-panel-box{background:var(--bq-panel); border:1px solid var(--bq-border); border-radius:11px; padding:12px 13px; min-width:0}
+.bq-panel-box h3{margin:0 0 8px; font-size:13px; font-weight:600}
+.bq-table{width:100%; border-collapse:collapse; font-size:12px}
+.bq-table th{text-align:left; font-weight:500; color:var(--bq-muted); padding:5px 8px; border-bottom:1px solid var(--bq-border); white-space:nowrap}
+.bq-table td{padding:5.5px 8px; border-bottom:1px solid color-mix(in srgb, var(--bq-border) 55%, transparent); vertical-align:top}
+.bq-table tr:last-child td{border-bottom:0}
+.bq-table .num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+.bq-btn{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--bq-border); background:var(--bq-panel); color:var(--bq-text); border-radius:8px; padding:6px 12px; font:inherit; font-size:12.5px}
+.bq-btn.primary{background:var(--bq-brand); border-color:transparent; color:#fff}
+.bq-btn.danger{background:var(--bq-danger); border-color:transparent; color:#fff}
+.bq-btn.ghost{background:transparent}
+.bq-btn:disabled{opacity:.55}
+.bq-code{font-family:ui-monospace, "Cascadia Code", Consolas, monospace; font-size:11.5px; background:var(--bq-panel2); border:1px solid var(--bq-border); border-radius:8px; padding:8px 10px; white-space:pre-wrap; overflow-wrap:anywhere}
+.bq-note{display:flex; gap:8px; align-items:flex-start; border-radius:9px; padding:8px 11px; font-size:12px}
+.bq-note.warn{background:color-mix(in srgb, var(--bq-warn) 11%, transparent); color:var(--bq-warn)}
+.bq-note.info{background:color-mix(in srgb, var(--bq-brand) 9%, transparent); color:var(--bq-brand)}
+.bq-note.danger{background:color-mix(in srgb, var(--bq-danger) 10%, transparent); color:var(--bq-danger)}
+.bq-note.ok{background:color-mix(in srgb, var(--bq-ok) 11%, transparent); color:var(--bq-ok)}
+.bq-chips{display:flex; flex-wrap:wrap; gap:6px}
+.bq-chip{border:1px solid var(--bq-border); background:var(--bq-panel2); border-radius:99px; padding:4px 11px; font:inherit; font-size:12px; color:var(--bq-text)}
+.bq-chip.on{background:color-mix(in srgb, var(--bq-brand) 14%, transparent); border-color:color-mix(in srgb, var(--bq-brand) 45%, transparent); color:var(--bq-brand)}
+.bq-field{display:flex; flex-direction:column; gap:3px; margin-top:8px}
+.bq-field label{font-size:11.5px; color:var(--bq-muted); display:flex; align-items:center; gap:5px}
+.bq-field input,.bq-field select,.bq-field textarea{width:100%; font:inherit; font-size:12.5px; color:var(--bq-text); background:var(--bq-panel2); border:1px solid var(--bq-border); border-radius:7px; padding:6px 9px}
+.bq-field textarea{resize:vertical; min-height:52px}
+.bq-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.bq-row .grow{flex:1; min-width:120px}
+.bq-progress{height:6px; border-radius:99px; background:var(--bq-panel2); overflow:hidden}
+.bq-progress i{display:block; height:100%; border-radius:99px; background:var(--bq-brand); transition:width .5s}
+.bq-tabs{display:flex; gap:4px; border-bottom:1px solid var(--bq-border); margin-bottom:8px}
+.bq-tab{border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--bq-muted); padding:6px 10px; border-bottom:2px solid transparent}
+.bq-tab.on{color:var(--bq-brand); border-bottom-color:var(--bq-brand); font-weight:500}
+.bq-tree-item{display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:7px; font-size:12.5px}
+.bq-tree-item.on{background:color-mix(in srgb, var(--bq-brand) 12%, transparent); color:var(--bq-brand)}
+.bq-dot{width:7px;height:7px;border-radius:50%;flex:none}
+.bq-dot.g{background:var(--bq-ok)} .bq-dot.y{background:var(--bq-warn)} .bq-dot.r{background:var(--bq-danger)}
+.bq-concl{border:1px solid color-mix(in srgb, var(--bq-brand) 35%, transparent); background:color-mix(in srgb, var(--bq-brand) 7%, transparent); border-radius:9px; padding:9px 11px; font-size:12.5px}
+.bq-steps{display:flex; flex-direction:column; gap:7px; font-size:12.5px}
+.bq-step{display:flex; align-items:center; gap:9px}
+.bq-step .st{width:16px;height:16px;border-radius:50%;border:2px solid var(--bq-border);flex:none;display:flex;align-items:center;justify-content:center;font-size:10px}
+.bq-step.done .st{border-color:var(--bq-ok); background:var(--bq-ok); color:#fff}
+.bq-step.run .st{border-color:var(--bq-brand)}
+.bq-chat{display:flex; flex-direction:column; gap:10px}
+.bq-msg{max-width:86%; border-radius:11px; padding:9px 12px; font-size:12.5px}
+.bq-msg.u{align-self:flex-end; background:var(--bq-brand); color:#fff; border-bottom-right-radius:3px}
+.bq-msg.a{align-self:flex-start; background:var(--bq-panel2); border:1px solid var(--bq-border); border-bottom-left-radius:3px}
+.bq-msg details{margin-top:6px; font-size:12px}
+.bq-msg summary{cursor:pointer; color:var(--bq-brand)}
+.bq-flame rect{stroke:var(--bq-bg); stroke-width:.6}
+.bq-docs{display:grid; grid-template-columns:186px 236px minmax(0,1fr); gap:12px; align-items:start}
+.bq-doc-cat{display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left; border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--bq-text); padding:5.5px 9px; border-radius:7px}
+.bq-doc-cat .n{font-size:11px; color:var(--bq-muted)}
+.bq-doc-cat.on{background:color-mix(in srgb, var(--bq-brand) 12%, transparent); color:var(--bq-brand)}
+.bq-doc-item{display:flex; align-items:center; gap:7px; width:100%; text-align:left; border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--bq-text); padding:5px 9px; border-radius:7px}
+.bq-doc-item small{margin-left:auto; font-family:ui-monospace,Consolas,monospace; font-size:10px; color:var(--bq-muted)}
+.bq-doc-item.on{background:color-mix(in srgb, var(--bq-brand) 12%, transparent)}
+.bq-doc-body{font-size:12.5px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:430px; overflow-y:auto}
+.bq-modal{position:absolute; inset:0; background:rgba(9,12,18,.5); display:none; align-items:center; justify-content:center; z-index:60}
+.bq-modal.show{display:flex}
+.bq-modal-box{width:min(430px, 92%); background:var(--bq-panel); border:1px solid var(--bq-border); border-radius:13px; padding:16px; box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.bq-toast{position:absolute; left:50%; bottom:16px; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; z-index:70; align-items:center}
+.bq-toast div{background:var(--bq-side); color:#fff; border-radius:99px; padding:6px 15px; font-size:12px; box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.bq-mono{font-family:ui-monospace,Consolas,monospace; font-size:11px}
+.bq-riskline{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--bq-muted)}
+@media (max-width:960px){
+  .bq-app{flex-direction:column}
+  .bq-side{width:100%; flex-direction:row; flex-wrap:wrap; align-items:center}
+  .bq-brand{padding:4px 8px}
+  .bq-nav-btn{width:auto}
+  .bq-side-foot{margin:0; border:0; padding:4px 8px}
+  .bq-cards{grid-template-columns:repeat(2,1fr)}
+  .g21,.g22,.g31,.bq-docs{grid-template-columns:1fr}
+}
+</style>
+<div class="bq-app">
+  <!-- ============ 侧边导航 ============ -->
+  <aside class="bq-side">
+    <div class="bq-brand">
+      <i data-lucide="activity" aria-hidden="true"></i>
+      <div>扁鹊 BianQue<small>线上诊断平台 · Arthas 4.3.5</small></div>
+    </div>
+    <button class="bq-nav-btn cursor-interaction" data-view="home" aria-current="page"><i data-lucide="layout-dashboard" aria-hidden="true"></i>工作台<span class="bq-en">望</span></button>
+    <button class="bq-nav-btn cursor-interaction" data-view="clinic"><i data-lucide="stethoscope" aria-hidden="true"></i>诊断台<span class="bq-en">切</span></button>
+    <button class="bq-nav-btn cursor-interaction" data-view="alert"><i data-lucide="siren" aria-hidden="true"></i>急诊取证<span class="bq-en">望</span></button>
+    <button class="bq-nav-btn cursor-interaction" data-view="ai"><i data-lucide="bot" aria-hidden="true"></i>AI 问诊<span class="bq-en">问</span></button>
+    <button class="bq-nav-btn cursor-interaction" data-view="atlas"><i data-lucide="archive" aria-hidden="true"></i>资产档案<span class="bq-en">望</span></button>
+    <button class="bq-nav-btn cursor-interaction" data-view="check"><i data-lucide="heart-pulse" aria-hidden="true"></i>巡检体检<span class="bq-en">治未病</span></button>
+    <button class="bq-nav-btn cursor-interaction" data-view="docs"><i data-lucide="book-open" aria-hidden="true"></i>文档中心<span class="bq-en">知识</span></button>
+    <button class="bq-nav-btn cursor-interaction" data-view="audit"><i data-lucide="history" aria-hidden="true"></i>审计中心</button>
+    <button class="bq-nav-btn cursor-interaction" data-view="admin"><i data-lucide="settings" aria-hidden="true"></i>管理设置</button>
+    <div class="bq-side-foot"><span class="bq-ava">张</span><div>张三 · 平台操作员<br><span style="color:#7e8ea1;font-size:11px">已启用 MFA · SSO</span></div></div>
+  </aside>
+
+  <div class="bq-main">
+    <!-- ============ 顶栏 ============ -->
+    <header class="bq-top">
+      <div class="bq-search"><i data-lucide="search" aria-hidden="true"></i><input id="bqSearch" type="text" placeholder="搜索实例 / 模板 / 命令 / 文档…" aria-label="全局搜索"><span class="bq-kbd">Ctrl K</span></div>
+      <span class="bq-badge ok"><span class="bq-dot g"></span>生产环境 · 内网</span>
+      <span class="bq-badge mut">Agent 4.3.5 · 在线 87/93</span>
+      <div class="spacer"></div>
+      <i data-lucide="bell" aria-hidden="true" style="color:var(--bq-muted)"></i>
+    </header>
+
+    <div class="bq-views">
+    <!-- ============ 工作台 ============ -->
+    <section class="bq-view" id="view-home">
+      <div class="bq-cards">
+        <div class="bq-card"><div class="k">监护应用 / 实例</div><div class="v">12 / 87</div><div class="d">tunnel 纳管 · 6 台离线</div></div>
+        <div class="bq-card"><div class="k">今日巡检健康分</div><div class="v">94.2</div><div class="d">82 健康 · 5 需关注</div></div>
+        <div class="bq-card"><div class="k">30 天急诊报告</div><div class="v">27</div><div class="d">平均 38 秒出具现场</div></div>
+        <div class="bq-card"><div class="k">本月高危操作</div><div class="v">2</div><div class="d">均已双人审批 · 全审计</div></div>
+      </div>
+      <div class="bq-grid g21">
+        <div class="bq-panel-box">
+          <h3>应用健康总览</h3>
+          <table class="bq-table"><thead><tr><th>应用</th><th class="num">实例</th><th class="num">健康分</th><th>状态</th><th>最近事件</th></tr></thead><tbody>
+            <tr><td class="bq-mono">order-app</td><td class="num">4</td><td class="num">71</td><td><span class="bq-badge warn">需关注</span></td><td>CPU 96% · 已自动取证</td></tr>
+            <tr><td class="bq-mono">user-app</td><td class="num">6</td><td class="num">83</td><td><span class="bq-badge warn">需关注</span></td><td>Full GC 周期变短</td></tr>
+            <tr><td class="bq-mono">inventory-app</td><td class="num">8</td><td class="num">96</td><td><span class="bq-badge ok">健康</span></td><td>—</td></tr>
+            <tr><td class="bq-mono">gateway</td><td class="num">12</td><td class="num">98</td><td><span class="bq-badge ok">健康</span></td><td>—</td></tr>
+            <tr><td class="bq-mono">member-app</td><td class="num">10</td><td class="num">95</td><td><span class="bq-badge ok">健康</span></td><td>昨日发布 v2.3.0</td></tr>
+          </tbody></table>
+        </div>
+        <div class="bq-panel-box">
+          <h3>今日动态</h3>
+          <div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px">
+            <div class="bq-row"><span class="bq-badge danger">急诊</span>order-app/pod-3 CPU 96%，现场报告已生成（线程阻塞在 inventory 连接池）</div>
+            <div class="bq-row"><span class="bq-badge info">巡检</span>02:00 全量巡检完成：87 实例，5 项指标越界</div>
+            <div class="bq-row"><span class="bq-badge purple">问诊</span>AI 排障会话 2 次，工具调用 14 次，全部只读白名单</div>
+            <div class="bq-row"><span class="bq-badge mut">档案</span>Log4Shell 应急扫描：37/87 实例命中，处置工单已建</div>
+          </div>
+          <div style="margin-top:12px" class="bq-row">
+            <button class="bq-btn primary cursor-interaction" id="bqGoAlert"><i data-lucide="siren" aria-hidden="true"></i>新建取证</button>
+            <button class="bq-btn cursor-interaction" id="bqGoCheck"><i data-lucide="heart-pulse" aria-hidden="true"></i>开始巡检</button>
+            <button class="bq-btn cursor-interaction" id="bqGoDocs"><i data-lucide="book-open" aria-hidden="true"></i>文档中心</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 诊断台 ============ -->
+    <section class="bq-view" id="view-clinic" hidden>
+      <div class="bq-row"><h2 class="bq-h"><i data-lucide="stethoscope" aria-hidden="true"></i>诊断台 · 扁鹊会诊</h2><span class="bq-sub">选实例 → 选场景/表单 → 看结论；命令原文所见即所执行，全程审计</span></div>
+      <div class="bq-grid g31">
+        <div class="bq-panel-box">
+          <h3>应用 / 实例</h3>
+          <div class="bq-tree-item"><span class="bq-dot g"></span><b class="bq-mono">order-app</b></div>
+          <div class="bq-tree-item on">&nbsp;&nbsp;↳ pod-3 · 10.1.2.3<span class="bq-badge info" style="margin-left:auto">会话中</span></div>
+          <div class="bq-tree-item">&nbsp;&nbsp;↳ pod-1 · 10.1.2.1</div>
+          <div class="bq-tree-item">&nbsp;&nbsp;↳ pod-2 · 10.1.2.2</div>
+          <div class="bq-tree-item"><span class="bq-dot g"></span><b class="bq-mono">user-app</b></div>
+          <div class="bq-tree-item"><span class="bq-dot g"></span><b class="bq-mono">inventory-app</b></div>
+          <div class="bq-tree-item"><span class="bq-dot y"></span><b class="bq-mono">report-job</b>（离线）</div>
+        </div>
+        <div class="bq-panel-box">
+          <h3>场景模板</h3>
+          <div class="bq-chips" id="bqTpls">
+            <button class="bq-chip cursor-interaction on" data-tpl="trace">慢接口排查</button>
+            <button class="bq-chip cursor-interaction" data-tpl="watch">接口观测</button>
+            <button class="bq-chip cursor-interaction" data-tpl="tt">慢调用留痕</button>
+            <button class="bq-chip cursor-interaction" data-tpl="thread">CPU 飙高</button>
+            <button class="bq-chip cursor-interaction" data-tpl="memory">内存水位</button>
+          </div>
+          <h3 style="margin-top:12px">命令构建（表单化，免记忆语法）</h3>
+          <div class="bq-field"><label>诊断命令</label>
+            <select id="bqFam">
+              <option value="trace" selected>trace · 调用链耗时（中风险）</option>
+              <option value="watch">watch · 方法观测（中风险）</option>
+              <option value="tt">tt · 时光隧道记录（中风险）</option>
+              <option value="thread">thread · 线程栈（低风险）</option>
+              <option value="dashboard">dashboard · 实时面板（低风险）</option>
+              <option value="memory">memory · 内存视图（低风险）</option>
+              <option value="profiler">profiler · 火焰图采样（中风险）</option>
+              <option value="ognl">ognl · 运行时表达式（高危）</option>
+            </select>
+          </div>
+          <div id="bqFields"></div>
+          <details style="margin-top:8px"><summary class="bq-sub" style="cursor:pointer">高级参数（限次 / 超时 / 异步）</summary>
+            <div class="bq-field"><label>执行超时（秒，防增强开销失控）</label><input value="60" inputmode="numeric"></div>
+            <div class="bq-field"><label>结果最大条数 -n</label><input value="100" inputmode="numeric"></div>
+          </details>
+          <div class="bq-code" id="bqCmd" style="margin-top:10px"></div>
+          <div class="bq-riskline" style="margin-top:7px"><span id="bqRisk"></span><span>· 文档：</span><button class="bq-btn ghost cursor-interaction" id="bqCmdDoc" style="padding:2px 8px;font-size:11.5px">在文档中心查看</button></div>
+          <div class="bq-row" style="margin-top:10px">
+            <button class="bq-btn primary cursor-interaction" id="bqExec"><i data-lucide="play" aria-hidden="true"></i>执行诊断</button>
+            <button class="bq-btn cursor-interaction" id="bqSaveTpl"><i data-lucide="copy" aria-hidden="true"></i>保存为团队模板</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+          <div class="bq-panel-box">
+            <h3 class="bq-row">诊断会话 <span class="bq-badge info" style="margin-left:auto">order-app / pod-3</span></h3>
+            <div class="bq-row" style="font-size:12px"><i data-lucide="timer" aria-hidden="true"></i>剩余 <b id="bqSessTime" class="bq-mono">29:41</b><span class="bq-sub">超时自动 reset + stop（防增强残留）</span></div>
+            <div class="bq-progress" style="margin-top:6px" role="progressbar" aria-label="会话剩余时间"><i id="bqSessBar" style="width:82%"></i></div>
+            <div class="bq-row" style="margin-top:9px">
+              <button class="bq-btn cursor-interaction" id="bqSessStop"><i data-lucide="square" aria-hidden="true"></i>结束并重置</button>
+              <span class="bq-sub">会话由平台托管，离开页面不残留</span>
+            </div>
+          </div>
+          <div class="bq-panel-box">
+            <div class="bq-tabs" role="tablist" aria-label="诊断结果">
+              <button class="bq-tab cursor-interaction on" data-pane="concl" role="tab" aria-selected="true">智能结论</button>
+              <button class="bq-tab cursor-interaction" data-pane="viz" role="tab" aria-selected="false">可视化</button>
+              <button class="bq-tab cursor-interaction" data-pane="raw" role="tab" aria-selected="false">原始输出</button>
+            </div>
+            <div id="bqRunStat" aria-live="polite" class="bq-sub" style="margin-bottom:6px">就绪 · 最近一次：trace 执行成功（1.2s）</div>
+            <div id="bqPane-concl">
+              <div class="bq-concl"><b>疑似结论：</b>placeOrder 慢因下游 inventory 客户端获取连接阻塞 —— <span class="bq-mono">InventoryClient.borrowObject</span> 占比 68%（P99 4.2s），连接池 max 50 已打满。</div>
+              <div class="bq-code" style="margin-top:8px">trace com.bianque.order.OrderService placeOrder '#cost&gt;100'
+├─ OrderService:placeOrder  4,213ms
+│  ├─ InventoryClient:borrow  2,880ms  ██ 68%
+│  ├─ OrderDao:insert           640ms  ██ 15%
+│  └─ PayClient:precreate       560ms  ██ 13%</div>
+              <div class="bq-note info" style="margin-top:8px"><i data-lucide="zap" aria-hidden="true"></i>建议动作：扩容 inventory 连接池并观察；一键跳转「慢调用留痕 tt」留存现场。</div>
+            </div>
+            <div id="bqPane-viz" hidden>
+              <div class="bq-sub" style="margin-bottom:5px">CPU 火焰图（async-profiler，30s 采样窗口）— 悬停查看栈帧</div>
+              <div id="bqFlame"></div>
+            </div>
+            <div id="bqPane-raw" hidden>
+              <div class="bq-code">thread -n 3
+"OrderWorker-7" Id=142 CPU 96.4% WAITING on java.util.concurrent.LinkedBlockingQueue@5f3b2a
+    at java.util.concurrent.LinkedBlockingQueue.take(...)
+    at com.bianque.order.OrderWorker.run(OrderWorker.java:88)
+"Inventory-pool-fetch" Id=207 CPU 0.8% TIMED_WAITING
+    at com.bianque.inventory.InventoryClient.borrowObject(InventoryClient.java:132)
+"GC task thread" Id=31 CPU 41.2%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 急诊取证 ============ -->
+    <section class="bq-view" id="view-alert" hidden>
+      <div class="bq-row"><h2 class="bq-h"><i data-lucide="siren" aria-hidden="true"></i>急诊 · 告警联动取证</h2><span class="bq-sub">Webhook 接入 Prometheus / Grafana / Zabbix · 告警 60 秒内自动出具现场报告</span></div>
+      <div class="bq-note info"><i data-lucide="check" aria-hidden="true"></i>接入状态：Prometheus ✓ · Grafana ✓ · Zabbix ✓ · 限频规则：同一进程 5 分钟 1 次；heapdump 默认关闭，需单独审批并加密落盘。</div>
+      <div class="bq-grid g22">
+        <div class="bq-panel-box">
+          <h3 class="bq-row">活动告警 <span class="bq-badge danger" style="margin-left:auto">3 条</span></h3>
+          <table class="bq-table"><thead><tr><th>时间</th><th>应用 / 实例</th><th>告警</th><th></th></tr></thead><tbody>
+            <tr><td class="num">14:31</td><td class="bq-mono">order-app/pod-3</td><td>CPU 96%<span class="bq-badge danger" style="margin-left:5px">严重</span></td><td><button class="bq-btn primary cursor-interaction bqRescue" data-alert="0" style="padding:3px 10px">一键取证</button></td></tr>
+            <tr><td class="num">14:12</td><td class="bq-mono">user-app/inst-2</td><td>Full GC 频繁</td><td><button class="bq-btn cursor-interaction bqRescue" data-alert="1" style="padding:3px 10px">一键取证</button></td></tr>
+            <tr><td class="num">13:58</td><td class="bq-mono">gateway/edge-1</td><td>5xx 比例 3.2%</td><td><button class="bq-btn cursor-interaction bqRescue" data-alert="2" style="padding:3px 10px">一键取证</button></td></tr>
+          </tbody></table>
+          <div id="bqPipe" style="margin-top:10px" hidden>
+            <div class="bq-steps" id="bqPipeSteps">
+              <div class="bq-step" data-s="0"><span class="st">1</span>attach 目标进程（--select 自动识别，错峰延迟已跳过）</div>
+              <div class="bq-step" data-s="1"><span class="st">2</span>thread -n 5 / thread -b（死锁检测）</div>
+              <div class="bq-step" data-s="2"><span class="st">3</span>memory / jvm / GC 统计</div>
+              <div class="bq-step" data-s="3"><span class="st">4</span>profiler 采样 30s 生成火焰图</div>
+              <div class="bq-step" data-s="4"><span class="st">5</span>渲染结构化现场报告 + 推送值班群</div>
+            </div>
+          </div>
+        </div>
+        <div class="bq-panel-box" id="bqReport" hidden>
+          <h3 class="bq-row">现场报告 · order-app/pod-3 <span class="bq-badge ok" style="margin-left:auto">38 秒出具</span></h3>
+          <div class="bq-concl"><b>疑似结论：</b>200 个业务线程 WAITING，阻塞在 <span class="bq-mono">inventory 连接池获取</span>；触发源为 14:30 上游批量导出任务放大调用量。</div>
+          <table class="bq-table" style="margin-top:8px"><thead><tr><th>线程 TOP</th><th class="num">CPU</th><th>状态</th></tr></thead><tbody>
+            <tr><td class="bq-mono">OrderWorker-7 → LinkedBlockingQueue.take</td><td class="num">96.4%</td><td><span class="bq-badge warn">WAITING</span></td></tr>
+            <tr><td class="bq-mono">Inventory-pool-fetch → borrowObject:132</td><td class="num">0.8%</td><td><span class="bq-badge warn">TIMED_WAITING</span></td></tr>
+            <tr><td class="bq-mono">RMI Scheduler(0)</td><td class="num">0.1%</td><td><span class="bq-badge mut">TIMED_WAITING</span></td></tr>
+          </tbody></table>
+          <div class="bq-field" style="margin-top:8px"><label>内存水位</label>
+            <div class="bq-row" style="font-size:11.5px;gap:6px"><span style="width:86px" class="bq-mono">old gen</span><div class="bq-progress grow"><i style="width:87%;background:var(--bq-warn)"></i></div><b class="num">87%</b></div>
+            <div class="bq-row" style="font-size:11.5px;gap:6px"><span style="width:86px" class="bq-mono">metaspace</span><div class="bq-progress grow"><i style="width:64%"></i></div><b class="num">64%</b></div>
+            <div class="bq-row" style="font-size:11.5px;gap:6px"><span style="width:86px" class="bq-mono">young GC</span><div class="bq-progress grow"><i style="width:22%"></i></div><b class="num">142 次/h</b></div>
+          </div>
+          <div class="bq-row" style="margin-top:10px">
+            <button class="bq-btn cursor-interaction" id="bqReportExport"><i data-lucide="copy" aria-hidden="true"></i>导出 HTML 报告</button>
+            <button class="bq-btn cursor-interaction" id="bqReportPush"><i data-lucide="bell" aria-hidden="true"></i>推送值班群</button>
+            <span class="bq-sub">heapdump 未执行（默认关闭）</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ AI 问诊 ============ -->
+    <section class="bq-view" id="view-ai" hidden>
+      <div class="bq-row"><h2 class="bq-h"><i data-lucide="bot" aria-hidden="true"></i>问诊 · Diag Copilot</h2><span class="bq-sub">基于 Arthas 4.3.5 内置 MCP Server（29 个诊断工具 · Streamable HTTP · Bearer Token）</span></div>
+      <div class="bq-grid g21">
+        <div class="bq-panel-box">
+          <div class="bq-chat">
+            <div class="bq-msg u">帮我看看 order-app 在 pod-3 上为什么响应慢？</div>
+            <div class="bq-msg a">好的，我按「慢接口」SOP 采集一线数据（只读白名单）：
+              <details open><summary>工具调用时间线（4 次，可展开）</summary>
+                <div class="bq-steps" style="margin-top:6px">
+                  <div class="bq-step done"><span class="st">✓</span>dashboard(order-app/pod-3) → CPU 96%，线程 412</div>
+                  <div class="bq-step done"><span class="st">✓</span>thread -n 3 → OrderWorker 阻塞在连接池获取</div>
+                  <div class="bq-step done"><span class="st">✓</span>trace *OrderService placeOrder '#cost&gt;100' → borrowObject 占 68%</div>
+                  <div class="bq-step done"><span class="st">✓</span>memory → old gen 87%（未见泄漏斜率）</div>
+                </div>
+              </details>
+              <div style="margin-top:8px"><b>结论：</b>下游 inventory 连接池打满导致慢调用（证据链见上）；建议扩容池参数，或由我生成 tt 留痕任务（需你确认后执行）。</div>
+            </div>
+            <div class="bq-msg a" style="border-color:color-mix(in srgb, var(--bq-danger) 40%, transparent)"><b>已拦截</b>：模型尝试调用 <span class="bq-mono">ognl '@System@exit(0)'</span> —— 命中高危黑名单，已阻断并写入审计。</div>
+            <div class="bq-row"><div class="bq-search grow" style="max-width:none"><input type="text" placeholder="演示环境：输入问题体验 SOP 引导…" aria-label="问诊输入" disabled><span class="bq-kbd">Enter</span></div></div>
+          </div>
+        </div>
+        <div class="bq-panel-box">
+          <h3>平台版 MCP 网关</h3>
+          <div class="bq-code">POST /mcp   (Streamable HTTP)
+Authorization: Bearer ••••••••
+工具：list_apps / pick_process / 29 项诊断工具转发</div>
+          <div class="bq-note warn" style="margin-top:9px"><i data-lucide="shield" aria-hidden="true"></i>安全：仅转发只读白名单命令 · 每步审计 · 高危动作人工确认 · 会话限流</div>
+          <h3 style="margin-top:12px">个人版（零开发起步）</h3>
+          <div class="bq-sub">在 AI 编程助手中配置本机 MCP 端点即可对话排障：</div>
+          <div class="bq-code" style="margin-top:6px">http://127.0.0.1:8563/mcp</div>
+          <button class="bq-btn cursor-interaction" id="bqMcpCopy" style="margin-top:8px"><i data-lucide="copy" aria-hidden="true"></i>复制端点配置</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 资产档案 ============ -->
+    <section class="bq-view" id="view-atlas" hidden>
+      <div class="bq-row"><h2 class="bq-h"><i data-lucide="archive" aria-hidden="true"></i>档案 · RuntimeAtlas 运行时资产盘点</h2><span class="bq-sub">盘点进程里真实在跑的类 / 依赖 / 配置；漏洞应急分钟级出命中名单</span></div>
+      <div class="bq-panel-box">
+        <h3>漏洞应急扫描</h3>
+        <div class="bq-row">
+          <div class="bq-field grow"><label>目标类（sc -d）</label><input id="bqScanCls" value="org.apache.logging.log4j.core.lookup.JndiLookup"></div>
+          <div class="bq-field" style="width:170px"><label>范围</label><select><option>全部应用（87 实例）</option><option>order-app（4）</option></select></div>
+          <div class="bq-field" style="width:130px"><label>并发策略</label><select><option>串行分批 ×5</option><option>串行 ×1（最稳）</option></select></div>
+          <div class="bq-field" style="width:auto;justify-content:flex-end"><span>&nbsp;</span><button class="bq-btn primary cursor-interaction" id="bqScanBtn"><i data-lucide="search" aria-hidden="true"></i>开始扫描</button></div>
+        </div>
+        <div id="bqScanProg" style="margin-top:10px" hidden>
+          <div class="bq-row" style="font-size:12px"><span id="bqScanStat" aria-live="polite">扫描中… 0/87</span><div class="bq-progress grow"><i id="bqScanBar" style="width:0%"></i></div></div>
+        </div>
+        <div id="bqScanRes" hidden style="margin-top:12px">
+          <div class="bq-cards" style="grid-template-columns:repeat(3,1fr)">
+            <div class="bq-card"><div class="k">命中实例</div><div class="v">37<span style="font-size:13px;color:var(--bq-muted)"> / 87</span></div></div>
+            <div class="bq-card"><div class="k">含漏洞代码路径</div><div class="v" style="color:var(--bq-danger)">12</div><div class="d">JndiLookup 可达</div></div>
+            <div class="bq-card"><div class="k">扫描耗时</div><div class="v">8m12s</div><div class="d">串行分批 · 零告警</div></div>
+          </div>
+          <table class="bq-table" style="margin-top:10px"><thead><tr><th>实例</th><th>类来源 jar</th><th>ClassLoader</th><th>判定</th></tr></thead><tbody>
+            <tr><td class="bq-mono">order-app/pod-3</td><td class="bq-mono">log4j-core-2.14.1.jar</td><td class="bq-mono">SpringBoot LaunchedURL</td><td><span class="bq-badge danger">漏洞路径可达</span></td></tr>
+            <tr><td class="bq-mono">user-app/inst-2</td><td class="bq-mono">log4j-core-2.17.1.jar</td><td class="bq-mono">AppClassLoader</td><td><span class="bq-badge ok">已修复版本</span></td></tr>
+            <tr><td class="bq-mono">gateway/edge-1</td><td class="bq-mono">log4j-core-2.14.1.jar</td><td class="bq-mono">AppClassLoader</td><td><span class="bq-badge warn">存在但未启用 lookup</span></td></tr>
+          </tbody></table>
+          <div class="bq-row" style="margin-top:10px">
+            <button class="bq-btn primary cursor-interaction" id="bqAtlasExport"><i data-lucide="copy" aria-hidden="true"></i>导出台账</button>
+            <button class="bq-btn cursor-interaction" id="bqAtlasTicket">加入处置工单（12 实例）</button>
+          </div>
+        </div>
+      </div>
+      <div class="bq-note info"><i data-lucide="shield" aria-hidden="true"></i>与 SBOM 互补：构建清单≠运行时现实；本扫描基于 JVM 内存真相（sc -d / classloader -l / jad 抽查比对）。</div>
+    </section>
+
+    <!-- ============ 巡检体检 ============ -->
+    <section class="bq-view" id="view-check" hidden>
+      <div class="bq-row"><h2 class="bq-h"><i data-lucide="heart-pulse" aria-hidden="true"></i>体检 · 定时巡检与健康评分</h2><span class="bq-sub">只读命令集合 · 阈值打分 · 连续劣化预警</span></div>
+      <div class="bq-grid g22">
+        <div class="bq-panel-box">
+          <h3 class="bq-row">巡检计划 <span class="bq-badge info" style="margin-left:auto">每日 02:00 错峰窗口</span></h3>
+          <div class="bq-sub">巡检项：jvm / memory（老年代·元空间）/ GC 次数耗时 / thread（总数·死锁·BLOCKED 占比）/ classloader（类数量异常增长）/ CPU 采样</div>
+          <div style="margin-top:10px"><div class="bq-sub" style="margin-bottom:4px">健康分趋势（近 7 日）</div><div id="bqSpark"></div></div>
+        </div>
+        <div class="bq-panel-box">
+          <h3>最近一次巡检 · 需关注实例</h3>
+          <table class="bq-table"><thead><tr><th>实例</th><th class="num">健康分</th><th>扣分项</th></tr></thead><tbody>
+            <tr><td class="bq-mono">order-app/pod-3</td><td class="num">71</td><td>线程数周环比 +40%；CPU 峰值 96%</td></tr>
+            <tr><td class="bq-mono">user-app/inst-2</td><td class="num">83</td><td>Full GC 4 次/h（基线 0.5）</td></tr>
+            <tr><td class="bq-mono">batch-job/runner-1</td><td class="num">86</td><td>类数量 30 日 +21%（疑似泄漏）</td></tr>
+          </tbody></table>
+          <div class="bq-note ok" style="margin-top:9px"><i data-lucide="check" aria-hidden="true"></i>昨日巡检已推送企微：87 实例 · 82 健康 · 5 需关注（附趋势报表）。</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 文档中心 ============ -->
+    <section class="bq-view" id="view-docs" hidden>
+      <div class="bq-row">
+        <h2 class="bq-h"><i data-lucide="book-open" aria-hidden="true"></i>文档中心</h2>
+        <span class="bq-badge info">Arthas 4.3.5 官方文档 · 离线全站</span>
+        <span class="bq-badge mut">78 页 · 中/EN · 版本锚定 /docs/4.3.5/</span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="bq-chip cursor-interaction on" data-lang="zh">中文</button>
+        <button class="bq-chip cursor-interaction" data-lang="en">English</button>
+      </div>
+      <div class="bq-search" style="max-width:none"><i data-lucide="search" aria-hidden="true"></i><input id="bqDocSearch" type="text" placeholder="搜索文档：标题 / 命令名，如 watch、tunnel、mcp、认证…" aria-label="搜索文档"></div>
+      <div class="bq-docs">
+        <div class="bq-panel-box" id="bqDocCats"></div>
+        <div class="bq-panel-box" id="bqDocList"></div>
+        <div class="bq-panel-box">
+          <div class="bq-row"><h3 id="bqDocTitle" style="margin:0">watch</h3><span id="bqDocRisk" style="margin-left:6px"></span><span class="bq-sub" style="margin-left:auto" id="bqDocPath"></span></div>
+          <div class="bq-doc-body" id="bqDocBody" aria-live="polite"></div>
+          <div class="bq-row" style="margin-top:10px">
+            <button class="bq-btn primary cursor-interaction" id="bqDocUse"><i data-lucide="play" aria-hidden="true"></i>在诊断台使用此命令</button>
+            <button class="bq-btn cursor-interaction" id="bqDocCopy"><i data-lucide="copy" aria-hidden="true"></i>复制相对路径</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 审计中心 ============ -->
+    <section class="bq-view" id="view-audit" hidden>
+      <div class="bq-row"><h2 class="bq-h"><i data-lucide="history" aria-hidden="true"></i>审计中心</h2><span class="bq-sub">谁 · 何时 · 对哪个实例 · 执行了什么 · 返回了什么 —— 追加写 + 哈希链防篡改</span></div>
+      <div class="bq-row">
+        <select id="bqAuditSrc" style="font:inherit;font-size:12.5px;padding:6px 9px;border-radius:8px;border:1px solid var(--bq-border);background:var(--bq-panel2);color:var(--bq-text)" aria-label="来源筛选"><option value="">全部来源</option><option>人工</option><option>急诊</option><option>AI 问诊</option><option>系统</option></select>
+        <input id="bqAuditWho" placeholder="按操作人过滤…" style="font:inherit;font-size:12.5px;padding:6px 9px;border-radius:8px;border:1px solid var(--bq-border);background:var(--bq-panel2);color:var(--bq-text);width:180px" aria-label="操作人筛选">
+        <div class="spacer" style="flex:1"></div>
+        <button class="bq-btn cursor-interaction" id="bqAuditExport"><i data-lucide="copy" aria-hidden="true"></i>导出（需二级审批）</button>
+      </div>
+      <div class="bq-panel-box">
+        <table class="bq-table"><thead><tr><th>时间</th><th>来源</th><th>操作人</th><th>实例</th><th>命令 / 动作</th><th class="num">耗时</th><th>结果</th></tr></thead><tbody id="bqAuditBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- ============ 管理设置 ============ -->
+    <section class="bq-view" id="view-admin" hidden>
+      <div class="bq-row"><h2 class="bq-h"><i data-lucide="settings" aria-hidden="true"></i>管理设置</h2><span class="bq-sub">Agent 安装向导 · 安全基线模板 · 权限矩阵</span></div>
+      <div class="bq-grid g22">
+        <div class="bq-panel-box">
+          <h3>Agent 安装向导（免安装 · 解压即用）</h3>
+          <div class="bq-sub" style="margin-bottom:5px">Linux（systemd 常驻 + tunnel 纳管）</div>
+          <div class="bq-code" id="bqInstallLinux">unzip arthas-packaging-4.3.5-bin.zip -d /opt/arthas
+./as.sh --tunnel-server ws://bq-center:7777/ws \
+  --agent-id $(hostname)-$UUID --app-name order-app \
+  --attach-only --execution-timeout 60
+# systemd: Restart=always（异常自愈）</div>
+          <div class="bq-sub" style="margin:8px 0 5px">Windows（as-service.bat 注册服务）</div>
+          <div class="bq-code" id="bqInstallWin">as-service.bat --service --tunnel-server ws://bq-center:7777/ws --app-name order-app</div>
+          <div class="bq-row" style="margin-top:8px">
+            <button class="bq-btn cursor-interaction" data-copy="bqInstallLinux"><i data-lucide="copy" aria-hidden="true"></i>复制 Linux</button>
+            <button class="bq-btn cursor-interaction" data-copy="bqInstallWin"><i data-lucide="copy" aria-hidden="true"></i>复制 Windows</button>
+          </div>
+        </div>
+        <div class="bq-panel-box">
+          <h3>arthas.properties 安全基线模板（平台统一下发）</h3>
+          <div class="bq-code" id="bqProps">arthas.username=bq-agent
+arthas.password=****（vault 注入）
+arthas.telnetPortToBind=127.0.0.1
+arthas.httpPortToBind=127.0.0.1
+arthas.disabledCommands=ognl,redefine,retransform
+arthas.sessionTimeout=1800
+arthas.tunnelServer=ws://bq-center:7777/ws
+arthas.appName=order-app</div>
+          <div class="bq-row" style="margin-top:8px">
+            <button class="bq-btn cursor-interaction" data-copy="bqProps"><i data-lucide="copy" aria-hidden="true"></i>复制配置</button>
+            <span class="bq-sub">远程端口绝不裸绑公网 · 会话 30 分钟兜底</span>
+          </div>
+        </div>
+      </div>
+      <div class="bq-grid g22">
+        <div class="bq-panel-box">
+          <h3>RBAC 权限矩阵（应用 × 命令族 × 角色）</h3>
+          <table class="bq-table"><thead><tr><th>命令族</th><th>观察者</th><th>操作员</th><th>审批人</th><th>管理员</th></tr></thead><tbody>
+            <tr><td>观测类 dashboard/jvm/memory/thread…</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+            <tr><td>增强观测 watch/trace/tt/monitor</td><td>—</td><td>✓</td><td>✓</td><td>✓</td></tr>
+            <tr><td>剖析 profiler/jfr</td><td>—</td><td>✓</td><td>✓</td><td>✓</td></tr>
+            <tr><td>运行时操控 ognl/vmtool/logger/sysprop 写</td><td>—</td><td>—</td><td>审批</td><td>✓</td></tr>
+            <tr><td>热修改 redefine/retransform/mc</td><td>—</td><td>—</td><td>—</td><td>审批</td></tr>
+            <tr><td>数据导出 heapdump / 报告导出</td><td>—</td><td>申请</td><td>审批</td><td>✓</td></tr>
+          </tbody></table>
+        </div>
+        <div class="bq-panel-box">
+          <h3>安全基线（发布门禁）</h3>
+          <div style="display:flex;flex-direction:column;gap:7px;font-size:12.5px">
+            <div class="bq-row"><i data-lucide="check" aria-hidden="true" style="color:var(--bq-ok)"></i>全部 agent 默认 127.0.0.1 绑定 + 强制认证 + 命令黑名单生效</div>
+            <div class="bq-row"><i data-lucide="check" aria-hidden="true" style="color:var(--bq-ok)"></i>高危命令无 UI 直达路径，必须双人审批（渗透用例覆盖）</div>
+            <div class="bq-row"><i data-lucide="check" aria-hidden="true" style="color:var(--bq-ok)"></i>审计抽样可完整还原操作链；日志追加写 + 哈希链</div>
+            <div class="bq-row"><i data-lucide="check" aria-hidden="true" style="color:var(--bq-ok)"></i>会话超时后目标进程验证无增强残留（reset 验证）</div>
+            <div class="bq-row"><i data-lucide="check" aria-hidden="true" style="color:var(--bq-ok)"></i>文档中心断网演练通过；heapdump 加密 + 7 天强制清理</div>
+          </div>
+        </div>
+      </div>
+    </section>
+    </div>
+  </div>
+</div>
+
+<!-- 高危操作确认弹层 -->
+<div class="bq-modal" id="bqModal" role="dialog" aria-modal="true" aria-labelledby="bqModalTitle">
+  <div class="bq-modal-box">
+    <h3 id="bqModalTitle" style="margin:0 0 6px;color:var(--bq-danger)">高危操作确认</h3>
+    <div id="bqModalBody" style="font-size:12.5px"></div>
+    <div class="bq-field" style="margin-top:10px"><label>请输入目标应用名 <b>order-app</b> 以确认</label><input id="bqModalInput" autocomplete="off"></div>
+    <div class="bq-row" style="margin-top:12px;justify-content:flex-end">
+      <button class="bq-btn cursor-interaction" id="bqModalCancel">取消</button>
+      <button class="bq-btn danger cursor-interaction" id="bqModalOk">确认执行（双人审批 + 审计）</button>
+    </div>
+  </div>
+</div>
+<div class="bq-toast" id="bqToast" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+var ROOT=document.getElementById("bianque-proto");
+function $(s){return ROOT.querySelector(s);}
+function $$(s){return Array.prototype.slice.call(ROOT.querySelectorAll(s));}
+
+/* ---------- 视图切换 ---------- */
+function showView(name){
+  $$(".bq-view").forEach(function(v){v.hidden=(v.id!=="view-"+name);});
+  $$(".bq-nav-btn").forEach(function(b){
+    if(b.dataset.view===name){b.setAttribute("aria-current","page");}
+    else{b.removeAttribute("aria-current");}
+  });
+}
+$$(".bq-nav-btn").forEach(function(b){b.addEventListener("click",function(){showView(b.dataset.view);});});
+$("#bqGoAlert").addEventListener("click",function(){showView("alert");});
+$("#bqGoCheck").addEventListener("click",function(){showView("check");});
+$("#bqGoDocs").addEventListener("click",function(){showView("docs");});
+
+/* ---------- toast / copy ---------- */
+function toast(msg){
+  var t=document.createElement("div"); t.textContent=msg; $("#bqToast").appendChild(t);
+  setTimeout(function(){t.remove();},2600);
+}
+function copyText(text,label){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){toast("已复制"+(label||""));},function(){toast("复制失败，请手动选择复制");});
+  }else{toast("复制失败，请手动选择复制");}
+}
+
+/* ---------- 命令构建器 ---------- */
+var FAM={
+  trace:{cls:"com.bianque.order.OrderService",mtd:"placeOrder",risk:"mid",slug:"trace"},
+  watch:{cls:"com.bianque.order.OrderService",mtd:"placeOrder",risk:"mid",slug:"watch"},
+  tt:{cls:"com.bianque.order.OrderService",mtd:"placeOrder",risk:"mid",slug:"tt"},
+  thread:{risk:"low",slug:"thread"},
+  dashboard:{risk:"low",slug:"dashboard"},
+  memory:{risk:"low",slug:"memory"},
+  profiler:{risk:"mid",slug:"profiler"},
+  ognl:{risk:"high",slug:"ognl"}
+};
+var RISK={low:["低风险 · 只读","ok"],mid:["中风险 · 字节码增强/采样，限次限频","warn"],high:["高危 · 需双人审批，默认黑名单","danger"]};
+var TPL={
+  trace:["trace","com.bianque.order.OrderService","placeOrder","#cost>100"],
+  watch:["watch","com.bianque.order.OrderService","placeOrder",""],
+  tt:["tt","com.bianque.order.OrderService","placeOrder",""],
+  thread:["thread","","",""],
+  memory:["memory","","",""]
+};
+var famEl=$("#bqFam"),fieldsEl=$("#bqFields"),cmdEl=$("#bqCmd"),riskEl=$("#bqRisk");
+function fieldRow(id,label,val,ph){
+  return '<div class="bq-field"><label>'+label+'</label><input id="'+id+'" value="'+val+'" placeholder="'+(ph||"")+'"></div>';
+}
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function renderFields(){
+  var f=FAM[famEl.value],h="";
+  if(f.cls!==undefined){h+=fieldRow("bqF-cls","类名表达式（class-pattern）",f.cls,"支持通配 *");}
+  if(f.mtd!==undefined){h+=fieldRow("bqF-mtd","方法名表达式（method-pattern）",f.mtd,"");}
+  if(famEl.value==="watch"){h+=fieldRow("bqF-exp","观察表达式","{params,returnObj,throwExp}","默认观察入参/返回值/异常");}
+  if(famEl.value==="trace"||famEl.value==="watch"){h+=fieldRow("bqF-cond","条件表达式（可选）",famEl.value==="trace"?"#cost>100":"","如 #cost>100，仅记录慢调用");}
+  if(famEl.value==="thread"){h+='<div class="bq-field"><label>观测模式</label><select id="bqF-mode"><option value="top">最忙 N 线程（-n 3）</option><option value="blocked">死锁 / 阻塞定位（-b）</option><option value="all">全部线程栈（--all）</option></select></div>';}
+  if(famEl.value==="profiler"){h+='<div class="bq-field"><label>采样事件</label><select id="bqF-ev"><option>cpu</option><option>alloc</option><option>lock</option></select></div>';}
+  if(famEl.value==="ognl"){h+='<div class="bq-field"><label>OGNL 表达式（高危，静态审核器将拦截副作用）</label><textarea id="bqF-expr">@com.bianque.config.AppConfig@getInstance().refresh()</textarea></div>';}
+  fieldsEl.innerHTML=h;
+  ["bqF-cls","bqF-mtd","bqF-exp","bqF-cond","bqF-expr"].forEach(function(id){
+    var el=$("#"+id); if(el){el.addEventListener("input",genCmd);}
+  });
+  var ev=$("#bqF-ev"); if(ev){ev.addEventListener("change",genCmd);}
+  var md2=$("#bqF-mode"); if(md2){md2.addEventListener("change",genCmd);}
+  genCmd();
+}
+function genCmd(){
+  var v=famEl.value,c="",cls=$("#bqF-cls"),mtd=$("#bqF-mtd");
+  if(v==="trace"){c="trace "+(cls?cls.value:"")+" "+(mtd?mtd.value:"")+( $("#bqF-cond")&&$("#bqF-cond").value?" '"+$("#bqF-cond").value+"'":"");}
+  else if(v==="watch"){c="watch "+(cls?cls.value:"")+" "+(mtd?mtd.value:"")+" '"+(($("#bqF-exp")&&$("#bqF-exp").value)||"{params,returnObj,throwExp}")+"'"+(($("#bqF-cond")&&$("#bqF-cond").value)?" '"+$("#bqF-cond").value+"'":"")+" -n 100";}
+  else if(v==="tt"){c="tt -t "+(cls?cls.value:"")+" "+(mtd?mtd.value:"")+" -n 20";}
+  else if(v==="thread"){var md=$("#bqF-mode"); c=md?(md.value==="blocked"?"thread -b":(md.value==="all"?"thread --all":"thread -n 3")):"thread -n 3";}
+  else if(v==="dashboard"){c="dashboard -n 1";}
+  else if(v==="memory"){c="memory";}
+  else if(v==="profiler"){c="profiler start --event "+($("#bqF-ev")?$("#bqF-ev").value:"cpu")+" -d 30 -f flame.html";}
+  else if(v==="ognl"){c="ognl "+(($("#bqF-expr")&&$("#bqF-expr").value.trim())||"…");}
+  cmdEl.textContent=c;
+  var r=RISK[FAM[v].risk];
+  riskEl.innerHTML='<span class="bq-badge '+r[1]+'">'+r[0]+'</span>';
+}
+famEl.addEventListener("change",renderFields);
+renderFields();
+$$(".bq-chip[data-tpl]").forEach(function(ch){
+  ch.addEventListener("click",function(){
+    $$(".bq-chip[data-tpl]").forEach(function(x){x.classList.remove("on");});
+    ch.classList.add("on");
+    var t=TPL[ch.dataset.tpl];
+    famEl.value=t[0]; renderFields();
+    if(t[1]){var c=$("#bqF-cls");if(c)c.value=t[1];}
+    if(t[2]){var m=$("#bqF-mtd");if(m)m.value=t[2];}
+    if(t[3]){var cd=$("#bqF-cond");if(cd)cd.value=t[3];}
+    genCmd();
+    toast("已填充模板："+ch.textContent);
+  });
+});
+$("#bqSaveTpl").addEventListener("click",function(){toast("已保存为团队模板（进入模板审核流）");});
+$("#bqCmdDoc").addEventListener("click",function(){openDoc(FAM[famEl.value].slug);});
+
+/* ---------- 结果 Tabs ---------- */
+$$(".bq-tab").forEach(function(t){
+  t.addEventListener("click",function(){
+    $$(".bq-tab").forEach(function(x){x.classList.remove("on");x.setAttribute("aria-selected","false");});
+    t.classList.add("on"); t.setAttribute("aria-selected","true");
+    ["concl","viz","raw"].forEach(function(p){$("#bqPane-"+p).hidden=(p!==t.dataset.pane);});
+  });
+});
+
+/* ---------- 会话倒计时 ---------- */
+var sess=29*60+41, sessTimer=setInterval(function(){
+  sess--; if(sess<=0){sess=0;clearInterval(sessTimer);}
+  var m=Math.floor(sess/60),s=sess%60;
+  $("#bqSessTime").textContent=(m<10?"0":"")+m+":"+(s<10?"0":"")+s;
+  $("#bqSessBar").style.width=Math.max(2,Math.round(sess/1800*100))+"%";
+},1000);
+$("#bqSessStop").addEventListener("click",function(){
+  clearInterval(sessTimer);
+  $("#bqSessTime").textContent="已结束"; $("#bqSessBar").style.width="2%";
+  addAudit("人工","张三","order-app/pod-3","reset + stop（会话回收）","0.3s","ok");
+  toast("会话已结束，增强类已重置");
+});
+
+/* ---------- 高危弹层 ---------- */
+var modal=$("#bqModal"),modalOk=$("#bqModalOk");
+function openModal(cmdText){
+  $("#bqModalBody").innerHTML="即将对 <b class='bq-mono'>order-app/pod-3</b> 执行：<div class='bq-code' style='margin-top:6px'>"+esc(cmdText)+"</div><div style='margin-top:6px'>该命令等价于在目标进程内执行任意代码，需双人审批并全量审计。</div>";
+  $("#bqModalInput").value="";
+  modal.classList.add("show"); $("#bqModalInput").focus();
+}
+$("#bqModalCancel").addEventListener("click",function(){modal.classList.remove("show");});
+modal.addEventListener("click",function(e){if(e.target===modal){modal.classList.remove("show");}});
+modalOk.addEventListener("click",function(){
+  if($("#bqModalInput").value.trim()!=="order-app"){toast("请输入 order-app 确认");return;}
+  modal.classList.remove("show");
+  runDiag();
+});
+
+/* ---------- 执行诊断 ---------- */
+var execBtn=$("#bqExec");
+function runDiag(){
+  var c=cmdEl.textContent;
+  $("#bqRunStat").textContent="执行中… "+c;
+  execBtn.disabled=true;
+  setTimeout(function(){
+    execBtn.disabled=false;
+    $("#bqRunStat").textContent="✓ 完成 · 耗时 1.2s · 已入审计 · 会话剩余时间已刷新";
+    $$(".bq-tab").forEach(function(x){
+      var on=x.dataset.pane==="concl"; x.classList.toggle("on",on); x.setAttribute("aria-selected",on?"true":"false");
+    });
+    ["concl","viz","raw"].forEach(function(p){$("#bqPane-"+p).hidden=(p!=="concl");});
+    addAudit(FAM[famEl.value].risk==="high"?"审批后执行":"人工","张三","order-app/pod-3",c,"1.2s",FAM[famEl.value].risk==="high"?"ok":"ok");
+  },700);
+}
+execBtn.addEventListener("click",function(){
+  if(FAM[famEl.value].risk==="high"){openModal(cmdEl.textContent);}
+  else{runDiag();}
+});
+
+/* ---------- 火焰图 ---------- */
+var FLAME=[
+  [0,0,100,"root"],[1,8,86,"com.bianque.order.OrderWorker.run"],[2,8,70,"OrderService.placeOrder"],[3,8,48,"InventoryClient.borrowObject"],[4,8,42,"GenericObjectPool.borrowObject"],[5,8,30,"LinkedBlockingQueue.poll"],
+  [3,56,22,"OrderDao.insert"],[4,56,16,"HikariProxy.executeQuery"],[2,78,16,"PayClient.precreate"],[3,78,10,"OkHttp$RealCall.execute"],
+  [1,86,6,"GC"],[2,86,4,"G1 Young RemSet"]
+];
+function drawFlame(){
+  var w=100,h=FLAME.length*13+4,cols={0:"var(--bq-purple)",1:"var(--bq-brand)",2:"var(--bq-brand)",3:"var(--bq-warn)",4:"var(--bq-warn)",5:"var(--bq-danger)"};
+  var s='<svg viewBox="0 0 '+w+' '+h+'" width="100%" style="display:block" role="img" aria-label="CPU 火焰图示意">';
+  FLAME.forEach(function(f,i){
+    var y=h-(f[0]+1)*13-1;
+    s+='<rect class="bq-flame" data-i="'+i+'" x="'+f[1]+'" y="'+y+'" width="'+(f[2]-0.4)+'" height="11.4" rx="1.5" fill="'+(cols[f[0]]||"var(--bq-brand)")+'" opacity="'+(0.55+Math.min(f[0],3)*0.12)+'"><title>'+f[3]+' · '+(f[2]).toFixed(1)+'% samples</title></rect>';
+  });
+  s+="</svg>";
+  $("#bqFlame").innerHTML=s;
+}
+drawFlame();
+
+/* ---------- 急诊流水线 ---------- */
+$$(".bqRescue").forEach(function(b){
+  b.addEventListener("click",function(){
+    if(b.dataset.alert!=="0"){toast("演示原型：仅首条告警内置完整流水线");return;}
+    var pipe=$("#bqPipe"); pipe.hidden=false;
+    var steps=$$("#bqPipeSteps .bq-step");
+    steps.forEach(function(s,i){s.classList.remove("done","run"); s.querySelector(".st").textContent=i+1;});
+    $("#bqReport").hidden=true;
+    var i=0;
+    (function next(){
+      if(i>0){steps[i-1].classList.remove("run");steps[i-1].classList.add("done");steps[i-1].querySelector(".st").textContent="✓";}
+      if(i>=steps.length){
+        $("#bqReport").hidden=false;
+        addAudit("急诊","pipeline-92","order-app/pod-3","attach + thread/memory/profiler 取证","38s","ok");
+        toast("现场报告已生成，并推送值班群");
+        return;
+      }
+      steps[i].classList.add("run"); i++; setTimeout(next,650);
+    })();
+  });
+});
+$("#bqReportExport").addEventListener("click",function(){toast("已导出 HTML 报告（加密归档，7 天保留）");});
+$("#bqReportPush").addEventListener("click",function(){toast("已推送到值班群机器人");});
+
+/* ---------- 档案扫描 ---------- */
+$("#bqScanBtn").addEventListener("click",function(){
+  $("#bqScanProg").hidden=false; $("#bqScanRes").hidden=true;
+  var n=0,total=87;
+  var t=setInterval(function(){
+    n+=9; if(n>=total){n=total;clearInterval(t);
+      $("#bqScanStat").textContent="扫描完成 87/87";
+      $("#bqScanRes").hidden=false;
+      addAudit("人工","王五","全部应用(87)","sc -d "+$("#bqScanCls").value,"8m12s","ok");
+    } else { $("#bqScanStat").textContent="扫描中… "+n+"/"+total; }
+    $("#bqScanBar").style.width=Math.round(n/total*100)+"%";
+  },240);
+});
+$("#bqAtlasExport").addEventListener("click",function(){toast("台账已导出（CSV，水印留痕）");});
+$("#bqAtlasTicket").addEventListener("click",function(){toast("已创建处置工单并关联 12 个实例");});
+
+/* ---------- 健康分趋势 sparkline ---------- */
+(function(){
+  var data=[78,80,83,81,86,84,88],w=100,h=34;
+  var min=70,max=92;
+  var pts=data.map(function(v,i){
+    return [(i/(data.length-1))*w, h-((v-min)/(max-min))*h];
+  });
+  var line=pts.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
+  var s='<svg viewBox="0 0 '+w+' '+h+'" width="100%" style="display:block" role="img" aria-label="健康分趋势，7 日上升">';
+  s+='<polyline points="'+line+'" fill="none" stroke="var(--bq-ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+  pts.forEach(function(p,i){
+    s+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="1.6" fill="var(--bq-ok)"><title>第'+(i+1)+'日：'+data[i]+' 分</title></circle>';
+  });
+  s+="</svg>";
+  $("#bqSpark").innerHTML=s;
+})();
+
+/* ---------- 文档中心（集成 arthas-packaging-4.3.5-doc.zip） ---------- */
+var DOC_DATA=[{"cat":"平台特性","pages":[["advanced-use","其他特性","low"],["async","Arthas 后台异步任务","low"],["commands","命令列表","low"],["docker","Docker","low"],["idea-plugin","IDEA Plugin","low"],["save-log","执行结果存日志","low"],["web-console","Web Console","low"]]},{"cat":"表达式与技巧","pages":[["advice-class","表达式核心变量","low"],["ognl-express","OGNL 复杂表达式使用技巧","low"]]},{"cat":"集成与扩展","pages":[["agent","以 Java Agent 的方式启动","low"],["ai","AI 相关","low"],["arthas-properties","Arthas Properties","low"],["batch-support","批处理功能","low"],["external-command","加载外部命令","low"],["groovy","Groovy 脚本执行","high"],["http-api","Http API","low"],["mcp-server","Arthas MCP Server","low"],["spring-boot-starter","Arthas Spring Boot Starter","low"],["tunnel","Arthas Tunnel","low"]]},{"cat":"入门","pages":[["arthas-tutorials","Arthas Tutorials","low"],["arthas3","arthas","low"],["contact-us","联系我们","low"],["download","下载","low"],["faq","FAQ","low"],["index","简介","low"],["install-detail","Arthas Install","low"],["manual-install","手动安装 Arthas","low"],["quick-start","快速入门","low"],["release-notes","Release Notes","low"],["start-arthas","启动 Arthas","low"]]},{"cat":"鉴权与开关","pages":[["auth","auth","low"],["options","options","low"]]},{"cat":"基础命令","pages":[["base64","base64","low"],["cat","cat","low"],["cls","cls","low"],["echo","echo","low"],["grep","grep","low"],["help","help","low"],["history","history","low"],["keymap","keymap","low"],["pwd","pwd","low"],["quit","quit","low"],["reset","reset","low"],["session","session","low"],["stop","stop","high"],["tee","tee","low"],["version","version","low"]]},{"cat":"类与 ClassLoader","pages":[["classloader-metaspace","classloader-metaspace","low"],["classloader","classloader","low"],["dump","dump","low"],["jad","jad","low"],["mc","mc","high"],["redefine","redefine","high"],["retransform","retransform","high"],["sc","sc","low"],["sm","sm","low"]]},{"cat":"JVM 相关","pages":[["dashboard","dashboard","low"],["getstatic","getstatic","low"],["heapdump","heapdump","high"],["jvm","jvm","low"],["logger","logger","high"],["mbean","mbean","low"],["memory","memory","low"],["ognl","ognl","high"],["perfcounter","perfcounter","low"],["sysenv","sysenv","low"],["sysprop","sysprop","high"],["thread","thread","low"],["vmoption","vmoption","high"],["vmtool","vmtool","high"]]},{"cat":"性能剖析","pages":[["jfr","jfr","mid"],["profiler","profiler","mid"]]},{"cat":"方法观测","pages":[["line","line","mid"],["monitor","monitor","mid"],["stack","stack","mid"],["trace","trace","mid"],["tt","tt","mid"],["watch","watch","mid"]]}];
+var SNIPPETS={"watch":"## # watch\n提示函数执行数据观测让你能方便的观察到指定函数的调用情况。能观察到的范围为：返回值、抛出异常、入参，通过编写 OGNL 表达式进行对应变量的查看。\n## # 参数说明\nwatch 的参数比较多，主要是因为它能在 4 个不同的场景观察对象参数名称 | 参数说明 | \nclass-pattern | 类名表达式匹配 | \nmethod-pattern | 函数名表达式匹配 | \nexpress | 观察表达式，默认值：{params, target, returnObj} | \ncondition-express | 条件表达式 | \n[b] | 在函数调用之前观察 | \n[e] | 在函数异常之后观察 | \n[s] | 在函数返回之后观察 | \n[f] | 在函数结束之后(正常返回和异常返回)观察 | \n[E] | 开启正则表达式匹配，默认为通配符匹配 | \n[x:] | 指定输出结果的属性遍历深度，默认为 1，最大值是 4 | \n[c:] | 指定 classloader hash，只增强该 classloader 加载的类 | \n[m <arg>] | 指定 Class 最大匹配数量，默认值为 50。长格式为[maxMatch <arg>]。 | \n这里重点要说明的是观察表达式，观察表达式的构成主要由 ognl 表达式组成，所以你可以这样写\"{params,returnObj}\"，只要是一个合法的 ognl 表达式，都能被正常支持。观察的维度也比较多，主要体现在参数 advice 的数据结构上。Advice 参数最主要是封装了通知节点的所有信息。请参考表达式核心变量中关于该节点的描述。\n- OGNL 复杂表达式使用技巧特别说明：\n- watch 命令定义了 4 个观察事件点，即 -b 函数调用前，-e 函数异常后，-s 函数返回后，-f 函数结束后\n- 4 个观察事件点 -b、-e、-s 默认关闭，-f 默认打开，当指定观察点被打开后，在相应事件点会对观察表达式进行求值并输出\n- 这里要注意函数入参和函数出参的区别，有可能在中间被修改导致前后不一致，除了 -b 事件点 params 代表函数入参外，其余事件都代表函数出参\n- 当使用 -b 时，由于观察事件点是在函数调用前，此时返回值或异常均不存在\n- 在 watch 命令的结果里，会打印出location信息。location有三种可能值：AtEnter，AtExit，AtExceptionExit。对应函数入口，函数正常 return，函数抛出异常。\n## # 使用参考\n## # 启动 Demo\n启动快速入门里的math-game。\n## # 观察函数调用返回时的参数、this 对象和返回值\n提示观察表达式，默认值是{params, target, returnObj}$ watch demo.MathGame primeFactors -x 2\nPress Q or Ctrl+C to abort.\nAffect(class count: 1 , method count: 1) cost in 32 ms, listenerId: 5\nmethod=demo.MathGame.primeFactors location=AtExceptionExit\nts=2021-08-31 15:22:57; [cost=0.220625ms] result=@ArrayList[\n @Object[][\n @Integer[-179173],\n ],\n @MathGame[\n random=@Random[java.util.Random@31cefde0],\n illegalArgumentCount=@Integer[44],\n ],\n null,\n]\nmethod=demo.MathGame.primeFactors location=AtExit\nts=2021-08-31 15:22:58; [cost=1.020982ms] result=@ArrayList[\n @Object[][\n @Integer[1],\n ],\n @MathGame[\n random=@Random[java.util.Random@31cefde0],\n illegalArgumentCount=@Integer[44],\n ],\n @ArrayList[\n @Integer[2],\n @Integer[2],\n @Integer[26947],\n ],\n]\n- 上面的结果里，说明函数被执行了两次，第一次结果是location=AtExceptionExit，说明函数抛出异常了，因此returnObj是 null\n- 在第二次结果里是location=AtExit，\n\n……（节选 · 完整离线正文随 /docs/4.3.5/ 托管，中英双语，可全文检索）","mcp-server":"## # Arthas MCP Server\n## # 概览\nArthas MCP Server 是 Arthas 的实验性模块，实现了基于 MCP（Model Context Protocol）在新窗口打开 协议的服务端。该模块通过 HTTP/Netty 提供统一的 JSON-RPC 2.0 接口，使 AI 助手能够通过工具调用的方式执行 Arthas 诊断命令。MCP（Model Context Protocol）是由 Anthropic 提出的一种标准化协议，用于连接 AI 助手与各种工具和数据源。通过 Arthas MCP Server，AI 助手可以自然地执行 Java 应用诊断任务，大幅提升开发和运维效率。\n## # 主要特性\n- AI 原生集成：支持主流 AI 客户端（Claude Desktop、Cherry Studio、Cline 等）\n- 标准化协议：完整实现 MCP 协议规范（版本 2025-06-18），支持 Streamable Http 传输\n- 29 个诊断工具：涵盖 JVM 监控、类加载、方法追踪等核心功能\n- 安全认证：支持 Bearer Token 认证机制\n## # 支持的诊断工具\nArthas MCP Server 集成了 29 个诊断工具，按功能分类如下：\n## # JVM 相关工具（13 个）\n工具 | 功能描述 | \ndashboard | 实时展示 JVM/应用面板，支持自定义刷新间隔和次数控制 | \nheapdump | 生成 JVM heap dump 文件，支持 --live 选项只导出存活对象 | \njvm | 查看当前 JVM 的详细运行时信息 | \nmbean | 查看或监控 MBean 属性信息，支持实时刷新和模式匹配 | \nmemory | 查看 JVM 的内存使用情况 | \nthread | 查看线程信息及堆栈，支持查找阻塞线程和最忙线程 | \nsysprop | 查看或修改系统属性，支持动态修改 JVM 系统属性 | \nsysenv | 查看系统环境变量 | \nvmoption | 查看或更新 VM 选项，支持动态调整 JVM 参数 | \nperfcounter | 查看 JVM Perf Counter 性能计数器信息 | \nvmtool | 虚拟机工具集合，支持强制 GC、获取实例、线程中断等 | \ngetstatic | 查看类的静态字段值，支持指定 ClassLoader 和 OGNL 表达式 | \nognl | 执行 OGNL 表达式，动态调用方法和访问字段 | \n## # Class/ClassLoader 相关工具（8 个）\n工具 | 功能描述 | \nsc | 搜索 JVM 已加载的类，支持通配符和正则表达式匹配，可查看类详情（类加载器、接口、父类、注解等） | \nsm | 搜索已加载类的方法信息，支持通配符和正则表达式，可查看方法签名、参数类型、注解等 | \njad | 反编译指定已加载类的源码，将 JVM 中实际运行的 class 字节码反编译为 Java 代码 | \nclassloader | ClassLoader 诊断工具，查看类加载器统计、继承树、URLs，支持资源查找和类加载操作；搜索类优先使用 sc 工具 | \nmc | 内存编译器，将 .java 源码文件编译为 .class 字节码文件 | \nredefine | 重新加载类的字节码，允许在 JVM 运行时对已存在的类进行热更新 | \nretransform | 热加载类的字节码，对已加载的类进行字节码修改并使其生效 | \ndump | 将 JVM 中实际运行的 class 字节码导出到指定，适用于批量下载指定包的字节码 | \n## # 监控诊断工具（6 个）\n工具 | 功能描述 | \nmonitor | 实时监控指定类的指定方法的调用情况，输出调用次数、成功率、平均 RT 等统计信息 | \nstack | 输出当前方法被调用的调用路径，帮助分析方法的调用链路 | \ntrace | 追踪方法内部调用路径，输出每个节点的耗时信息，支持条件过滤 | \ntt | 方法执行数据的时空隧道，记录指定方法每次调用的入参和返回信息，支持事后查看和重放 | \nwatch | 观察指定方法的调用情况，包含入参、返回值和抛出异常等信息，支持实时流式输出 | \nprofiler | Async Profiler 诊断工具，用于采样 CPU/alloc/lock 等事件并输出火焰图、JFR 等格式 | \n## # Arthas 辅助工具（2 个）\n工具 | 功能描述 | \nviewfile | 查看文件内容（仅允许在配置的白名单内查看），支持 cursor/offset 分段读取，避免一次性返回大量\n\n……（节选 · 完整离线正文随 /docs/4.3.5/ 托管，中英双语，可全文检索）","arthas-properties":"## # Arthas Properties\narthas.properties文件在 arthas 的下。\n- 如果是自动下载的 arthas，则在~/.arthas/lib/3.x.x/arthas/下面\n- 如果是下载的完整包，在 arthas 解压下\n## # 支持的配置项\n注意注意配置必须是驼峰的，和 spring boot 的-风格不一样。spring boot 应用才同时支持驼峰 和 -风格的配置。#arthas.config.overrideAll=true\narthas.telnetPort=3658\narthas.httpPort=8563\narthas.ip=127.0.0.1\n# seconds\narthas.sessionTimeout=10800\n#arthas.appName=demoapp\n#arthas.tunnelServer=ws://127.0.0.1:7777/ws\n#arthas.agentId=mmmmmmyiddddd\n#arthas.commandLocations=/opt/arthas/ext-command.jar,/opt/arthas/ext-commands\n# 默认还会尝试加载 ${arthas.home}/commands 下的 *.jar\n- 如果配置 arthas.telnetPort为 -1 ，则不 listen telnet 端口。arthas.httpPort类似。\n- 如果配置 arthas.telnetPort为 0 ，则随机 telnet 端口，在~/logs/arthas/arthas.log里可以找到具体端口日志。arthas.httpPort类似。提示如果是防止一个机器上启动多个 arthas 端口冲突。可以配置为随机端口，或者配置为 -1，并且通过 tunnel server 来使用 arthas。\n## # 禁止指定命令\n提示since 3.5.2比如配置：arthas.disabledCommands=stop,dump\n也可以在命令行配置： --disabled-commands stop,dump 。提示默认情况下，arthas-spring-boot-starter 会禁掉stop命令。\n## # 加载外部命令\n可以通过下面配置在 Arthas 启动时加载外部 command jar：arthas.commandLocations=/opt/arthas/ext-command.jar,/opt/arthas/ext-commands\n- 支持单个 jar 路径，或路径，多个值用英文逗号分隔。\n- 只会扫描当前下的 *.jar，不会递归子。\n- 如果 ${arthas.home}/commands 存在，Arthas 启动时也会自动尝试从该加载 *.jar。显式配置的 arthas.commandLocations 会先加载，再加载默认。\n- 外部 jar 需要通过 META-INF/services/com.taobao.arthas.core.shell.command.CommandResolver 暴露 CommandResolver 实现。\n- Arthas 会优先保留内置命令；如果外部命令和内置命令重名，会跳过外部命令并记录日志。也可以在命令行配置： --command-locations '/opt/arthas/ext-command.jar,/opt/arthas/ext-commands' 。完整的外部命令开发和加载示例请参考：加载外部命令。\n## # 配置的优先级\n配置的优先级是：命令行参数 > System Env > System Properties > arthas.properties 。比如：\n- ./as.sh --telnet-port 9999 传入的配置会覆盖掉arthas.properties里的默认值arthas.telnetPort=3658。\n- 如果应用自身设置了 system properties arthas.telnetPort=8888，则会覆盖掉arthas.properties里的默认值arthas.telnetPort=3658。如果想要 arthas.properties的优先级最高，则可以配置 arthas.config.overrideAll=true 。在 GitHub 上编辑此页在新窗口打开Last Updated: 贡献者: hengyunabc IDEA Plugin 以 Java Agent 的方式启动\n\n……（节选 · 完整离线正文随 /docs/4.3.5/ 托管，中英双语，可全文检索）","tunnel":"## # Arthas Tunnel\n通过 Arthas Tunnel Server/Client 来远程管理/连接多个 Agent。比如，在流式计算里，Java 进程可以是在不同的机器启动的，想要使用 Arthas 去诊断会比较麻烦，因为用户通常没有机器的权限，即使登录机器也分不清是哪个 Java 进程。在这种情况下，可以使用 Arthas Tunnel Server/Client。参考:\n- 1: Web Console\n- 2: Arthas Spring Boot Starter\n## # 下载部署 arthas tunnel server\nhttps://github.com/alibaba/arthas/releases在新窗口打开\n- 从 Maven 仓库下载：在新窗口打开\n- 从 Github Releases 页下载： https://github.com/alibaba/arthas/releases在新窗口打开Arthas tunnel server 是一个 spring boot fat jar 应用，直接java -jar启动：java -jar arthas-tunnel-server.jar\n默认情况下，arthas tunnel server 的 web 端口是8080，arthas agent 连接的端口是7777。启动之后，可以访问 http://127.0.0.1:8080/在新窗口打开 ，再通过agentId连接到已注册的 arthas agent 上。通过 Spring Boot 的 Endpoint，可以查看到具体的连接信息： http://127.0.0.1:8080/actuator/arthas在新窗口打开 ，登录用户名是arthas，密码在 arthas tunnel server 的日志里可以找到，比如：32851 [main] INFO o.s.b.a.s.s.UserDetailsServiceAutoConfiguration\nUsing generated security password: f1dca050-3777-48f4-a577-6367e55a78a2\n## # 启动 arthas 时连接到 tunnel server\n在启动 arthas，可以传递--tunnel-server参数，比如：as.sh --tunnel-server 'ws://127.0.0.1:7777/ws'\n也可以使用下面的测试地址（不保证一直可用）：as.sh --tunnel-server 'ws://47.75.156.201:80/ws'\n- 如果有特殊需求，可以通过--agent-id参数里指定 agentId。默认情况下，会生成随机 ID。attach 成功之后，会打印出 agentId，比如： ,---. ,------. ,--------.,--. ,--. ,---. ,---.\n / O \\ | .--. ''--. .--'| '--' | / O \\ ' .-'\n| .-. || '--'.' | | | .--. || .-. |`. `-.\n| | | || |\\ \\ | | | | | || | | |.-' |\n`--' `--'`--' '--' `--' `--' `--'`--' `--'`-----'\nwiki https://arthas.aliyun.com/doc\nversion 3.1.2\npid 86183\ntime 2019-08-30 15:40:53\nid URJZ5L48RPBR2ALI5K4V\n如果是启动时没有连接到 tunnel server，也可以在后续自动重连成功之后，通过 session 命令来获取 agentId：[arthas@86183]$ session\n Name Value\n-----------------------------------------------------\n JAVA_PID 86183\n SESSION_ID f7273eb5-e7b0-4a00-bc5b-3fe55d741882\n AGENT_ID URJZ5L48RPBR2ALI5K4V\n TUNNEL_SERVER ws://47.75.156.201:80/ws\n以上面的为例，在浏览器里访问 http://47.75.156.201/arthas/?port=80在新窗口打开 ，输入 agentId，就可以连接到本机上的 arthas 了。\n## # 最佳实践\n提示注意，agentId 要保持唯一，否则会在 tunnel server 上冲突，不能正常工作。如果 arthas agent 配置了 appName，\n\n……（节选 · 完整离线正文随 /docs/4.3.5/ 托管，中英双语，可全文检索）"};
+var curCat="方法观测",curSlug="watch";
+var RISKZH={low:["只读 · 低风险","ok"],mid:["增强观测 · 中风险","warn"],high:["高危 · 审批","danger"]};
+function allPages(){var out=[];DOC_DATA.forEach(function(c){c.pages.forEach(function(p){out.push({cat:c.cat,slug:p[0],title:p[1],risk:p[2]});});});return out;}
+function findPage(slug){return allPages().filter(function(p){return p.slug===slug;})[0];}
+function renderDocCats(list,countMap){
+  var el=$("#bqDocCats"); el.innerHTML="";
+  list.forEach(function(cat){
+    var b=document.createElement("button");
+    b.className="bq-doc-cat cursor-interaction"+(cat===curCat?" on":"");
+    b.innerHTML="<span>"+cat+"</span><span class='n'>"+(countMap?countMap[cat]:catCount(cat))+"</span>";
+    b.addEventListener("click",function(){
+      curCat=cat; $("#bqDocSearch").value=""; renderDocCats(DOC_DATA.map(function(c){return c.cat;})); renderDocList();
+    });
+    el.appendChild(b);
+  });
+}
+function catCount(cat){var c=DOC_DATA.filter(function(x){return x.cat===cat;})[0];return c?c.pages.length:0;}
+function renderDocList(){
+  var el=$("#bqDocList"); el.innerHTML="";
+  var cat=DOC_DATA.filter(function(x){return x.cat===curCat;})[0];
+  if(!cat){return;}
+  cat.pages.forEach(function(p){
+    var b=document.createElement("button");
+    b.className="bq-doc-item cursor-interaction"+(p[0]===curSlug?" on":"");
+    var r=RISKZH[p[2]];
+    b.innerHTML="<span class='bq-dot "+(p[2]==="high"?"r":(p[2]==="mid"?"y":"g"))+"'></span><span>"+p[1]+"</span><small>"+p[0]+"</small>";
+    b.addEventListener("click",function(){selectDoc(p[0]);});
+    el.appendChild(b);
+  });
+}
+function selectDoc(slug){
+  var p=findPage(slug); if(!p){return;}
+  curSlug=slug; curCat=p.cat;
+  $("#bqDocSearch").value="";
+  var r=RISKZH[p.risk];
+  $("#bqDocTitle").textContent=p.title;
+  $("#bqDocRisk").innerHTML='<span class="bq-badge '+r[1]+'">'+r[0]+'</span>';
+  $("#bqDocPath").textContent="zh: doc/"+slug+".html · EN 同步离线托管";
+  var sn=SNIPPETS[slug];
+  $("#bqDocBody").textContent=sn?sn:("离线正文已随平台托管（/docs/4.3.5/，中英双语，构建期已生成搜索索引）。\n\n原型内置 4 篇真实样张：watch、Arthas MCP Server、Arthas Properties、Arthas Tunnel —— 可在左侧目录选择查看。\n\n正文中所有命令示例均可一键复制；页首风险徽标与本平台命令字典（design/arthas-docs-manifest.json）一致。");
+  renderDocList(); renderDocCats(DOC_DATA.map(function(c){return c.cat;}));
+}
+$("#bqDocSearch").addEventListener("input",function(){
+  var q=this.value.trim().toLowerCase();
+  if(!q){renderDocCats(DOC_DATA.map(function(c){return c.cat;}));renderDocList();return;}
+  var hits=allPages().filter(function(p){return p.title.toLowerCase().indexOf(q)>=0||p.slug.toLowerCase().indexOf(q)>=0;});
+  var cm={};hits.forEach(function(p){cm[p.cat]=(cm[p.cat]||0)+1;});
+  curCat="搜索结果";
+  var el=$("#bqDocCats");el.innerHTML="";
+  var hb=document.createElement("div");hb.className="bq-doc-cat on";hb.innerHTML="<span>搜索结果</span><span class='n'>"+hits.length+"</span>";el.appendChild(hb);
+  var list=$("#bqDocList");list.innerHTML="";
+  hits.slice(0,40).forEach(function(p){
+    var b=document.createElement("button");
+    b.className="bq-doc-item cursor-interaction"+(p.slug===curSlug?" on":"");
+    b.innerHTML="<span class='bq-dot "+(p.risk==="high"?"r":(p.risk==="mid"?"y":"g"))+"'></span><span>"+p.title+"</span><small>"+p.slug+"</small>";
+    b.addEventListener("click",function(){selectDoc(p.slug);});
+    list.appendChild(b);
+  });
+});
+$("#bqDocUse").addEventListener("click",function(){
+  var map={watch:"watch",trace:"trace",tt:"tt",thread:"thread",dashboard:"dashboard",memory:"memory",profiler:"profiler",ognl:"ognl"};
+  if(map[curSlug]){famEl.value=map[curSlug];renderFields();showView("clinic");toast("已在诊断台载入命令："+curSlug);}
+  else{toast("该命令暂未接入表单化（原型范围），可复制文档原文执行");}
+});
+$("#bqDocCopy").addEventListener("click",function(){copyText("doc/"+curSlug+".html","文档路径");});
+$$(".bq-chip[data-lang]").forEach(function(b){
+  b.addEventListener("click",function(){
+    $$(".bq-chip[data-lang]").forEach(function(x){x.classList.remove("on");});
+    b.classList.add("on");
+    toast(b.dataset.lang==="en"?"英文版 doc/en/*.html 同步离线托管":"中文版（默认）");
+  });
+});
+
+/* ---------- 审计 ---------- */
+var AUDIT=[
+  ["14:32:08","人工","张三","order-app/pod-3","watch com.bianque.order.OrderService placeOrder '{params,returnObj}' -n 100","1.2s","ok"],
+  ["14:30:11","AI 问诊","copilot(会话12)","order-app/pod-3","trace *OrderService placeOrder '#cost>100'","0.9s","ok"],
+  ["14:12:41","急诊","pipeline-92","order-app/pod-3","memory","0.4s","ok"],
+  ["14:05:02","人工","李四","user-app/inst-2","heapdump --live（已审批 · AES-256 落盘）","12.7s","ok"],
+  ["13:58:33","人工","王五","全部应用(87)","sc -d org.apache.logging.log4j.core.lookup.JndiLookup","8m12s","ok"],
+  ["13:40:09","人工","赵六","order-app/pod-1","ognl '@System@getProperty(\"user.dir\")'","—","blocked"],
+  ["13:22:51","系统","scheduler","全量巡检 87 实例","batch: jvm/memory/thread/classloader 阈值打分","22m","ok"]
+];
+function addAudit(src,who,inst,cmd,cost,res){
+  var now=new Date(),hh=("0"+now.getHours()).slice(-2),mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
+  AUDIT.unshift([hh+":"+mm+":"+ss,src,who,inst,cmd,cost,res]);
+  renderAudit();
+}
+function renderAudit(){
+  var src=$("#bqAuditSrc").value,who=$("#bqAuditWho").value.trim();
+  var tb=$("#bqAuditBody");tb.innerHTML="";
+  AUDIT.filter(function(r){
+    return (!src||r[1]===src)&&(!who||r[2].indexOf(who)>=0);
+  }).forEach(function(r){
+    var tr=document.createElement("tr");
+    var badge=r[6]==="ok"?'<span class="bq-badge ok">成功</span>':(r[6]==="blocked"?'<span class="bq-badge danger">已拦截 · 黑名单</span>':'<span class="bq-badge mut">'+r[6]+'</span>');
+    var sb=r[1]==="急诊"?'<span class="bq-badge danger">急诊</span>':(r[1]==="AI 问诊"?'<span class="bq-badge purple">AI 问诊</span>':(r[1]==="系统"?'<span class="bq-badge mut">系统</span>':'<span class="bq-badge info">人工</span>'));
+    tr.innerHTML="<td class='bq-mono'>"+r[0]+"</td><td>"+sb+"</td><td>"+r[2]+"</td><td class='bq-mono'>"+r[3]+"</td><td class='bq-mono'>"+esc(r[4])+"</td><td class='num'>"+r[5]+"</td><td>"+badge+"</td>";
+    tb.appendChild(tr);
+  });
+}
+$("#bqAuditSrc").addEventListener("change",renderAudit);
+$("#bqAuditWho").addEventListener("input",renderAudit);
+$("#bqAuditExport").addEventListener("click",function(){toast("导出申请已创建，等待二级审批");});
+renderAudit();
+
+/* ---------- 管理设置复制 ---------- */
+$$("button[data-copy]").forEach(function(b){
+  b.addEventListener("click",function(){copyText($("#"+b.dataset.copy).textContent,"配置");});
+});
+$("#bqMcpCopy").addEventListener("click",function(){copyText("http://127.0.0.1:8563/mcp","MCP 端点");});
+
+/* ---------- 全局搜索 ---------- */
+$("#bqSearch").addEventListener("keydown",function(e){
+  if(e.key==="Enter"){
+    var q=this.value.trim();
+    if(!q){return;}
+    showView("docs");
+    $("#bqDocSearch").value=q;
+    $("#bqDocSearch").dispatchEvent(new Event("input"));
+  }
+});
+document.addEventListener("keydown",function(e){
+  if((e.ctrlKey||e.metaKey)&&(e.key==="k"||e.key==="K")){e.preventDefault();$("#bqSearch").focus();}
+});
+
+/* ---------- 初始化 ---------- */
+selectDoc("watch");
+renderDocCats(DOC_DATA.map(function(c){return c.cat;}));
+})();
+</script>
+</div>
+</body></html>

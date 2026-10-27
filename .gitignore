@@ -1,0 +1,29 @@
+# ---- Java / Maven ----
+server/**/target/
+*.class
+*.jar.orig
+.mvn/wrapper/maven-wrapper.jar
+
+# ---- Node / 前端 ----
+web/node_modules/
+web/dist/
+*.local
+
+# ---- Python / 文档管线 ----
+__pycache__/
+*.pyc
+.venv/
+
+# ---- 运行时与本地配置 ----
+.env
+*.log
+logs/
+data/
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
+
+# ---- 不忽略 ----
+# materials/ 与 docs/ 为只读物料与文档源，纳入版本管理
