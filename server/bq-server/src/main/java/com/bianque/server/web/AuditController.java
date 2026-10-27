@@ -32,4 +32,10 @@ public class AuditController {
     public java.util.Map<String, Object> stats() {
         return audit.stats();
     }
+
+    /** 哈希链完整性校验：任一历史记录被篡改即断链 */
+    @GetMapping("/verify")
+    public java.util.Map<String, Object> verify() {
+        return audit.verifyChain();
+    }
 }

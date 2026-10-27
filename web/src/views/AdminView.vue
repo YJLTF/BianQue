@@ -24,10 +24,30 @@
           </el-descriptions-item>
         </el-descriptions>
       </el-card>
-      <el-card shadow="never" header="RBAC 权限矩阵（S1 交付完整版）" style="margin-top: 12px">
+      <el-card shadow="never" header="RBAC 权限矩阵（命令族 × 操作员）" style="margin-top: 12px">
         <el-table :data="rbac" size="small">
           <el-table-column prop="family" label="命令族" min-width="220" />
           <el-table-column prop="access" label="操作员" width="120" />
+        </el-table>
+      </el-card>
+      <el-card shadow="never" header="用户与角色（RBAC 五表）" style="margin-top: 12px">
+        <el-table :data="users" size="small" v-loading="usersLoading">
+          <el-table-column prop="username" label="账号" width="80" />
+          <el-table-column prop="displayName" label="姓名" width="120" />
+          <el-table-column label="角色" width="96">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.roles?.[0] === 'ADMIN' ? 'danger' : (row.roles?.[0] === 'OPERATOR' ? 'warning' : 'info')" effect="plain">
+                {{ row.roles?.[0] ?? "-" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="权限点" min-width="180">
+            <template #default="{ row }">
+              <el-tag v-for="p in row.permissions ?? []" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">
+                {{ p }}
+              </el-tag>
+            </template>
+          </el-table-column>
         </el-table>
       </el-card>
     </el-col>
@@ -53,8 +73,11 @@ import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 
 interface Baseline { bindLocalOnly: boolean; authRequired: boolean; sessionTimeoutMinutes: number; blockedCommands: string[]; auditEnabled: boolean }
+interface PlatformUser { username: string; displayName: string; enabled: boolean; roles: string[]; permissions: string[] }
 
 const baseline = ref<Baseline>({ bindLocalOnly: true, authRequired: true, sessionTimeoutMinutes: 30, blockedCommands: [], auditEnabled: true });
+const users = ref<PlatformUser[]>([]);
+const usersLoading = ref(true);
 
 const linux = `unzip arthas-packaging-4.3.5-bin.zip -d /opt/arthas
 ./as.sh --tunnel-server ws://bq-center:7777/ws \\
@@ -82,6 +105,15 @@ async function copy(text: string) {
 
 onMounted(async () => {
   baseline.value = await fetch("/api/baseline").then((r) => r.json());
+  try {
+    users.value = await fetch("/api/admin/users", {
+      headers: { Authorization: `Bearer ${JSON.parse(localStorage.getItem("bianque.auth") || "{}").token || ""}` },
+    }).then((r) => (r.ok ? r.json() : []));
+  } catch {
+    users.value = [];
+  } finally {
+    usersLoading.value = false;
+  }
 });
 </script>
 

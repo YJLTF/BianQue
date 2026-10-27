@@ -5,8 +5,17 @@
         <el-option v-for="s in ['人工', '急诊', '系统']" :key="s" :label="s" :value="s" />
       </el-select>
       <el-input v-model="operator" placeholder="按操作人过滤…" style="width: 200px" clearable @input="debouncedLoad" />
-      <span class="sub">累计写入 {{ stats.appended ?? 0 }} 条 · 追加写 · S1 升级哈希链防篡改</span>
+      <el-button size="small" type="warning" plain :loading="verifying" @click="verify">校验哈希链</el-button>
+      <span class="sub">累计写入 {{ stats.inDb ?? 0 }} 条 · 追加写 · 哈希链防篡改</span>
     </div>
+    <el-alert
+      v-if="verifyResult"
+      :type="verifyResult.valid ? 'success' : 'error'"
+      :closable="true"
+      style="margin-top: 10px"
+      :title="verifyResult.valid
+        ? `完整性校验通过：已核验 ${verifyResult.checked} 条记录，链路连续无篡改`
+        : `链路断裂于第 ${verifyResult.brokenAtSeq} 条：${verifyResult.reason}（已核验前 ${verifyResult.checked} 条）`" />
     <el-card shadow="never" style="margin-top: 12px">
       <el-table :data="rows" size="small" v-loading="loading">
         <el-table-column prop="seq" label="#" width="60" />
@@ -33,6 +42,13 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="哈希" width="110">
+          <template #default="{ row }">
+            <el-tooltip :content="`本条 hash: ${row.hash}\n上一条 prev: ${row.prevHash}`" placement="top">
+              <code class="hash">{{ (row.hash || "").slice(0, 8) }}</code>
+            </el-tooltip>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
   </div>
@@ -42,13 +58,16 @@
 import { onMounted, ref } from "vue";
 import { http } from "@/api/http";
 
-interface AuditEntry { seq: number; time: string; source: string; operator: string; instanceId: string; command: string; costMs: number; result: string }
+interface AuditEntry { seq: number; time: string; source: string; operator: string; instanceId: string; command: string; costMs: number; result: string; prevHash: string; hash: string }
+interface VerifyResult { valid: boolean; checked: number; brokenAtSeq: number; reason: string }
 
 const rows = ref<AuditEntry[]>([]);
 const source = ref("");
 const operator = ref("");
 const stats = ref<Record<string, number>>({});
 const loading = ref(true);
+const verifying = ref(false);
+const verifyResult = ref<VerifyResult | null>(null);
 let timer: number | undefined;
 
 async function load() {
@@ -59,6 +78,15 @@ async function load() {
   rows.value = await http.get("/audit", { params }) as unknown as AuditEntry[];
   stats.value = await http.get("/audit/stats") as unknown as Record<string, number>;
   loading.value = false;
+}
+
+async function verify() {
+  verifying.value = true;
+  try {
+    verifyResult.value = await http.get("/audit/verify") as unknown as VerifyResult;
+  } finally {
+    verifying.value = false;
+  }
 }
 
 function debouncedLoad() {
@@ -78,4 +106,5 @@ onMounted(load);
 .row { display: flex; align-items: center; gap: 10px; }
 .sub { font-size: 12px; color: #909399; margin-left: auto; }
 .cmd { font-size: 12px; overflow-wrap: anywhere; }
+.hash { font-size: 12px; color: #b88230; }
 </style>

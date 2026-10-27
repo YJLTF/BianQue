@@ -1,7 +1,10 @@
 package com.bianque.server.web;
 
 import com.bianque.core.diag.DiagResult;
+import com.bianque.server.auth.AuthContext;
+import com.bianque.server.auth.AuthInterceptor;
 import com.bianque.server.service.DiagService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,9 +31,9 @@ public class DiagController {
     }
 
     @PostMapping("/execute")
-    public Map<String, Object> execute(@RequestBody ExecuteRequest req) {
+    public Map<String, Object> execute(@RequestBody ExecuteRequest req, HttpServletRequest request) {
         String src = req.source() == null || req.source().isBlank() ? "人工" : req.source();
-        DiagResult out = diag.execute(req.instanceId(), req.command(), src);
+        DiagResult out = diag.execute(req.instanceId(), req.command(), src, operator(request));
         return Map.of(
                 "success", out.success(),
                 "output", out.output() == null ? "" : out.output(),
@@ -47,5 +50,10 @@ public class DiagController {
     @DeleteMapping("/session/{sessionId}")
     public Map<String, Object> close(@PathVariable String sessionId) {
         return Map.of("closed", diag.closeSession(sessionId) != null);
+    }
+
+    static String operator(HttpServletRequest request) {
+        Object auth = request.getAttribute(AuthInterceptor.ATTR);
+        return auth instanceof AuthContext a ? a.username() + "(" + a.displayName() + ")" : DiagService.SYSTEM;
     }
 }

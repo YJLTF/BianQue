@@ -34,7 +34,7 @@ public final class Types {
             String lastEvent) {
     }
 
-    /** 审计条目（追加写；谁·何时·何实例·何命令·何结果） */
+    /** 审计条目（追加写；谁·何时·何实例·何命令·何结果；S1 起含哈希链字段） */
     public record AuditEntry(
             long seq,
             Instant time,
@@ -43,7 +43,9 @@ public final class Types {
             String instanceId,
             String command,
             long costMs,
-            String result) {
+            String result,
+            String prevHash,
+            String hash) {
     }
 
     /** 告警事件（Webhook 接入后的标准化形态） */

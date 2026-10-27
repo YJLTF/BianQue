@@ -3,7 +3,7 @@ package com.bianque.server.service;
 import com.bianque.server.model.Types.AtlasHit;
 import com.bianque.server.model.Types.AtlasReport;
 import com.bianque.server.model.Types.Instance;
-import com.bianque.server.repo.AuditRepository;
+import com.bianque.server.repo.AuditTrail;
 import com.bianque.server.repo.FleetRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,20 +18,24 @@ public class AtlasService {
 
     private final DiagService diag;
     private final FleetRepository fleet;
-    private final AuditRepository audit;
+    private final AuditTrail audit;
 
-    public AtlasService(DiagService diag, FleetRepository fleet, AuditRepository audit) {
+    public AtlasService(DiagService diag, FleetRepository fleet, AuditTrail audit) {
         this.diag = diag;
         this.fleet = fleet;
         this.audit = audit;
     }
 
     public AtlasReport scan(String targetClass) {
+        return scan(targetClass, DiagService.SYSTEM);
+    }
+
+    public AtlasReport scan(String targetClass, String operator) {
         long begin = System.currentTimeMillis();
         List<AtlasHit> hits = new ArrayList<>();
         List<Instance> online = fleet.allInstances().stream().filter(Instance::online).toList();
         for (Instance ins : online) {
-            String out = diag.execute(ins.instanceId(), "sc -d " + targetClass, "人工").output();
+            String out = diag.execute(ins.instanceId(), "sc -d " + targetClass, "人工", operator).output();
             boolean found = out.contains("sc.matched= 1");
             String verdict;
             if (!found) {
@@ -50,7 +54,7 @@ public class AtlasService {
         }
         long vulnerable = hits.stream().filter(h -> "漏洞路径可达".equals(h.verdict())).count();
         long foundCount = hits.stream().filter(AtlasHit::classFound).count();
-        audit.append("人工", DiagService.OPERATOR, "全部应用(" + online.size() + ")",
+        audit.append("人工", operator, "全部应用(" + online.size() + ")",
                 "批量 sc -d " + targetClass, System.currentTimeMillis() - begin, "ok");
         return new AtlasReport(targetClass, online.size(), (int) foundCount, (int) vulnerable,
                 System.currentTimeMillis() - begin, hits, Instant.now());

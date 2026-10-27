@@ -3,41 +3,59 @@ package com.bianque.server.service;
 import com.bianque.server.model.Types.CheckupRow;
 import com.bianque.server.model.Types.Instance;
 import com.bianque.server.repo.FleetRepository;
+import com.bianque.server.store.CheckupRunEntity;
+import com.bianque.server.store.CheckupRunJpa;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 扁鹊·体检：巡检模板（只读命令集）→ 阈值打分 → 健康分。
+ * 扁鹊·体检：巡检模板（只读命令集）→ 阈值打分 → 健康分。运行结果落库，重启可回溯。
  */
 @Service
 public class CheckupService {
 
+    private static final Logger log = LoggerFactory.getLogger(CheckupService.class);
     private static final List<String> TEMPLATE = List.of("jvm", "memory", "thread");
 
     private final DiagService diag;
     private final FleetRepository fleet;
+    private final CheckupRunJpa runs;
+    private final ObjectMapper json;
     private final Map<String, List<CheckupRow>> latest = new ConcurrentHashMap<>();
 
-    public CheckupService(DiagService diag, FleetRepository fleet) {
+    public CheckupService(DiagService diag, FleetRepository fleet, CheckupRunJpa runs, ObjectMapper json) {
         this.diag = diag;
         this.fleet = fleet;
+        this.runs = runs;
+        this.json = json;
     }
 
     public List<CheckupRow> runAll() {
+        return runAll(DiagService.SYSTEM);
+    }
+
+    public List<CheckupRow> runAll(String operator) {
         List<Instance> online = fleet.allInstances().stream().filter(Instance::online).toList();
-        // 虚拟线程并行巡检（JDK 21）：IO 密集，实例间互不阻塞；按主机维度限流在 S1 执行引擎统一收敛
+        // 虚拟线程并行巡检（JDK 21）：IO 密集，实例间互不阻塞
         try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             List<java.util.concurrent.Future<CheckupRow>> futures = online.stream()
-                    .map(i -> executor.submit(() -> checkOne(i)))
+                    .map(i -> executor.submit(() -> checkOne(i, operator)))
                     .toList();
             List<CheckupRow> rows = new ArrayList<>();
             for (var f : futures) {
                 rows.add(f.get(60, java.util.concurrent.TimeUnit.SECONDS));
             }
             latest.put("latest", rows);
+            persist(operator, rows);
             return rows;
         } catch (java.lang.InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -48,14 +66,50 @@ public class CheckupService {
     }
 
     public List<CheckupRow> latest() {
-        return latest.getOrDefault("latest", List.of());
+        if (latest.containsKey("latest")) {
+            return latest.get("latest");
+        }
+        Optional<CheckupRunEntity> last = runs.findFirstByOrderByIdDesc();
+        if (last.isEmpty()) {
+            return List.of();
+        }
+        try {
+            List<CheckupRow> rows = json.readValue(last.get().payloadJson, new TypeReference<List<CheckupRow>>() {
+            });
+            latest.put("latest", rows);
+            return rows;
+        } catch (Exception e) {
+            log.warn("巡检结果反序列化失败", e);
+            return List.of();
+        }
     }
 
-    CheckupRow checkOne(Instance ins) {
+    /** 运行历史（最近 20 次，供趋势展示） */
+    public List<Map<String, Object>> history() {
+        return runs.findTop20ByOrderByIdDesc().stream()
+                .map(r -> Map.<String, Object>of(
+                        "runAt", r.runAt.toString(),
+                        "operator", r.operator == null ? "" : r.operator,
+                        "instanceCount", r.instanceCount,
+                        "avgScore", r.avgScore))
+                .toList();
+    }
+
+    private void persist(String operator, List<CheckupRow> rows) {
+        try {
+            double avg = rows.stream().mapToInt(CheckupRow::score).average().orElse(0);
+            runs.save(new CheckupRunEntity(Instant.now(), operator, rows.size(), avg,
+                    json.writeValueAsString(rows)));
+        } catch (Exception e) {
+            log.warn("巡检结果落库失败", e);
+        }
+    }
+
+    CheckupRow checkOne(Instance ins, String operator) {
         int score = ins.baseHealth();
         List<String> deductions = new ArrayList<>();
         for (String cmd : TEMPLATE) {
-            String out = diag.execute(ins.instanceId(), cmd, "系统").output();
+            String out = diag.execute(ins.instanceId(), cmd, "系统", operator).output();
             parseDeductions(out, deductions);
         }
         for (String d : deductions) {

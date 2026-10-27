@@ -3,6 +3,7 @@ package com.bianque.server.web;
 import com.bianque.server.model.Types.Alert;
 import com.bianque.server.model.Types.RescueReport;
 import com.bianque.server.service.RescueService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,8 +31,8 @@ public class RescueController {
     }
 
     @PostMapping("/{alertId}/rescue")
-    public RescueReport rescue(@PathVariable String alertId) {
-        return rescue.rescue(alertId);
+    public RescueReport rescue(@PathVariable String alertId, HttpServletRequest request) {
+        return rescue.rescue(alertId, DiagController.operator(request));
     }
 
     @GetMapping("/{alertId}/report")

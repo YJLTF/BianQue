@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { http } from "@/api/http";
+import { http, errMsg } from "@/api/http";
 
 interface Alert { alertId: string; time: string; appId: string; instanceId: string; message: string; severity: string; status: string }
 interface RescueReport {
@@ -73,10 +73,15 @@ function hhmm(t: string) {
 
 async function rescue(alertId: string) {
   busy.value = alertId;
-  report.value = await http.post(`/alerts/${alertId}/rescue`) as unknown as RescueReport;
-  alerts.value = await http.get("/alerts") as unknown as Alert[];
-  busy.value = "";
-  ElMessage.success("现场报告已生成并推送值班群（模拟）");
+  try {
+    report.value = await http.post(`/alerts/${alertId}/rescue`) as unknown as RescueReport;
+    alerts.value = await http.get("/alerts") as unknown as Alert[];
+    ElMessage.success("现场报告已生成并推送值班群（模拟）");
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  } finally {
+    busy.value = "";
+  }
 }
 
 onMounted(async () => {

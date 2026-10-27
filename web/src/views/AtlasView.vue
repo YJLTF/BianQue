@@ -44,7 +44,8 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { http } from "@/api/http";
+import { ElMessage } from "element-plus";
+import { http, errMsg } from "@/api/http";
 
 interface AtlasHit { instanceId: string; targetClass: string; classFound: boolean; sourceJar: string; classloader: string; verdict: string }
 interface AtlasReport { targetClass: string; scanned: number; hits: number; vulnerable: number; costMs: number; hitsDetail: AtlasHit[] }
@@ -55,7 +56,12 @@ const rep = ref<AtlasReport | null>(null);
 
 async function scan() {
   scanning.value = true;
-  rep.value = await http.post("/atlas/scan", { targetClass: targetClass.value }) as unknown as AtlasReport;
-  scanning.value = false;
+  try {
+    rep.value = await http.post("/atlas/scan", { targetClass: targetClass.value }) as unknown as AtlasReport;
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  } finally {
+    scanning.value = false;
+  }
 }
 </script>

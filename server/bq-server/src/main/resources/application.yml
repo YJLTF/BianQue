@@ -1,8 +1,24 @@
 server:
   port: 8080
+  error:
+    # 错误体带 message，前端可展示"权限不足（只读 无 diag:execute）"等可读原因
+    include-message: always
 spring:
   application:
     name: bianque-server
+  datasource:
+    # S1：默认 H2 文件库（MODE=MySQL，语义兼容）；生产切 profile=mysql 走真 MySQL
+    url: jdbc:h2:file:./data/bianque;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
 management:
   endpoints:
     web:
@@ -18,3 +34,19 @@ bianque:
     unpack-root: ""   # 空值时按运行目录自动探测 docs/arthas-docs/4.3.5
   session:
     ttl-minutes: 30
+  auth:
+    token-ttl-hours: 8
+
+---
+spring:
+  config:
+    activate:
+      on-profile: mysql
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/bianque?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: bianque
+    password: ${BIANQUE_DB_PASSWORD:bianque123}
+  jpa:
+    hibernate:
+      ddl-auto: update

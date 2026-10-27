@@ -1,8 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: "/login", name: "login", component: () => import("@/views/LoginView.vue"), meta: { title: "登录" } },
     {
       path: "/",
       component: () => import("@/layouts/BasicLayout.vue"),
@@ -20,6 +22,18 @@ const router = createRouter({
       ],
     },
   ],
+});
+
+// 全局守卫：未登录一律去 /login（登录页除外）
+router.beforeEach((to) => {
+  const auth = useAuthStore();
+  if (to.name !== "login" && !auth.isLoggedIn) {
+    return { name: "login" };
+  }
+  if (to.name === "login" && auth.isLoggedIn) {
+    return { path: "/home" };
+  }
+  return true;
 });
 
 export default router;

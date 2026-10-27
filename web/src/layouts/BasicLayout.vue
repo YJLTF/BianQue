@@ -12,8 +12,9 @@
         </el-menu-item>
       </el-menu>
       <div class="footer">
-        <el-avatar :size="26">张</el-avatar>
-        <span class="footer-text">张三 · 平台操作员</span>
+        <el-avatar :size="26">{{ auth.displayName.slice(0, 1) }}</el-avatar>
+        <span class="footer-text">{{ auth.displayName }} · {{ auth.roleName }}</span>
+        <el-button link size="small" class="logout" @click="logout">退出</el-button>
       </div>
     </el-aside>
     <el-container>
@@ -36,12 +37,26 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { navItems } from "@/config/nav";
+import { useAuthStore } from "@/stores/auth";
+import { http } from "@/api/http";
 
 const route = useRoute();
+const router = useRouter();
+const auth = useAuthStore();
 const keyword = ref("");
 const nav = navItems;
+
+async function logout() {
+  try {
+    await http.post("/auth/logout");
+  } catch {
+    // token 已失效也照常清理本地态
+  }
+  auth.clear();
+  router.push("/login");
+}
 </script>
 
 <style scoped>
@@ -56,6 +71,8 @@ const nav = navItems;
 .clan { margin-left: auto; font-size: 11px; color: #7e8ea1; }
 .footer { padding: 12px; border-top: 1px solid rgba(255, 255, 255, 0.09); display: flex; align-items: center; gap: 8px; }
 .footer-text { color: #c8d2de; font-size: 12px; }
+.logout { margin-left: auto; color: #8fa0b3; }
+.logout:hover { color: #fff; }
 .header { display: flex; align-items: center; gap: 10px; background: #fff; border-bottom: 1px solid #e4e7ed; }
 .search { max-width: 420px; margin-right: auto; }
 .main { background: #f5f7fa; }

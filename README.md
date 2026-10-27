@@ -48,24 +48,41 @@ bianque/
 | `arthas-packaging-4.3.5-doc.zip` | `materials/` |
 | `docs-unpack/` | `docs/arthas-docs/4.3.5/` |
 
-## 快速开始（V0.1.0，第一个可用版本）
+## 快速开始（V0.1.x · S1 公共底座已就位）
 
 ```bash
-# 1. 后端（拟真演示通道，无需真实 agent）
-cd server
-mvn -B package
-java -jar bq-server/target/bq-server-0.1.0-SNAPSHOT.jar     # http://127.0.0.1:8080
+# 1. 后端（拟真演示通道，无需真实 agent）——必须在仓库根目录启动
+#    （H2 文件库 ./data 与文档目录均按相对路径解析）
+cd server && mvn -B package && cd ..
+java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar   # http://127.0.0.1:8080
 
 # 2. 前端（开发模式，/api 与 /docs 代理到 8080）
-cd web
-npm install
-npm run dev                                                  # http://localhost:5173
+cd web && npm install && npm run dev                             # http://localhost:5173
 ```
 
-V0.1.0 可用能力：工作台总览、诊断台（表单/模板/命令执行、高危黑名单拦截、会话 30 分钟托管）、
-审计中心（全操作留痕）、急诊取证（告警→现场报告）、巡检体检（虚拟线程并行巡检+健康分）、
-档案扫描（批量 sc -d 漏洞应急）、文档中心（Arthas 4.3.5 官方 78 页离线托管+全文搜索）、
-安全基线下发与 agent 安装向导。`bianque.execution.mode=local` 可切换本机 as.sh 真实执行。
+登录账号（首次启动自动种子，RBAC 五表：users/roles/permissions/user_roles/role_permissions）：
+
+| 账号 | 口令 | 角色 | 权限 |
+|------|------|------|------|
+| admin | admin123 | ADMIN（管理员） | 全量（含用户管理） |
+| ops | ops123 | OPERATOR（运维） | 只读 + 执行诊断/巡检/取证/扫描 |
+| viewer | viewer123 | VIEWER（只读） | 仅浏览，写操作返回 403 |
+
+S1 可用能力（在 V0.1.0 八大功能流之上新增）：
+
+- **登录认证与 RBAC**：登录页签发 token（默认 8h 滑动过期），/api/** 全量鉴权（登录与探活除外），
+  写操作需 `diag:execute`，用户管理仅 ADMIN；前端路由守卫 + axios 自动携带 token + 401 自动跳登录。
+- **审计哈希链防篡改**：每条审计 `hash = sha256(记录内容 + prevHash)`，首条创世；审计中心一键
+  "校验哈希链"，任何记录被篡改即断链可检（`GET /api/audit/verify`）。
+- **持久化（H2 → MySQL 可切换）**：审计、巡检运行、急诊报告落库（默认 H2 文件库 MODE=MySQL，
+  数据在 `./data/`）；生产切换 `--spring.profiles.active=mysql`（见 deploy/docker-compose.yml）。
+  巡检结果重启不丢，`/api/checkup/history` 可回看最近 20 次。
+- **真实操作人审计**：所有诊断动作记录登录账号（不再是演示账号）。
+
+V0.1.0 基础能力保留：工作台总览、诊断台（模板/命令执行、高危黑名单拦截、会话 30 分钟托管）、
+急诊取证、巡检体检（虚拟线程并行+健康分）、档案扫描（批量 sc -d）、
+文档中心（Arthas 4.3.5 官方 78 页离线托管+全文搜索）、安全基线与 agent 安装向导。
+`bianque.execution.mode=local` 可切换本机 as.sh 真实执行。
 
 ## 开发环境要求（规划）
 

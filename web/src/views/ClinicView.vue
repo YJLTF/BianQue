@@ -75,6 +75,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { executeDiag, getInstances, getSession, closeSession, type DiagResultVO, type InstanceVO } from "@/api/diag";
+import { errMsg } from "@/api/http";
 import { riskMeta, riskOfCommand, highRiskFamilies } from "@/config/risk";
 
 interface DocHit { slug: string; title: string; category: string; risk: string; path: string }
@@ -106,9 +107,13 @@ async function onExecute() {
     confirmVisible.value = true;
     return;
   }
-  result.value = await executeDiag(instanceId.value, command.value, "人工");
-  blocked.value = !result.value.success;
-  if (!blocked.value) ElMessage.success(`执行完成（${result.value.costMs}ms）`);
+  try {
+    result.value = await executeDiag(instanceId.value, command.value, "人工");
+    blocked.value = !result.value.success;
+    if (!blocked.value) ElMessage.success(`执行完成（${result.value.costMs}ms）`);
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  }
   await refreshSession();
 }
 
