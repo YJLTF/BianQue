@@ -43,6 +43,18 @@ bianque:
     token: ""
     # 节点程序包下载路径（GET /api/agent/download）；将 bq-agent.jar 拷贝至此生效
     jar-path: agents/bq-agent.jar
+  llm:
+    # AI 问诊 LLM 接入（OpenAI Chat Completions 兼容端点，不含 /chat/completions 尾巴）。
+    # 以下为首次播种默认值，运行时在「AI 问诊」页在线编辑（落库 llm_config）；api-key 支持 env：BIANQUE_LLM_API_KEY
+    base-url: ""
+    api-key: ""
+    model: ""
+    system-prompt: >-
+      你是扁鹊（BianQue）平台的线上 JVM 诊断助手，面向运维与研发。回答要求：
+      1) 先给结论，再列证据（引用提供的线程栈/内存/JVM 数据），最后给处置建议；
+      2) 建议执行的 Arthas 命令仅限只读白名单（thread/memory/jvm/dashboard/tt/watch 只读用法），绝不建议 ognl/redefine/stop 等高危命令；
+      3) 信息不足时明确说明还缺哪类数据，不要臆测；
+      4) 使用简体中文，简洁分点。
   session:
     ttl-minutes: 30
   alerts:

@@ -94,6 +94,19 @@ S1 可用能力（在 V0.1.0 八大功能流之上新增）：
   巡检结果重启不丢，`/api/checkup/history` 可回看最近 20 次。
 - **真实操作人审计**：所有诊断动作记录登录账号（不再是演示账号）。
 
+**S7 AI 问诊接入 LLM（OpenAI Chat Completions 兼容）**：
+- 平台侧 LLM 接入（`com.bianque.server.llm`）：配置单例落库（`llm_config` 表），「AI 问诊」页在线编辑
+  免重启；api-key 只回传掩码（`***尾4位`），支持 env 预置（`BIANQUE_LLM_API_KEY`）；每次对话写审计哈希链。
+- 参数调节：模型名、temperature（0–2）、top_p、max_tokens、超时（3–600s）、
+  **思考强度 reasoning_effort**（关闭/minimal/low/medium/high）。推理模式自动按推理模型约束发参：
+  省略 temperature/top_p、max_tokens 以 `max_completion_tokens` 承载；关闭时按普通对话模型发采样参数。
+- 提示词输入：系统提示词（人设与输出规范）页内可编辑、一键恢复默认；支持多轮对话（携带最近 10 轮）
+  与「附加诊断上下文」（粘贴 thread/memory/jvm 输出供模型分析）。
+- 权限：配置读写/连通测试仅 `admin:user`；chat 走全局 `diag:execute` 门槛（viewer 不可消耗配额）。
+- 端点要求：任何 OpenAI Chat Completions 兼容服务（OpenAI / DeepSeek / GLM / Qwen / vLLM 内网网关均可），
+  Base URL 不含 `/chat/completions` 尾巴；内网演示可用 `python scripts/dev-llm-mock.py`（假端点）。
+- 设计边界：LLM 调用收敛在平台侧（密钥集中管理 + 全量审计），节点 Agent 保持零依赖瘦执行器不持有密钥。
+
 **S6 平台版 Agent + 现代化 UI**：
 - 平台版 Agent（`server/bq-agent`）：部署在目标主机的独立节点程序（纯 JDK 11+，**零第三方依赖**），
   纯出站 HTTP 与平台通信（默认 5s 心跳），**目标主机无需开放任何入站端口**。心跳自动上报本机 JVM

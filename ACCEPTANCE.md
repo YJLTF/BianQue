@@ -1,4 +1,4 @@
-# 扁鹊 BianQue · 验收清单（V0.1.x，S1–S6）
+# 扁鹊 BianQue · 验收清单（V0.1.x，S1–S7）
 
 > 适用版本：git main 分支（df05ed3 → 17e372f 及之后）。
 > 每项标注 【自动】= 已由 `scripts/smoke.sh` / 测试覆盖；【手动】= 浏览器人工确认。
@@ -67,6 +67,16 @@
 - [ ] 真实通道会话超时（30 分钟）自动回收并真实 stop 卸载 agent
 - [ ] `bianque.execution.local-enabled=false` 时纳管接口 403、本机通道不装配（生产基线）
 - [ ] 敏感配置项（DB 口令 / ingest-token）均支持环境变量覆盖，仓库不含真实口令
+
+## 13. AI 问诊 LLM 接入（S7）
+
+- [ ] 未配置时 chat → 409 并提示先配置；ops 改配置/测试 → 403；viewer chat → 403 【自动】
+- [ ] admin 保存配置后 api-key 只回传掩码（`***尾4`），响应不含明文；空 key 提交保留原值 【自动】
+- [ ] 思考强度=low/medium 等 → 请求体含 `reasoning_effort` 与 `max_completion_tokens`、不含 temperature/top_p/max_tokens；
+      思考强度=关闭 → 请求体含 temperature/top_p/max_tokens、不含 reasoning_effort 【自动】
+- [ ] 对话回传 content + reasoning（思考过程折叠块可展开）+ tokens/耗时徽标；每次调用写审计且哈希链校验通过 【自动】
+- [ ] 页面：配置面板（管理员可编辑/只读视图）、快捷提问、附加诊断上下文折叠、Enter 发送 【手动】
+- [ ] 真实端点验收：将 Base URL/Key/模型 换成内网真实 OpenAI 兼容服务，重跑测试连通与一轮对话 【手动】
 
 ## 11. 平台版 Agent（S6）
 
