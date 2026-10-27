@@ -130,6 +130,9 @@ class AuthFlowIntegrationTest {
     @Autowired
     org.springframework.jdbc.core.JdbcTemplate jdbc;
 
+    @Autowired
+    org.springframework.beans.factory.ObjectProvider<com.bianque.server.repo.AuditRepository> auditRepo;
+
     @Test
     @Order(8)
     void 篡改审计记录后哈希链断链可检() {
@@ -139,6 +142,36 @@ class AuthFlowIntegrationTest {
         assertEquals(HttpStatus.OK, v.getStatusCode());
         assertEquals(Boolean.FALSE, v.getBody().get("valid"), "篡改后链校验必须失败");
         assertEquals(1, ((Number) v.getBody().get("brokenAtSeq")).intValue());
+    }
+
+    @Test
+    @Order(9)
+    void 并发审计追加不重号且链完整() throws Exception {
+        // 先还原 Order(8) 的篡改，保证全链可校验
+        jdbc.update("update audit_log set command = replace(command, '_篡改', '') where command like '%\\_篡改'");
+        com.bianque.server.repo.AuditRepository repo = auditRepo.getObject();
+        int threads = 8, per = 12;
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(threads)) {
+            List<java.util.concurrent.Future<?>> fs = new java.util.ArrayList<>();
+            for (int t = 0; t < threads; t++) {
+                final int id = t;
+                fs.add(pool.submit(() -> {
+                    for (int i = 0; i < per; i++) {
+                        repo.append("并发测试", "tester-" + id, "pod-1", "cmd-" + id + "-" + i, 1, "ok");
+                    }
+                }));
+            }
+            for (var f : fs) {
+                f.get();
+            }
+        }
+        // 序号无重复：总数 = max(seq)
+        Number maxSeq = jdbc.queryForObject("select max(seq) from audit_log", Number.class);
+        Number rows = jdbc.queryForObject("select count(*) from audit_log", Number.class);
+        assertEquals(maxSeq.longValue(), rows.longValue(), "seq 存在重复/空洞");
+        // 哈希链完整
+        Map<String, Object> v = repo.verifyChain();
+        assertEquals(Boolean.TRUE, v.get("valid"), "并发追加后链必须完整: " + v);
     }
 
     private HttpHeaders auth(String token) {

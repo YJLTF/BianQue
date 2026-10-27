@@ -25,20 +25,26 @@ public class DiagController {
     }
 
     private final DiagService diag;
+    private final com.bianque.server.repo.FleetRepository fleet;
 
-    public DiagController(DiagService diag) {
+    public DiagController(DiagService diag, com.bianque.server.repo.FleetRepository fleet) {
         this.diag = diag;
+        this.fleet = fleet;
     }
 
     @PostMapping("/execute")
     public Map<String, Object> execute(@RequestBody ExecuteRequest req, HttpServletRequest request) {
         String src = req.source() == null || req.source().isBlank() ? "人工" : req.source();
         DiagResult out = diag.execute(req.instanceId(), req.command(), src, operator(request));
-        return Map.of(
-                "success", out.success(),
-                "output", out.output() == null ? "" : out.output(),
-                "error", out.error() == null ? "" : out.error(),
-                "costMs", out.costMs());
+        var ins = fleet.find(req.instanceId()).orElse(null);
+        String channel = ins != null && ins.localAgent() ? "real" : "simulated";
+        Map<String, Object> resp = new java.util.LinkedHashMap<>();
+        resp.put("success", out.success());
+        resp.put("output", out.output() == null ? "" : out.output());
+        resp.put("error", out.error() == null ? "" : out.error());
+        resp.put("costMs", out.costMs());
+        resp.put("channel", channel);
+        return resp;
     }
 
     @GetMapping("/session/{instanceId}")

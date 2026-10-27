@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,30 +31,42 @@ public class AuditRepository implements AuditTrail {
     private static final int QUERY_SCAN_CAP = 500;
 
     private final AuditLogJpa jpa;
+    private final ObjectProvider<AuditRepository> self; // 自代理：让事务提交发生在 appendLock 临界区内
     private final Object appendLock = new Object();
 
-    public AuditRepository(AuditLogJpa jpa) {
+    public AuditRepository(AuditLogJpa jpa, ObjectProvider<AuditRepository> self) {
         this.jpa = jpa;
+        this.self = self;
     }
 
+    /**
+     * 并发安全的关键：seq 生成（maxSeq+1）必须与提交串行化。
+     * 若锁在 @Transactional 代理内层，提交发生在锁外，并发线程会读到相同的 maxSeq 导致重复键。
+     * 因此锁包住"整个事务方法"（经自身代理调用），提交完成才放行下一个线程。
+     */
     @Override
-    @Transactional
     public AuditEntry append(String source, String operator, String instanceId,
                              String command, long costMs, String result) {
         synchronized (appendLock) {
-            long seq = jpa.maxSeq() + 1;
-            String prevHash = seq == 1
-                    ? GENESIS
-                    : jpa.findBySeq(seq - 1).map(e -> e.hash).orElse(GENESIS);
-            Instant now = Instant.now();
-            String timeText = TS.format(now);
-            String hash = HashUtil.sha256Hex(seq + "|" + timeText + "|" + source + "|" + operator
-                    + "|" + instanceId + "|" + command + "|" + costMs + "|" + result + "|" + prevHash);
-            AuditLogEntity e = new AuditLogEntity(seq, now, timeText, source, operator, instanceId,
-                    command, costMs, result, prevHash, hash);
-            jpa.save(e);
-            return toRecord(e);
+            return self.getObject().appendInTransaction(source, operator, instanceId, command, costMs, result);
         }
+    }
+
+    @Transactional
+    public AuditEntry appendInTransaction(String source, String operator, String instanceId,
+                                          String command, long costMs, String result) {
+        long seq = jpa.maxSeq() + 1;
+        String prevHash = seq == 1
+                ? GENESIS
+                : jpa.findBySeq(seq - 1).map(e -> e.hash).orElse(GENESIS);
+        Instant now = Instant.now();
+        String timeText = TS.format(now);
+        String hash = HashUtil.sha256Hex(seq + "|" + timeText + "|" + source + "|" + operator
+                + "|" + instanceId + "|" + command + "|" + costMs + "|" + result + "|" + prevHash);
+        AuditLogEntity e = new AuditLogEntity(seq, now, timeText, source, operator, instanceId,
+                command, costMs, result, prevHash, hash);
+        jpa.saveAndFlush(e);
+        return toRecord(e);
     }
 
     @Override

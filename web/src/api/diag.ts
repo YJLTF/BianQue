@@ -6,6 +6,8 @@ export interface DiagResultVO {
   output: string;
   error: string;
   costMs: number;
+  /** real=本机真实通道（常驻/一次性），simulated=拟真靶场 */
+  channel?: "real" | "simulated";
 }
 
 /** 执行诊断命令（平台唯一执行入口；高危由后端黑名单拦截） */

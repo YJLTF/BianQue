@@ -43,6 +43,9 @@
           <el-button type="primary" size="small" :disabled="!instanceId || !command.trim()" @click="onExecute">
             执行诊断
           </el-button>
+          <el-tag v-if="result && !blocked" size="small" :type="result.channel === 'real' ? 'success' : 'info'" effect="plain">
+            {{ result.channel === "real" ? "真实通道" : "拟真演示" }} · {{ result.costMs }}ms
+          </el-tag>
           <span class="sub">高危命令将被平台黑名单拦截并审计</span>
         </div>
       </el-card>
