@@ -1,0 +1,25 @@
+# 白名单式裁剪：三个镜像构建上下文均为仓库根目录，只放行构建所需路径
+*
+!server/
+server/**/target
+!web/
+web/node_modules
+web/dist
+web/dev-server.log
+!deploy/
+deploy/*
+!deploy/docker/
+deploy/docker/*
+!deploy/docker/nginx.conf
+!deploy/docker/Dockerfile.server
+!deploy/docker/Dockerfile.web
+!deploy/docker/Dockerfile.probe
+!deploy/docker/probe-entrypoint.sh
+!docs
+docs/*
+!docs/research
+docs/research/*
+!docs/research/arthas-inspect
+docs/research/arthas-inspect/*
+!docs/research/arthas-inspect/arthas-boot.jar
+!docs/arthas-docs/

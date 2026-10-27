@@ -1,6 +1,20 @@
 # 扁鹊 BianQue · 变更记录（CHANGELOG）
 
-按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)。
+按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
+
+## S8 · 一键部署镜像 + 节点探针服务
+
+- 三个镜像（多阶段构建，`docker compose -f deploy/docker-compose.prod.yml up -d --build` 一键起全栈）：
+  `bianque/web`（Vite 构建 → Nginx 托管 + /api /docs 反代，76MB）、`bianque/server`（Spring Boot + 离线文档内嵌，597MB）、
+  `bianque/probe`（bq-agent + arthas-boot，JDK 17）
+- 新增 `docker` profile：compose 网络内连 `mysql`/`redis` 服务名；容器化 server 自动关闭本机纳管通道
+  （容器内无宿主 JVM，真实诊断由探针回连提供）
+- 节点探针两种安装形态：Docker（`--pid=host -v /tmp:/tmp`，attach 宿主 JVM）与裸机 systemd
+  （`deploy/probe/install.sh` 一行安装/开机自启/自动重启）；Windows 主机直接 `java -jar` 运行
+- 部署配套：探针接入/告警/LLM 密钥全部环境变量化；数据卷持久化（升级不丢数据）；
+  移除开发 compose 中无引用的 minio 服务
+- 实测：全栈起服 6.3s，Nginx 反代 health/登录/机队/文档目录（262KB）全通；探针容器经 compose
+  网络注册成功心跳正常
 
 ## S7 · AI 问诊接入 LLM（0aec59c）
 

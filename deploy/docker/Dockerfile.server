@@ -1,0 +1,20 @@
+# 扁鹊平台服务端镜像（多阶段：Maven 构建 → JRE 运行）
+# 构建上下文 = 仓库根目录（docker compose -f deploy/docker-compose.prod.yml build server）
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /src
+# 先拷 pom 单独走依赖层，源码不变时命中缓存
+COPY server/pom.xml ./
+COPY server/bq-core/pom.xml bq-core/
+COPY server/bq-server/pom.xml bq-server/
+COPY server/bq-agent/pom.xml bq-agent/
+RUN mvn -B -q -pl bq-server -am dependency:go-offline || true
+COPY server/ ./
+RUN mvn -B -q -pl bq-server -am package -DskipTests
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY --from=build /src/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar app.jar
+# 文档中心按相对路径探测：docs/ 一并打入（78 页离线文档随镜像分发）
+COPY docs/arthas-docs/ /app/docs/arthas-docs/
+EXPOSE 8080
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar", "--spring.profiles.active=mysql,docker"]

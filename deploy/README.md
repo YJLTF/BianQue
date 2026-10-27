@@ -1,7 +1,111 @@
 # deploy（部署）
 
-当前内容：
-- `docker-compose.yml` — MySQL 8.4 + Redis 7.4（`docker compose up -d mysql redis`；演示账号 bianque/bianque123，仅限内网）
-- `docs-site/` — 文档中心静态产物（docs-center 管线输出，可由 Nginx / 平台静态托管）
+扁鹊平台三种部署形态：
 
-规划中：Nginx 配置、离线部署包（镜像 tar + agent 安装器）、节点/服务 systemd 与 as-service.bat 安装脚本。
+| 形态 | 适用 | 入口 |
+|---|---|---|
+| ① 平台全容器一键部署 | 生产/演示服务器（只需 Docker） | [`docker-compose.prod.yml`](docker-compose.prod.yml) |
+| ② 节点探针 · Docker | Linux 目标主机（推荐，与平台镜像同源） | [`Dockerfile.probe`](docker/Dockerfile.probe) |
+| ③ 节点探针 · 裸机 systemd | 已装 JDK 11+ 的 Linux 主机 | [`probe/install.sh`](probe/install.sh) |
+
+开发者在宿主机直跑后端/前端时，只需基础设施层 [`docker-compose.yml`](docker-compose.yml)（MySQL + Redis）。
+
+---
+
+## ① 平台一键部署（全容器）
+
+**架构**：`web`(Nginx 静态 + 反代) → `server`(Spring Boot) → `mysql` / `redis`；目标主机另装探针（见下节）回连注册。
+
+```
+浏览器 ──80──> bq-web(Nginx) ──/api /docs──> bq-server:8080 ──> mysql / redis
+目标主机探针 bq-agent ──出站 HTTP(5s 心跳)──> http://<平台>:8080/api/agent/**
+```
+
+**前置**：Docker 20+ 与 Docker Compose v2；无需 JDK/Node（镜像内多阶段构建）。
+
+```bash
+cd deploy
+AGENT_TOKEN=换一个强随机令牌 docker compose -f docker-compose.prod.yml up -d --build
+# 首次构建需联网拉取 Maven/npm 依赖，约 5~15 分钟；之后命中缓存秒级
+```
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `AGENT_TOKEN` | 空（开放） | 探针接入令牌（`X-Agent-Token`）。**生产必配**，与探针侧保持一致 |
+| `INGEST_TOKEN` | 空（关闭） | 告警接入令牌（`X-Alert-Token`），配置后外部告警系统可推入 `POST /api/alerts/ingest` |
+| `LLM_API_KEY` | 空 | AI 问诊 LLM 密钥预置（也可部署后在「AI 问诊」页填写，落库） |
+| `BIANQUE_DB_PASSWORD` | bianque123 | MySQL 业务账号密码（仅内网演示默认值） |
+| `WEB_PORT` | 80 | 前端对外端口 |
+
+**验证**：
+
+```bash
+curl http://<主机>/api/health                 # {"status":"UP"}
+# 浏览器打开 http://<主机>/ → admin/admin123 → 节点管理页
+```
+
+**说明**：
+
+- 容器化 server **自动关闭本机纳管通道**（`bianque.execution.local-enabled=false`）——容器内看不到宿主 JVM，
+  真实诊断一律由目标主机探针回连提供；拟真靶场、审计、巡检、AI 问诊等全功能可用
+- 数据落 MySQL volume（`mysql-data`），重启/升级不丢；server 日志与临时文件在 `server-data` volume
+- 升级：`git pull && docker compose -f docker-compose.prod.yml up -d --build`（DDL 自动增量，向后兼容）
+- 备份：`docker exec bq-mysql mysqldump -ubianque -pbianque123 bianque > backup.sql`
+- TLS：镜像内不做 TLS，生产建议外层 Nginx/网关统一终结 HTTPS 后反代到 `WEB_PORT`
+
+## ② 节点探针 · Docker（Linux 主机推荐）
+
+探针镜像内置 `bq-agent.jar` + `arthas-boot.jar`（JDK 17）。**必须** `--pid=host` 并挂载 `/tmp`
+（JVM attach 依赖宿主 `/tmp` 下的 hsperfdata/attach socket），探针以 root 运行可附加 root 启动的 JVM：
+
+```bash
+docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:latest .   # 或由 compose 构建
+docker run -d --name bq-probe --restart unless-stopped \
+  --pid=host -v /tmp:/tmp \
+  -e SERVER_URL=http://<平台IP>:8080 \
+  -e AGENT_TOKEN=<与平台一致的令牌> \
+  -e PROBE_NAME=<节点显示名，默认取 hostname> \
+  bianque/probe:latest
+```
+
+同机快速体验（平台本身用 compose 部署时）：`docker compose -f docker-compose.prod.yml --profile probe up -d probe`
+——compose 内置 `probe` 服务已带 `pid=host` 与 `/tmp` 挂载，经网络别名 `server` 直连。
+
+## ③ 节点探针 · 裸机 systemd（已装 JDK 的 Linux 主机）
+
+```bash
+# 仓库构建产物同机安装（也可把两个 jar 拷到目标主机后用 --jar/--arthas 指定路径）
+sudo ./deploy/probe/install.sh --server http://<平台IP>:8080 --token <令牌>
+# 可选: --jar /path/bq-agent.jar --arthas /path/arthas-boot.jar --name 节点名
+```
+
+安装器行为：拷贝 jar 到 `/opt/bq-probe/` → 写入 `bq-probe.service`（自动重启）→ `enable --now`。
+日志：`journalctl -u bq-probe -f`；卸载：`systemctl disable --now bq-probe && rm -rf /opt/bq-probe`。
+
+**Windows 目标主机**：无需服务化，直接
+
+```bat
+java -jar bq-agent.jar --server http://平台IP:8080 --token <令牌> --arthas arthas-boot.jar
+```
+
+（可用任务计划/服务包装器常驻；探针所在目录需可写，用于保存节点身份 `bq-agent.id`。）
+
+## 端口与网络要求
+
+| 方向 | 端口/目标 | 用途 |
+|---|---|---|
+| 用户 → web | TCP 80（`WEB_PORT`） | 平台界面 |
+| 用户/探针 → server | TCP 8080 | API + 探针注册/心跳/命令单（跨主机探针必须能出站访问平台 8080） |
+| 探针 → 目标 JVM | 本机 attach + 本机回环端口（28600+） | 探针与目标进程同机通信，**不经过网络** |
+
+目标主机**无需开放任何入站端口**——探针只做出站 HTTP。
+
+## 探针工作原理与边界（务必阅读）
+
+- 心跳 5s 上报本机 JVM 进程清单（attach API，异常回落 jps）；平台命令单下发，节点串行执行后回传
+- **attach 权限**：探针进程用户必须与目标 JVM 用户一致（容器探针默认 root → 可附加 root 启动的 JVM；
+  非 root 目标进程需在对应用户下另行运行探针，或用裸机方式以同用户 systemd 运行）
+- **同一 JVM 只允许一个 arthas agent**：目标进程此前被手工 attach 过且未 stop 的，先停止旧 agent
+- 探针空闲 30 分钟自动回收 arthas 会话；平台侧会话关闭时下发 stop，防增强残留
+- `bianque.agent.token` 为空时探针接入开放（仅限内网演示）；生产必配且探针侧一致
+- 完整安全边界见根 [README](../README.md)「红线」与「已知边界」章节

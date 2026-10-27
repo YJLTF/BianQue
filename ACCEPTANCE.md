@@ -1,4 +1,4 @@
-# 扁鹊 BianQue · 验收清单（V0.1.x，S1–S7）
+# 扁鹊 BianQue · 验收清单（V0.1.x，S1–S8）
 
 > 适用版本：git main 分支（df05ed3 → 17e372f 及之后）。
 > 每项标注 【自动】= 已由 `scripts/smoke.sh` / 测试覆盖；【手动】= 浏览器人工确认。
@@ -94,7 +94,17 @@
 - [ ] 页面：配置面板（管理员可编辑/只读视图）、快捷提问、附加诊断上下文折叠、Enter 发送 【手动】
 - [ ] 真实端点验收：将 Base URL/Key/模型 换成内网真实 OpenAI 兼容服务，重跑测试连通与一轮对话 【手动】
 
-## 13. 已知边界（如实声明）
+## 13. 一键部署与节点探针（S8）
+
+- [ ] `cd deploy && AGENT_TOKEN=<令牌> docker compose -f docker-compose.prod.yml up -d --build`
+      产出 bianque/web:76MB / server:597MB / probe:631MB 三镜像，全栈起服 【手动】
+- [ ] 走 Nginx 端口：前端 200、/api/health UP、登录+机队可用、/api/docs/catalog 返回 262KB 【手动】
+- [ ] 探针容器（--profile probe）经 compose 网络注册，节点管理页可见、心跳刷新 【手动】
+- [ ] Linux 主机裸机探针：`sudo ./deploy/probe/install.sh --server ... --token ...`
+      → systemd 常驻、节点上线、可对宿主 JVM 执行真实诊断 【手动，Linux 环境】
+- [ ] 容器化 server 本机纳管通道已关闭（bianque.execution.local-enabled=false） 【自动，compose command】
+
+## 14. 已知边界（如实声明）
 
 - 靶场应用/实例/种子告警为内存模拟数据；真实数据（审计/告警/取证/巡检/纳管/Agent 节点台账）已落库
 - 同一目标进程只应归属一个通道（本机纳管 or 节点 Agent）：arthas 每 JVM 仅一个 agent，混用时后 attach 端口不生效

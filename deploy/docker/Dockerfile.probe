@@ -1,0 +1,25 @@
+# 扁鹊节点探针镜像（多阶段：Maven 构建 bq-agent → JDK 运行）
+# 必须以 pid=host + /tmp 挂载运行才能 attach 宿主 JVM（Linux 主机）：
+#   docker run -d --pid=host -v /tmp:/tmp -e SERVER_URL=http://平台:8080 bianque/probe:latest
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /src
+COPY server/pom.xml ./
+COPY server/bq-core/pom.xml bq-core/
+COPY server/bq-server/pom.xml bq-server/
+COPY server/bq-agent/pom.xml bq-agent/
+RUN mvn -B -q -pl bq-agent -am dependency:go-offline || true
+COPY server/ ./
+RUN mvn -B -q -pl bq-agent -am package -DskipTests
+
+# 探针用 JDK 17（含 jdk.attach 与 arthas 依赖的工具能力），可跨版本 attach 目标 JVM
+FROM eclipse-temurin:17-jdk-jammy
+WORKDIR /probe
+COPY --from=build /src/bq-agent/target/bq-agent.jar ./
+COPY docs/research/arthas-inspect/arthas-boot.jar ./
+COPY deploy/docker/probe-entrypoint.sh ./
+RUN chmod +x probe-entrypoint.sh
+ENV SERVER_URL="" \
+    AGENT_TOKEN="" \
+    PROBE_NAME="" \
+    PROBE_INTERVAL=5
+ENTRYPOINT ["./probe-entrypoint.sh"]

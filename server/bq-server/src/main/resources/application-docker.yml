@@ -1,0 +1,15 @@
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    # compose 网络内服务名直连；密码经 BIANQUE_DB_PASSWORD 覆盖
+    url: jdbc:mysql://mysql:3306/bianque?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: bianque
+    password: ${BIANQUE_DB_PASSWORD:bianque123}
+  data:
+    redis:
+      host: redis
+      port: 6379

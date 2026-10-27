@@ -11,8 +11,9 @@
 | 设计 | 可交互界面原型（8 类界面，含文档中心） | [design/BianQue-界面原型-离线版.html](design/BianQue-界面原型-离线版.html) |
 | 选型 | 技术选型 V1.0（前端 / 后端 / 存储 / 纳管 / MCP / 部署） | [plan/BianQue-技术选型-v1.0.md](plan/BianQue-技术选型-v1.0.md) |
 | 计划 | 开发计划 V1.0（S0–S5 里程碑 / 人力 / 验收门禁 / 风险；S6/S7 按迭代追加，见变更记录） | [plan/BianQue-开发计划-v1.0.md](plan/BianQue-开发计划-v1.0.md) |
-| 迭代 | 变更记录（S0→S7 每迭代交付与实测数据） | [CHANGELOG.md](CHANGELOG.md) |
+| 迭代 | 变更记录（S0→S8 每迭代交付与实测数据） | [CHANGELOG.md](CHANGELOG.md) |
 | 验收 | 验收清单（S1–S7，【自动】/【手动】逐项核对） | [ACCEPTANCE.md](ACCEPTANCE.md) |
+| 部署 | 一键全容器部署 + 节点探针安装（Docker/systemd/Windows） | [deploy/README.md](deploy/README.md) |
 
 ## 目录结构
 
@@ -39,11 +40,21 @@ bianque/
 │   └── bq-agent/                # 平台版 Agent（S6）：纯 JDK 零依赖，部署在目标主机
 ├── web/       （S0 已建骨架）    # 前端：Vue 3 + TS + Vite + Element Plus
 ├── docs-center/（阶段 2 创建）   # 文档中心构建管线（Python）
-├── deploy/                      # Compose 编排、离线部署包、agent 安装脚本
+├── deploy/                      # 部署：一键全容器编排（prod）、节点探针镜像/安装器（见 deploy/README.md）
 └── scripts/                     # 开发脚本（start-all / smoke / dev-llm-mock）+ 说明
 ```
 
-## 快速开始（V0.1.x · S7 AI 问诊 LLM 已就位）
+## 快速开始（V0.1.x · S8 一键部署镜像已就位）
+
+**① 全容器一键部署（生产/演示服务器，只需 Docker）**：
+
+```bash
+cd deploy
+AGENT_TOKEN=<强随机令牌> docker compose -f docker-compose.prod.yml up -d --build
+# 浏览器打开 http://<主机>/（首次构建 5~15 分钟；探针部署与详细说明见 deploy/README.md）
+```
+
+**② 宿主机直跑（开发模式）**：
 
 ```bash
 # 一键全栈（Windows）：起 MySQL/Redis → 构建三模块 → 起后端 → 起本机演示节点 → 起前端
@@ -148,11 +159,13 @@ V0.1.0 基础能力保留：工作台总览、诊断台（模板/命令执行、
 
 默认绑定 `127.0.0.1`、强制认证、`disabledCommands` 黑名单、全操作审计、会话超时自动回收。发布门禁见产品设计方案 6.3。
 
-## 已知边界（S6）
+## 已知边界（S6 起）
 
-- **同一目标进程只应归属一个通道**：平台本机纳管通道与节点 Agent 通道都能 attach 同一 JVM，
+- **同一目标进程只应归属一个通道**：平台本机纳管通道与节点探针通道都能 attach 同一 JVM，
   但 arthas 每 JVM 仅一个 agent——混用时后 attach 的端口不生效（表现为"attach 成功但端口未就绪"）。
-  生产建议：有节点覆盖的主机关闭 `bianque.execution.local-enabled`，本机通道仅用于无节点的开发机。
-- 节点 Agent 为串行 worker（同一节点同时执行一条命令）；大规模巡检时多节点天然并行，单节点内命令排队。
-- `bianque.agent.token` 为空时节点接入开放，仅限内网演示；生产必配且与告警 ingest-token 区分。
+  生产建议：有探针覆盖的主机不再启用本机纳管；容器化部署时平台侧本机纳管自动关闭
+- 节点探针为串行 worker（同一节点同时执行一条命令）；大规模巡检时多节点天然并行，单节点内命令排队
+- 探针 Docker 形态仅在 Linux 主机可 attach 宿主 JVM（需 `--pid=host -v /tmp:/tmp`，且与目标 JVM 同用户）；
+  Windows 主机用裸机 `java -jar` 方式运行探针
+- `bianque.agent.token` 为空时节点接入开放，仅限内网演示；生产必配且与告警 ingest-token 区分
 - Windows 下控制台中文经 curl 发送为 GBK 会被服务端按 UTF-8 拒绝（400）——属测试手段问题，页面操作不受影响。

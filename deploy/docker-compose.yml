@@ -1,6 +1,6 @@
-# 扁鹊 · BianQue 本地编排（S0：基础设施层）
-# 平台服务（bq-server / bq-tunnel / nginx 前端静态）随 S1/M1 加入本文件。
-# 启动：docker compose --env-file .env.example up -d
+# 扁鹊 · BianQue 开发基础设施（宿主机直跑后端/前端时使用）
+# 平台全容器一键部署见 docker-compose.prod.yml
+# 启动：docker compose -f deploy/docker-compose.yml up -d mysql redis
 
 services:
   mysql:
@@ -28,20 +28,6 @@ services:
     volumes:
       - redis-data:/data
 
-  minio:
-    image: minio/minio:latest
-    container_name: bq-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-bianque}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-bianque_dev_only}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio-data:/data
-
 volumes:
   mysql-data:
   redis-data:
-  minio-data:

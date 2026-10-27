@@ -1,0 +1,90 @@
+# 扁鹊 · BianQue 平台全容器一键部署
+# 前置：Docker + Docker Compose v2（本机无需 JDK/Node）
+# 启动：cd deploy && docker compose -f docker-compose.prod.yml up -d --build
+#       （首次构建需联网拉取 Maven/npm 依赖，约 5~15 分钟）
+# 可选：附加本机探针演示  docker compose -f docker-compose.prod.yml --profile probe up -d probe
+# 访问：http://<主机>/（前端） · http://<主机>:8080/api/health（后端直连，供探针注册）
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: bq-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-bianque_dev_only}
+      MYSQL_DATABASE: bianque
+      MYSQL_USER: bianque
+      MYSQL_PASSWORD: ${BIANQUE_DB_PASSWORD:-bianque123}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4
+    container_name: bq-redis
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.server
+    image: bianque/server:latest
+    container_name: bq-server
+    # 容器内无本机 JVM 可 attach：关闭本机纳管通道，真实诊断一律走节点探针
+    command:
+      - "--bianque.execution.local-enabled=false"
+      - "--bianque.agent.token=${AGENT_TOKEN:-}"
+      - "--bianque.alerts.ingest-token=${INGEST_TOKEN:-}"
+    environment:
+      BIANQUE_LLM_API_KEY: ${LLM_API_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    volumes:
+      - server-data:/app/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.web
+    image: bianque/web:latest
+    container_name: bq-web
+    depends_on:
+      - server
+    ports:
+      - "${WEB_PORT:-80}:80"
+    restart: unless-stopped
+
+  # 本机探针演示（--profile probe）：仅 Linux 主机可 attach 宿主 JVM（pid=host + /tmp 挂载）
+  probe:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.probe
+    image: bianque/probe:latest
+    container_name: bq-probe
+    pid: "host"
+    environment:
+      SERVER_URL: http://server:8080
+      AGENT_TOKEN: ${AGENT_TOKEN:-}
+      PROBE_NAME: ${PROBE_NAME:-}
+    volumes:
+      - /tmp:/tmp
+    depends_on:
+      - server
+    profiles: ["probe"]
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  redis-data:
+  server-data:
