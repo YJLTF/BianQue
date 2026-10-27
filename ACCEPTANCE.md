@@ -68,17 +68,7 @@
 - [ ] `bianque.execution.local-enabled=false` 时纳管接口 403、本机通道不装配（生产基线）
 - [ ] 敏感配置项（DB 口令 / ingest-token）均支持环境变量覆盖，仓库不含真实口令
 
-## 13. AI 问诊 LLM 接入（S7）
-
-- [ ] 未配置时 chat → 409 并提示先配置；ops 改配置/测试 → 403；viewer chat → 403 【自动】
-- [ ] admin 保存配置后 api-key 只回传掩码（`***尾4`），响应不含明文；空 key 提交保留原值 【自动】
-- [ ] 思考强度=low/medium 等 → 请求体含 `reasoning_effort` 与 `max_completion_tokens`、不含 temperature/top_p/max_tokens；
-      思考强度=关闭 → 请求体含 temperature/top_p/max_tokens、不含 reasoning_effort 【自动】
-- [ ] 对话回传 content + reasoning（思考过程折叠块可展开）+ tokens/耗时徽标；每次调用写审计且哈希链校验通过 【自动】
-- [ ] 页面：配置面板（管理员可编辑/只读视图）、快捷提问、附加诊断上下文折叠、Enter 发送 【手动】
-- [ ] 真实端点验收：将 Base URL/Key/模型 换成内网真实 OpenAI 兼容服务，重跑测试连通与一轮对话 【手动】
-
-## 11. 平台版 Agent（S6）
+## 10. 平台版 Agent（S6）
 
 - [ ] `mvn -B package` 后 `server/bq-agent/target/bq-agent.jar` 产出，`agents/bq-agent.jar` 同步 【自动】
 - [ ] 节点注册/心跳接入：无 token/错 token → 401；未注册节点心跳 → 410；用户 Bearer 不能替代节点令牌 【自动】
@@ -88,12 +78,23 @@
 - [ ] 巡检覆盖 agent 实例且单实例失败/超时只扣分不炸全局 【自动】
 - [ ] 节点掉线（kill agent）20s 后节点页转"离线"，其机队实例自动摘除；重启后同 agentId 恢复 【手动】
 
-## 12. UI 现代化（S6）
+## 11. UI 现代化（S6）
 
 - [ ] 全局设计系统生效：靛青主色/胶囊标签/卡片诊籍签/深色终端输出面板/呼吸点在线标识 【手动】
 - [ ] 登录页：极光渐变背景 + 脉搏波 logo 卡片；演示账号可点击填充 【手动】
+- [ ] 工作台图标磁贴统计卡；节点管理页结构（统计卡/节点表展开进程/三步接入指引） 【手动】
 
-## 10. 已知边界（如实声明）
+## 12. AI 问诊 LLM 接入（S7）
+
+- [ ] 未配置时 chat → 409 并提示先配置；ops 改配置/测试 → 403；viewer chat → 403 【自动】
+- [ ] admin 保存配置后 api-key 只回传掩码（`***尾4`），响应不含明文；空 key 提交保留原值 【自动】
+- [ ] 思考强度=low/medium 等 → 请求体含 `reasoning_effort` 与 `max_completion_tokens`、不含 temperature/top_p/max_tokens；
+      思考强度=关闭 → 请求体含 temperature/top_p/max_tokens、不含 reasoning_effort 【自动】
+- [ ] 对话回传 content + reasoning（思考过程折叠块可展开）+ tokens/耗时徽标；每次调用写审计且哈希链校验通过 【自动】
+- [ ] 页面：配置面板（管理员可编辑/只读视图）、快捷提问、附加诊断上下文折叠、Enter 发送 【手动】
+- [ ] 真实端点验收：将 Base URL/Key/模型 换成内网真实 OpenAI 兼容服务，重跑测试连通与一轮对话 【手动】
+
+## 13. 已知边界（如实声明）
 
 - 靶场应用/实例/种子告警为内存模拟数据；真实数据（审计/告警/取证/巡检/纳管/Agent 节点台账）已落库
 - 同一目标进程只应归属一个通道（本机纳管 or 节点 Agent）：arthas 每 JVM 仅一个 agent，混用时后 attach 端口不生效

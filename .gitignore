@@ -32,3 +32,6 @@ data/
 agents/bq-agent.jar
 agents/agent.log
 agents/bq-agent.id
+
+# arthas 本机批处理输出目录（运行时生成）
+arthas-output/

@@ -10,13 +10,17 @@
 | 设计 | 产品设计方案 V1.0（架构 / 易用性 / 文档集成 / 安全可靠性 / 路线图） | [design/BianQue-产品设计方案-v1.0.md](design/BianQue-产品设计方案-v1.0.md) |
 | 设计 | 可交互界面原型（8 类界面，含文档中心） | [design/BianQue-界面原型-离线版.html](design/BianQue-界面原型-离线版.html) |
 | 选型 | 技术选型 V1.0（前端 / 后端 / 存储 / 纳管 / MCP / 部署） | [plan/BianQue-技术选型-v1.0.md](plan/BianQue-技术选型-v1.0.md) |
-| 计划 | 开发计划 V1.0（S0–S5 里程碑 / 人力 / 验收门禁 / 风险） | [plan/BianQue-开发计划-v1.0.md](plan/BianQue-开发计划-v1.0.md) |
+| 计划 | 开发计划 V1.0（S0–S5 里程碑 / 人力 / 验收门禁 / 风险；S6/S7 按迭代追加，见变更记录） | [plan/BianQue-开发计划-v1.0.md](plan/BianQue-开发计划-v1.0.md) |
+| 迭代 | 变更记录（S0→S7 每迭代交付与实测数据） | [CHANGELOG.md](CHANGELOG.md) |
+| 验收 | 验收清单（S1–S7，【自动】/【手动】逐项核对） | [ACCEPTANCE.md](ACCEPTANCE.md) |
 
 ## 目录结构
 
 ```
 bianque/
-├── README.md                    # 本文件：导览
+├── README.md                    # 本文件：导览（快速开始 / 迭代能力 / 红线与边界）
+├── CHANGELOG.md                 # S0→S7 每迭代交付记录
+├── ACCEPTANCE.md                # 验收清单（【自动】= smoke/测试覆盖；【手动】= 浏览器核对）
 ├── materials/                   # 原始发行物（只读物料）
 │   ├── arthas-packaging-4.3.5-bin.zip     # Arthas 官方二进制包（探针/引擎来源）
 │   └── arthas-packaging-4.3.5-doc.zip     # Arthas 官方文档包（文档中心来源）
@@ -36,20 +40,10 @@ bianque/
 ├── web/       （S0 已建骨架）    # 前端：Vue 3 + TS + Vite + Element Plus
 ├── docs-center/（阶段 2 创建）   # 文档中心构建管线（Python）
 ├── deploy/                      # Compose 编排、离线部署包、agent 安装脚本
-└── scripts/                     # 开发脚本 + 诊断靶场（math-game 故障注入）
+└── scripts/                     # 开发脚本（start-all / smoke / dev-llm-mock）+ 说明
 ```
 
-## 文件迁移映射（2026-10-27 重构）
-
-| 原位置 | 新位置 |
-|---|---|
-| `Arthas-4.3.5-运维产品调研评估报告.md` | `docs/research/` |
-| `arthas-inspect/` | `docs/research/arthas-inspect/` |
-| `arthas-packaging-4.3.5-bin.zip` | `materials/` |
-| `arthas-packaging-4.3.5-doc.zip` | `materials/` |
-| `docs-unpack/` | `docs/arthas-docs/4.3.5/` |
-
-## 快速开始（V0.1.x · S6 平台版 Agent 已就位）
+## 快速开始（V0.1.x · S7 AI 问诊 LLM 已就位）
 
 ```bash
 # 一键全栈（Windows）：起 MySQL/Redis → 构建三模块 → 起后端 → 起本机演示节点 → 起前端
