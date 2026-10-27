@@ -62,14 +62,30 @@ public class LocalAsShExecutor implements DiagExecutor {
                     "--select", command.appName(),
                     "-c", command.commandText());
             pb.redirectErrorStream(true);
+            // stdin 接空设备：目标出现同名多进程歧义时 boot 会退化交互选择，必须让其立即 EOF 失败而非挂起
+            pb.redirectInput(new java.io.File(
+                    System.getProperty("os.name", "").toLowerCase().contains("win") ? "NUL" : "/dev/null"));
             Process p = pb.start();
-            String raw = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            boolean finished = p.waitFor(command.timeoutSeconds() + 30L, TimeUnit.SECONDS);
-            if (!finished) {
+            final Process fp = p;
+            StringBuilder raw = new StringBuilder();
+            Thread reader = new Thread(() -> {
+                try (var r = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(fp.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = r.readLine()) != null) {
+                        raw.append(line).append('\n');
+                    }
+                } catch (Exception ignore) {
+                    // 进程退出/强杀时流关闭
+                }
+            }, "arthas-oneshot-reader");
+            reader.setDaemon(true);
+            reader.start();
+            if (!p.waitFor(command.timeoutSeconds() + 30L, TimeUnit.SECONDS)) {
                 p.destroyForcibly();
                 return DiagResult.fail("执行超时被终止（含 attach 时间）", System.currentTimeMillis() - begin);
             }
-            String out = stripBootNoise(raw);
+            String out = stripBootNoise(raw.toString());
             return p.exitValue() == 0 && !out.isBlank()
                     ? DiagResult.ok(out, System.currentTimeMillis() - begin)
                     : DiagResult.fail(out.isBlank() ? "exit=" + p.exitValue() + "（无输出）" : out,

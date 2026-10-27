@@ -58,7 +58,17 @@ class DiagServiceTest {
 
     private final MemAuditTrail audit = new MemAuditTrail();
     private final DiagService service = new DiagService(new MockDiagExecutor(),
-            emptyLocalProvider(), audit, new com.bianque.server.repo.FleetRepository(null), 30);
+            emptyLocalProvider(), stubAgentExecutor(), audit, new com.bianque.server.repo.FleetRepository(null), 30);
+
+    /** 测试装配：Agent 通道不参与本单测（仅 mock 路由），用匿名子类桩替代 */
+    private static com.bianque.server.agent.AgentChannelExecutor stubAgentExecutor() {
+        return new com.bianque.server.agent.AgentChannelExecutor(null) {
+            @Override
+            public com.bianque.core.diag.DiagResult execute(com.bianque.core.diag.DiagCommand command) {
+                throw new IllegalStateException("测试环境不提供 Agent 通道");
+            }
+        };
+    }
 
     /** 测试装配：本机真实通道未启用 */
     private static org.springframework.beans.factory.ObjectProvider<LocalAsShExecutor> emptyLocalProvider() {

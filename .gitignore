@@ -27,3 +27,8 @@ data/
 
 # ---- 不忽略 ----
 # materials/ 与 docs/ 为只读物料与文档源，纳入版本管理
+
+# 平台 Agent 节点运行时产物（构建后按 start-all.bat 拷贝生成）
+agents/bq-agent.jar
+agents/agent.log
+agents/bq-agent.id

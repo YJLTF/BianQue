@@ -67,7 +67,8 @@ const historyLoading = ref(true);
 async function run() {
   running.value = true;
   try {
-    const s = await http.post("/checkup/run") as unknown as CheckupSummary;
+    // 巡检含真实通道实例（agent 冷 attach 秒级），放宽单次超时
+    const s = await http.post("/checkup/run", null, { timeout: 150000 }) as unknown as CheckupSummary;
     apply(s);
     loadHistory();
   } catch (e) {

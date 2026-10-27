@@ -111,22 +111,41 @@ public class LocalArthasSessionManager {
         return portBase + Math.abs(selectTarget.hashCode() % span);
     }
 
-    /** java -jar arthas-boot.jar --attach-only --select X --http-port P --telnet-port P+1 */
+    /** java -jar arthas-boot.jar <pid> --attach-only --http-port P --telnet-port P+1（selectTarget=pid，免同名歧义） */
     private int attachOnly(String selectTarget) {
         int http = allocate(selectTarget);
+        Process p = null;
         try {
             ProcessBuilder pb = new ProcessBuilder(
                     javaPath, "-jar", bootJarPath,
-                    "--attach-only", "--select", selectTarget,
+                    selectTarget, "--attach-only",
                     "--http-port", String.valueOf(http),
                     "--telnet-port", String.valueOf(http + 1));
             pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            boolean done = p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
-            if (!done || p.exitValue() != 0) {
-                log.info("attach-only 未成功（可能已被占用），输出尾行: {}",
-                        out.substring(Math.max(0, out.length() - 200)));
+            p = pb.start();
+            final Process fp = p;
+            StringBuilder out = new StringBuilder();
+            Thread reader = new Thread(() -> {
+                try (var r = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(fp.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = r.readLine()) != null) {
+                        out.append(line).append('\n');
+                    }
+                } catch (Exception ignore) {
+                    // 进程被强杀时流关闭，读循环自然结束
+                }
+            }, "arthas-attach-reader");
+            reader.setDaemon(true);
+            reader.start();
+            if (!p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                log.info("attach-only 超时被强杀（target {}）", selectTarget);
+                return -1;
+            }
+            if (p.exitValue() != 0) {
+                log.info("attach-only 未成功（target {}），输出尾行: {}",
+                        selectTarget, out.substring(Math.max(0, out.length() - 200)).replace('\n', ' '));
                 return -1;
             }
             for (int i = 0; i < 20; i++) {
@@ -139,8 +158,14 @@ public class LocalArthasSessionManager {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            if (p != null) {
+                p.destroyForcibly();
+            }
         } catch (Exception e) {
             log.info("attach-only 异常: {}", e.getMessage());
+            if (p != null) {
+                p.destroyForcibly();
+            }
         }
         return -1;
     }

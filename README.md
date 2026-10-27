@@ -31,7 +31,8 @@ bianque/
 │   ├── BianQue-界面原型-离线版.html
 │   └── arthas-docs-manifest.json          # 78 页文档清单（slug/分类/风险等级）
 ├── plan/                        # 技术选型与开发计划
-├── server/    （S0 已建骨架）    # 后端：Spring Boot 3 多模块（bq-core / bq-server）
+├── server/                      # 后端：Spring Boot 3 多模块（bq-core / bq-server / bq-agent）
+│   └── bq-agent/                # 平台版 Agent（S6）：纯 JDK 零依赖，部署在目标主机
 ├── web/       （S0 已建骨架）    # 前端：Vue 3 + TS + Vite + Element Plus
 ├── docs-center/（阶段 2 创建）   # 文档中心构建管线（Python）
 ├── deploy/                      # Compose 编排、离线部署包、agent 安装脚本
@@ -48,9 +49,13 @@ bianque/
 | `arthas-packaging-4.3.5-doc.zip` | `materials/` |
 | `docs-unpack/` | `docs/arthas-docs/4.3.5/` |
 
-## 快速开始（V0.1.x · S1 公共底座已就位）
+## 快速开始（V0.1.x · S6 平台版 Agent 已就位）
 
 ```bash
+# 一键全栈（Windows）：起 MySQL/Redis → 构建三模块 → 起后端 → 起本机演示节点 → 起前端
+scripts\start-all.bat
+
+# 或分步：
 # 0. 基础设施（推荐，S3 起默认路径）：MySQL 8.4 + Redis 7.4
 docker compose -f deploy/docker-compose.yml up -d mysql redis
 
@@ -61,7 +66,12 @@ java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar --spring.profiles
 #    或轻量演示模式（H2 文件库 + 内存登录态，无需 Docker）：
 #    java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar
 
-# 2. 前端（开发模式，/api 与 /docs 代理到 8080）
+# 2. 平台 Agent 节点（拷贝至 agents/ 供 /api/agent/download 分发，也可分发到其他主机）
+cp server/bq-agent/target/bq-agent.jar agents/
+java -jar agents/bq-agent.jar --server http://平台地址:8080 \
+     --token <bianque.agent.token> --arthas docs/research/arthas-inspect/arthas-boot.jar
+
+# 3. 前端（开发模式，/api 与 /docs 代理到 8080）
 cd web && npm install && npm run dev                             # http://localhost:5173
 ```
 
@@ -83,6 +93,22 @@ S1 可用能力（在 V0.1.0 八大功能流之上新增）：
   数据在 `./data/`）；生产切换 `--spring.profiles.active=mysql`（见 deploy/docker-compose.yml）。
   巡检结果重启不丢，`/api/checkup/history` 可回看最近 20 次。
 - **真实操作人审计**：所有诊断动作记录登录账号（不再是演示账号）。
+
+**S6 平台版 Agent + 现代化 UI**：
+- 平台版 Agent（`server/bq-agent`）：部署在目标主机的独立节点程序（纯 JDK 11+，**零第三方依赖**），
+  纯出站 HTTP 与平台通信（默认 5s 心跳），**目标主机无需开放任何入站端口**。心跳自动上报本机 JVM
+  进程清单（attach API，异常回落 jps），平台侧自动转成机队实例（`agent-<节点>-<pid>`）；
+  诊断命令经 MySQL 命令单下发（原子领单、超时判死），节点用 arthas attach 执行并回传
+  （快路径直连 agent HTTP 毫秒级，实测冷 attach 2.8s / 热命令 265ms / 会话回收 40ms）。
+  节点侧按 PID 附加（免同名多进程歧义），子进程看门狗强杀杜绝挂起；空闲 30 分钟自动 stop。
+- 节点管理页（`/agents`）：节点清单（呼吸点在线状态/JDK/版本/心跳）、展开可见接管进程并可
+  一键"去诊断"、三步接入指引（下载命令/放置 arthas-boot.jar/启动命令，可复制）。
+  接入认证：`bianque.agent.token`（X-Agent-Token 头；空=开放，仅限内网演示，生产必配）。
+- 巡检弹性化：单实例执行失败/超时降级为扣分项（执行失败 -5 / 巡检超时 30 分兜底），不再拖垮整轮；
+  前端巡检调用放宽至 150s。
+- UI 现代化改造：全局设计系统（靛青主色 + 朱砂高危 + 苍绿健康，`web/src/styles/main.css` 设计令牌）、
+  墨蓝渐变侧栏 + 脉搏波 logo + 图标导航、卡片诊籍签/胶囊标签/深色终端输出面板、
+  登录页极光渐变 + 毛玻璃卡片、工作台图标磁贴统计卡。
 
 **S4 常驻会话与告警接入**：
 - 常驻会话：纳管实例首次执行时 attach-only 建立常驻 agent，热命令（version/jvm/memory/thread）
@@ -114,3 +140,12 @@ V0.1.0 基础能力保留：工作台总览、诊断台（模板/命令执行、
 ## 红线（所有阶段生效）
 
 默认绑定 `127.0.0.1`、强制认证、`disabledCommands` 黑名单、全操作审计、会话超时自动回收。发布门禁见产品设计方案 6.3。
+
+## 已知边界（S6）
+
+- **同一目标进程只应归属一个通道**：平台本机纳管通道与节点 Agent 通道都能 attach 同一 JVM，
+  但 arthas 每 JVM 仅一个 agent——混用时后 attach 的端口不生效（表现为"attach 成功但端口未就绪"）。
+  生产建议：有节点覆盖的主机关闭 `bianque.execution.local-enabled`，本机通道仅用于无节点的开发机。
+- 节点 Agent 为串行 worker（同一节点同时执行一条命令）；大规模巡检时多节点天然并行，单节点内命令排队。
+- `bianque.agent.token` 为空时节点接入开放，仅限内网演示；生产必配且与告警 ingest-token 区分。
+- Windows 下控制台中文经 curl 发送为 GBK 会被服务端按 UTF-8 拒绝（400）——属测试手段问题，页面操作不受影响。

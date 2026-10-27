@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.bianque</groupId>
+    <artifactId>bq-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>bq-agent</artifactId>
+  <name>BianQue Platform Agent</name>
+  <description>扁鹊平台 Agent：部署在目标主机，纯出站 HTTP 接单执行 arthas 诊断（零第三方依赖）</description>
+
+  <properties>
+    <!-- 目标主机可能是 JDK 11/17/21 的混部环境，节点侧按 Java 11 基线编译 -->
+    <maven.compiler.release>11</maven.compiler.release>
+  </properties>
+
+  <build>
+    <finalName>bq-agent</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>com.bianque.agent.AgentMain</mainClass>
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -61,7 +61,7 @@ public class FastPathClient {
             if (!results.isArray() || results.isEmpty()) {
                 return new ExecOut(null, "空结果");
             }
-            return new ExecOut(render(results), null);
+            return new ExecOut(renderResults(results), null);
         } catch (Exception e) {
             return new ExecOut(null, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
@@ -84,7 +84,17 @@ public class FastPathClient {
 
     // ---- 渲染：agent 返回结构化模型，按平台常用命令类型转控制台风格文本 ----
 
-    private String render(JsonNode results) {
+    /** 渲染 arthas agent /api 的原始响应 JSON（平台 Agent 通道回传形态）；解析失败返回 null */
+    public static String renderAgentJson(String body) {
+        try {
+            JsonNode results = JSON.readTree(body).path("body").path("results");
+            return results.isArray() && !results.isEmpty() ? renderResults(results) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String renderResults(JsonNode results) {
         StringBuilder sb = new StringBuilder();
         for (JsonNode r : results) {
             String type = r.path("type").asText("");
@@ -102,7 +112,7 @@ public class FastPathClient {
         return sb.toString().trim();
     }
 
-    private void renderJvm(StringBuilder sb, JsonNode jvmInfo) {
+    private static void renderJvm(StringBuilder sb, JsonNode jvmInfo) {
         if (!jvmInfo.isObject()) {
             return;
         }
@@ -115,7 +125,7 @@ public class FastPathClient {
         });
     }
 
-    private void renderMemory(StringBuilder sb, JsonNode mi) {
+    private static void renderMemory(StringBuilder sb, JsonNode mi) {
         if (!mi.isObject()) {
             return;
         }
@@ -130,7 +140,7 @@ public class FastPathClient {
         }
     }
 
-    private void renderThread(StringBuilder sb, JsonNode r) {
+    private static void renderThread(StringBuilder sb, JsonNode r) {
         JsonNode stats = r.path("threadStateCount");
         if (stats.isObject()) {
             StringBuilder line = new StringBuilder("线程总数: ");

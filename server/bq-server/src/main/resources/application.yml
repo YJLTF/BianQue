@@ -38,6 +38,11 @@ bianque:
     fast-port-base: 18600
   docs:
     unpack-root: ""   # 空值时按运行目录自动探测 docs/arthas-docs/4.3.5
+  agent:
+    # 平台 Agent 节点接入令牌（X-Agent-Token）：空=开放（仅限内网演示）；生产必配
+    token: ""
+    # 节点程序包下载路径（GET /api/agent/download）；将 bq-agent.jar 拷贝至此生效
+    jar-path: agents/bq-agent.jar
   session:
     ttl-minutes: 30
   alerts:

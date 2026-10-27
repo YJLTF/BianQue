@@ -5,6 +5,7 @@ import com.bianque.core.diag.DiagCommand;
 import com.bianque.core.diag.DiagExecutor;
 import com.bianque.core.diag.DiagResult;
 import com.bianque.core.diag.RiskLevel;
+import com.bianque.server.agent.AgentChannelExecutor;
 import com.bianque.server.exec.LocalAsShExecutor;
 import com.bianque.server.exec.MockDiagExecutor;
 import com.bianque.server.model.Types.Instance;
@@ -37,6 +38,7 @@ public class DiagService {
     private final CommandAllowlist allowlist = new CommandAllowlist();
     private final MockDiagExecutor mockExecutor;
     private final LocalAsShExecutor localExecutor; // local-enabled=false 时为 null
+    private final AgentChannelExecutor agentExecutor; // 平台 Agent 通道（恒装配，按实例路由）
     private final AuditTrail audit;
     private final FleetRepository fleet;
     private final Map<String, SessionHandle> sessions = new ConcurrentHashMap<>();
@@ -47,18 +49,23 @@ public class DiagService {
 
     public DiagService(MockDiagExecutor mockExecutor,
                        ObjectProvider<LocalAsShExecutor> localExecutor,
+                       AgentChannelExecutor agentExecutor,
                        AuditTrail audit,
                        FleetRepository fleet,
                        @Value("${bianque.session.ttl-minutes:30}") long ttlMinutes) {
         this.mockExecutor = mockExecutor;
         this.localExecutor = localExecutor.getIfAvailable();
+        this.agentExecutor = agentExecutor;
         this.audit = audit;
         this.fleet = fleet;
         this.sessionTtl = Duration.ofMinutes(ttlMinutes);
     }
 
-    /** 通道分发：localAgent 实例走真实 as.sh，其余走拟真通道 */
-    private DiagExecutor route(Instance ins) {
+    /** 通道分发：agent-<节点>-<pid> 走平台 Agent 命令单通道，本机实例走真实 as.sh，其余走拟真通道 */
+    private DiagExecutor route(Instance ins, String instanceId) {
+        if (instanceId.startsWith("agent-")) {
+            return agentExecutor;
+        }
         if (ins != null && ins.localAgent()) {
             if (localExecutor == null) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -69,8 +76,11 @@ public class DiagService {
         return mockExecutor;
     }
 
-    /** as.sh --select 目标：本机实例用主类名，其余（含未登记实例）用 instanceId */
+    /** as.sh/arthas-boot 目标：本机纳管实例用 pid（免同名多进程歧义），其余用主类名/instanceId */
     private String selectTarget(Instance ins, String instanceId) {
+        if (instanceId.startsWith("local-")) {
+            return instanceId.substring("local-".length());
+        }
         return ins != null && ins.mainClass() != null && !ins.mainClass().isBlank()
                 ? ins.mainClass() : instanceId;
     }
@@ -100,12 +110,16 @@ public class DiagService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                     "纳管实例不存在（后端重启后需重新 attach）: " + instanceId);
         }
+        if (ins == null && instanceId.startsWith("agent-")) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "节点实例不存在或已下线（agent 心跳中断后自动摘除）: " + instanceId);
+        }
         String sessionId = ensureSession(instanceId, operator);
         RiskLevel risk = CommandAllowlist.ENHANCED.contains(
                 commandText.trim().split("\\s+")[0].toLowerCase()) ? RiskLevel.MID : RiskLevel.LOW;
         String selectTarget = selectTarget(ins, instanceId);
         DiagCommand command = new DiagCommand(selectTarget, instanceId, risk.name(), risk, commandText, 60);
-        DiagResult result = route(ins).execute(command);
+        DiagResult result = route(ins, instanceId).execute(command);
         audit.append(source, operator, instanceId, commandText, result.costMs(),
                 result.success() ? "ok" : "fail");
         return result;
@@ -120,9 +134,12 @@ public class DiagService {
         String operator = h.info().openedBy();
         String instanceId = h.info().instanceId();
         Instance ins = fleet.find(instanceId).orElse(null);
-        if (ins != null && ins.localAgent() && localExecutor != null) {
-            boolean stopped = localExecutor.stopAgent(
-                    ins.mainClass() != null && !ins.mainClass().isBlank() ? ins.mainClass() : instanceId);
+        if (instanceId.startsWith("agent-")) {
+            // 平台 Agent 通道：异步通知节点 stop（命令单回执不阻塞会话关闭）
+            agentExecutor.notifyClose(instanceId);
+            audit.append("人工", operator, instanceId, "stop（已通知节点卸载 agent，防增强残留）", 200, "ok");
+        } else if (ins != null && ins.localAgent() && localExecutor != null) {
+            boolean stopped = localExecutor.stopAgent(selectTarget(ins, instanceId));
             audit.append("人工", operator, instanceId,
                     stopped ? "stop（agent 已卸载，增强已还原）" : "stop 指令未确认（agent 可能已退出）",
                     200, stopped ? "ok" : "fail");

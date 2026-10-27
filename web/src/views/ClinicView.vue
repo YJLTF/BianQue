@@ -4,7 +4,7 @@
       <el-card shadow="never" header="应用 / 实例">
         <el-select v-model="instanceId" filterable style="width: 100%">
           <el-option v-for="i in instances" :key="i.instanceId"
-                     :label="`${i.appId}/${i.instanceId}${i.localAgent ? ' · 真实' : ''}`" :value="i.instanceId"
+                     :label="instanceLabel(i)" :value="i.instanceId"
                      :disabled="!i.online" />
         </el-select>
         <div class="sub" style="margin-top: 8px">
@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { executeDiag, getInstances, getSession, closeSession, getLocalProcesses, attachLocalProcess,
          type DiagResultVO, type InstanceVO, type LocalProcessVO } from "@/api/diag";
@@ -97,6 +97,7 @@ import { riskMeta, riskOfCommand, highRiskFamilies } from "@/config/risk";
 
 interface DocHit { slug: string; title: string; category: string; risk: string; path: string }
 const router = useRouter();
+const route = useRoute();
 
 const instances = ref<InstanceVO[]>([]);
 const instanceId = ref("");
@@ -116,8 +117,16 @@ const managedPids = computed(() => new Set(
   instances.value.filter((i) => i.localAgent).map((i) => Number(i.instanceId.replace("local-", ""))),
 ));
 const currentInstance = computed(() => instances.value.find((i) => i.instanceId === instanceId.value) ?? null);
-const resultHeader = computed(() =>
-  currentInstance.value?.localAgent ? "执行结果（真实通道 · arthas-boot）" : "执行结果");
+const resultHeader = computed(() => {
+  const id = currentInstance.value?.instanceId ?? "";
+  if (id.startsWith("agent-")) return "执行结果（真实通道 · 平台 Agent）";
+  return currentInstance.value?.localAgent ? "执行结果（真实通道 · arthas-boot）" : "执行结果";
+});
+/** 下拉选项文案：Agent 节点实例标注通道来源 */
+function instanceLabel(i: InstanceVO) {
+  const suffix = i.instanceId.startsWith("agent-") ? " · Agent 节点" : "";
+  return `${i.appId}/${i.instanceId}${suffix}`;
+}
 
 async function loadLocal() {
   try {
@@ -193,7 +202,11 @@ function tick() {
 
 onMounted(async () => {
   instances.value = await getInstances();
-  instanceId.value = instances.value.find((i) => i.online)?.instanceId ?? "";
+  // 支持从节点管理页「去诊断」跳转带入实例
+  const fromQuery = String(route.query.instanceId ?? "");
+  instanceId.value = instances.value.some((i) => i.instanceId === fromQuery)
+    ? fromQuery
+    : instances.value.find((i) => i.online)?.instanceId ?? "";
   loadLocal();
   const catalog = await fetch("/api/docs/catalog").then((r) => r.json());
   cmdDocs.value = (catalog.pages ?? []).filter((p: DocHit) =>
@@ -207,10 +220,8 @@ onUnmounted(() => window.clearInterval(timer));
 <style scoped>
 .sub { font-size: 12px; color: #909399; }
 .row { display: flex; align-items: center; gap: 10px; }
-.out { background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 6px; padding: 8px 10px;
-       font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow-y: auto; margin: 0; }
 .tpl { cursor: pointer; }
 .lproc { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.lproc .cmd { flex: 1; font-size: 11px; overflow-wrap: anywhere; }
+.lproc .cmd { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lproc .el-button { margin-left: auto; }
 </style>

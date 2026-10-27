@@ -71,6 +71,11 @@ public class FleetRepository {
         return ins;
     }
 
+    /** 平台 Agent 上报的实例：仅内存登记（节点每 5s 心跳重报，掉线自动摘除，无需落库） */
+    public void put(Instance ins) {
+        instances.put(ins.instanceId(), ins);
+    }
+
     public void remove(String instanceId) {
         instances.remove(instanceId);
         try {

@@ -45,14 +45,27 @@ public class CheckupService {
 
     public List<CheckupRow> runAll(String operator) {
         List<Instance> online = fleet.allInstances().stream().filter(Instance::online).toList();
-        // 虚拟线程并行巡检（JDK 21）：IO 密集，实例间互不阻塞
+        // 虚拟线程并行巡检（JDK 21）：IO 密集，实例间互不阻塞。
+        // 单实例失败/超时降级为扣分项，不拖垮整轮巡检（agent 节点为串行 worker，冷 attach 秒级）。
         try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
-            List<java.util.concurrent.Future<CheckupRow>> futures = online.stream()
+            List<Instance> targets = online;
+            List<java.util.concurrent.Future<CheckupRow>> futures = targets.stream()
                     .map(i -> executor.submit(() -> checkOne(i, operator)))
                     .toList();
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(150);
             List<CheckupRow> rows = new ArrayList<>();
-            for (var f : futures) {
-                rows.add(f.get(60, java.util.concurrent.TimeUnit.SECONDS));
+            for (int i = 0; i < futures.size(); i++) {
+                long remainMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                        Math.max(1, deadline - System.nanoTime()));
+                try {
+                    rows.add(futures.get(i).get(Math.min(remainMs, 90_000),
+                            java.util.concurrent.TimeUnit.MILLISECONDS));
+                } catch (java.util.concurrent.TimeoutException te) {
+                    futures.get(i).cancel(true);
+                    rows.add(new CheckupRow(targets.get(i).instanceId(), 30, List.of("巡检超时")));
+                } catch (java.util.concurrent.ExecutionException ee) {
+                    rows.add(new CheckupRow(targets.get(i).instanceId(), 30, List.of("巡检异常")));
+                }
             }
             latest.put("latest", rows);
             persist(operator, rows);
@@ -109,8 +122,17 @@ public class CheckupService {
         int score = ins.baseHealth();
         List<String> deductions = new ArrayList<>();
         for (String cmd : TEMPLATE) {
-            String out = diag.execute(ins.instanceId(), cmd, "系统", operator).output();
-            parseDeductions(out, deductions);
+            try {
+                var r = diag.execute(ins.instanceId(), cmd, "系统", operator);
+                if (!r.success()) {
+                    deductions.add("执行失败");
+                    break;
+                }
+                parseDeductions(r.output(), deductions);
+            } catch (Exception e) {
+                deductions.add("执行失败");
+                break;
+            }
         }
         for (String d : deductions) {
             score -= switch (d) {
@@ -118,6 +140,7 @@ public class CheckupService {
                 case "old_gen_high" -> 10;
                 case "thread_growth" -> 6;
                 case "cpu_high" -> 12;
+                case "执行失败" -> 5;
                 default -> 0;
             };
         }

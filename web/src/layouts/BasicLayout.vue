@@ -1,32 +1,50 @@
 <template>
   <el-container class="layout">
-    <el-aside width="200px" class="aside">
+    <el-aside width="216px" class="aside">
       <div class="brand">
-        <span class="brand-name">扁鹊 BianQue</span>
-        <span class="brand-sub">线上诊断平台 · Arthas 4.3.5</span>
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+          <polyline points="2,18 9,18 12,8 16,26 20,12 23,18 30,18" fill="none"
+                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <div class="brand-text">
+          <span class="brand-name">扁鹊 BianQue</span>
+          <span class="brand-sub">线上诊断平台 · Arthas 4.3.5</span>
+        </div>
       </div>
       <el-menu router :default-active="route.path" class="menu">
         <el-menu-item v-for="item in nav" :key="item.path" :index="item.path">
+          <el-icon class="mi"><component :is="item.icon" /></el-icon>
           <span>{{ item.title }}</span>
           <span v-if="item.clan" class="clan">{{ item.clan }}</span>
         </el-menu-item>
       </el-menu>
       <div class="footer">
-        <el-avatar :size="26">{{ auth.displayName.slice(0, 1) }}</el-avatar>
-        <span class="footer-text">{{ auth.displayName }} · {{ auth.roleName }}</span>
-        <el-button link size="small" class="logout" @click="logout">退出</el-button>
+        <el-avatar :size="30" class="avatar">{{ auth.displayName.slice(0, 1) }}</el-avatar>
+        <div class="who">
+          <span class="name">{{ auth.displayName }}</span>
+          <span class="role">{{ auth.roleName }}</span>
+        </div>
+        <el-tooltip content="退出登录" placement="top">
+          <el-button link class="logout" @click="logout">
+            <el-icon :size="16"><SwitchButton /></el-icon>
+          </el-button>
+        </el-tooltip>
       </div>
     </el-aside>
     <el-container>
-      <el-header class="header">
+      <el-header class="header" height="56px">
+        <div class="crumbs">
+          <span class="page-title">{{ route.meta.title }}</span>
+          <span v-if="route.meta.clan" class="clan-chip">{{ route.meta.clan }}</span>
+        </div>
         <el-input
           v-model="keyword"
           placeholder="搜索实例 / 模板 / 命令 / 文档…（Ctrl+K）"
           class="search"
           prefix-icon="Search"
         />
-        <el-tag type="success" effect="plain">生产环境 · 内网</el-tag>
-        <el-tag type="info" effect="plain">Agent 4.3.5 · 在线 87/93</el-tag>
+        <el-tag type="success" effect="plain" round>生产环境 · 内网</el-tag>
+        <el-tag type="info" effect="plain" round>Agent 4.3.5</el-tag>
       </el-header>
       <el-main class="main">
         <RouterView />
@@ -61,19 +79,89 @@ async function logout() {
 
 <style scoped>
 .layout { height: 100vh; }
-.aside { display: flex; flex-direction: column; background: #1b2735; }
-.brand { padding: 16px 14px; color: #fff; display: flex; flex-direction: column; }
-.brand-name { font-weight: 600; font-size: 15px; }
-.brand-sub { font-size: 11px; color: #8fa0b3; margin-top: 2px; }
-.menu { border-right: none; background: transparent; flex: 1; }
-.menu :deep(.el-menu-item) { color: #c8d2de; }
-.menu :deep(.el-menu-item.is-active) { background: rgba(91, 145, 246, 0.28); color: #fff; }
-.clan { margin-left: auto; font-size: 11px; color: #7e8ea1; }
-.footer { padding: 12px; border-top: 1px solid rgba(255, 255, 255, 0.09); display: flex; align-items: center; gap: 8px; }
-.footer-text { color: #c8d2de; font-size: 12px; }
-.logout { margin-left: auto; color: #8fa0b3; }
-.logout:hover { color: #fff; }
-.header { display: flex; align-items: center; gap: 10px; background: #fff; border-bottom: 1px solid #e4e7ed; }
-.search { max-width: 420px; margin-right: auto; }
-.main { background: #f5f7fa; }
+.aside {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #101627 0%, #1a2238 100%);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+.logo {
+  width: 34px;
+  height: 34px;
+  padding: 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.45);
+  flex: none;
+}
+.brand-text { display: flex; flex-direction: column; min-width: 0; }
+.brand-name { color: #f1f5f9; font-weight: 600; font-size: 15px; letter-spacing: 0.2px; }
+.brand-sub { color: #7d8aa5; font-size: 11px; margin-top: 2px; white-space: nowrap; }
+.menu { border-right: none; background: transparent; flex: 1; padding: 8px; overflow-y: auto; }
+.menu :deep(.el-menu-item) {
+  color: #aab6cc;
+  height: 42px;
+  border-radius: 8px;
+  margin-bottom: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+.menu :deep(.el-menu-item:hover) { background: rgba(148, 163, 184, 0.12); color: #e2e8f0; }
+.menu :deep(.el-menu-item.is-active) {
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+}
+.mi { margin-right: 4px; }
+.clan {
+  margin-left: auto;
+  font-size: 11px;
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 18px;
+}
+.menu :deep(.el-menu-item.is-active) .clan { color: #ddd6fe; border-color: rgba(221, 214, 254, 0.5); }
+.footer {
+  margin: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.avatar { background: linear-gradient(135deg, #0d9488, #4f46e5); color: #fff; font-weight: 600; flex: none; }
+.who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.name { color: #e2e8f0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.role { color: #7d8aa5; font-size: 11px; }
+.logout { color: #7d8aa5; flex: none; }
+.logout:hover { color: #f87171; }
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border-bottom: 1px solid #eef1f6;
+  padding: 0 20px;
+}
+.crumbs { display: flex; align-items: center; gap: 8px; margin-right: 4px; flex: none; }
+.page-title { font-size: 16px; font-weight: 600; color: #0f172a; }
+.clan-chip {
+  font-size: 11px;
+  color: #4f46e5;
+  background: #eeedfd;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.search { max-width: 380px; margin-right: auto; }
+.main { background: #f4f6fb; padding: 16px 20px; overflow-y: auto; }
 </style>

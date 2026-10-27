@@ -118,6 +118,4 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.out { background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 6px; padding: 8px 10px;
-       font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 </style>

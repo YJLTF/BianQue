@@ -13,6 +13,7 @@
   <modules>
     <module>bq-core</module>
     <module>bq-server</module>
+    <module>bq-agent</module>
   </modules>
 
   <properties>

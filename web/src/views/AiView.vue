@@ -52,6 +52,4 @@ async function copy() {
 .msg.a.danger { border-color: var(--el-color-danger-light-5); }
 .step { font-size: 12px; color: #606266; margin-top: 4px; }
 .sub { font-size: 12.5px; color: #606266; }
-.out { background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 6px; padding: 8px 10px;
-       font-size: 12.5px; white-space: pre-wrap; margin: 6px 0 0; }
 </style>
