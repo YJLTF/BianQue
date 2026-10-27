@@ -51,10 +51,15 @@ bianque/
 ## 快速开始（V0.1.x · S1 公共底座已就位）
 
 ```bash
-# 1. 后端（拟真演示通道，无需真实 agent）——必须在仓库根目录启动
-#    （H2 文件库 ./data 与文档目录均按相对路径解析）
+# 0. 基础设施（推荐，S3 起默认路径）：MySQL 8.4 + Redis 7.4
+docker compose -f deploy/docker-compose.yml up -d mysql redis
+
+# 1. 后端 —— 必须在仓库根目录启动（文档目录按相对路径解析）
 cd server && mvn -B package && cd ..
-java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar   # http://127.0.0.1:8080
+#    生产/联调模式：数据落 MySQL、登录态存 Redis（重启不掉登录态、纳管关系保留）
+java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar --spring.profiles.active=mysql
+#    或轻量演示模式（H2 文件库 + 内存登录态，无需 Docker）：
+#    java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar
 
 # 2. 前端（开发模式，/api 与 /docs 代理到 8080）
 cd web && npm install && npm run dev                             # http://localhost:5173
@@ -78,6 +83,9 @@ S1 可用能力（在 V0.1.0 八大功能流之上新增）：
   数据在 `./data/`）；生产切换 `--spring.profiles.active=mysql`（见 deploy/docker-compose.yml）。
   巡检结果重启不丢，`/api/checkup/history` 可回看最近 20 次。
 - **真实操作人审计**：所有诊断动作记录登录账号（不再是演示账号）。
+
+**S3 真库真缓存**：`--spring.profiles.active=mysql` 时数据落 MySQL 8.4（docker）、登录态存 Redis 7.4（滑动过期 8h）。
+实测收益：后端重启后 token 直接可用、已纳管实例自动恢复（免重新 attach）、审计哈希链跨重启完整校验。
 
 **S2 真实诊断闭环（免 telnet）**：诊断台"本机进程纳管"卡片可扫描本机 JVM（jps）并一键纳管，
 纳管实例自动路由到 arthas-boot.jar 纯 Java 通道（`java -jar arthas-boot.jar --select <主类> -c "<命令>"`，

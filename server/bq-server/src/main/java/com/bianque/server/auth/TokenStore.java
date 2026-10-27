@@ -1,34 +1,53 @@
 package com.bianque.server.auth;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 不透明令牌仓储：token → 登录态（滑动过期，默认 8h）。重启失效需重新登录（S2 可换 Redis/JWT）。
+ * 登录态仓储：优先 Redis（后端重启不掉登录态，TTL 滑动过期），无 Redis 时回退内存。
+ * key = bianque:token:<token> → AuthContext JSON。
  */
 @Component
 public class TokenStore {
 
-    private final Map<String, AuthContext> tokens = new ConcurrentHashMap<>();
-    private final Duration ttl;
+    private static final Logger log = LoggerFactory.getLogger(TokenStore.class);
+    private static final String KEY_PREFIX = "bianque:token:";
 
-    public TokenStore(@Value("${bianque.auth.token-ttl-hours:8}") long ttlHours) {
+    private final Duration ttl;
+    private final StringRedisTemplate redis; // 可为 null（无 Redis 环境）
+    private final ObjectMapper json; // Spring 容器的（含 JavaTimeModule，能序列化 Instant）
+    private final Map<String, AuthContext> memory = new ConcurrentHashMap<>();
+
+    public TokenStore(ObjectProvider<StringRedisTemplate> redis, ObjectMapper json,
+                      @Value("${bianque.auth.token-ttl-hours:8}") long ttlHours) {
+        this.redis = redis.getIfAvailable();
+        this.json = json;
         this.ttl = Duration.ofHours(ttlHours);
+        if (this.redis != null) {
+            log.info("登录态存储：Redis（重启不丢失）");
+        } else {
+            log.info("登录态存储：内存（无 Redis，重启后需重新登录）");
+        }
     }
 
     public AuthContext create(String username, String displayName, String role, String roleName,
-                              java.util.Set<String> permissions) {
+                              Set<String> permissions) {
         String token = java.util.UUID.randomUUID().toString().replace("-", "");
         AuthContext ctx = new AuthContext(token, username, displayName, role, roleName,
                 Set.copyOf(permissions), Instant.now().plus(ttl));
-        tokens.put(token, ctx);
+        put(token, ctx);
         return ctx;
     }
 
@@ -37,31 +56,62 @@ public class TokenStore {
         if (token == null || token.isBlank()) {
             return Optional.empty();
         }
-        AuthContext ctx = tokens.get(token);
+        AuthContext ctx = read(token);
         if (ctx == null) {
-            return Optional.empty();
-        }
-        if (ctx.expiresAt().isBefore(Instant.now())) {
-            tokens.remove(token);
             return Optional.empty();
         }
         AuthContext renewed = new AuthContext(ctx.token(), ctx.username(), ctx.displayName(),
                 ctx.role(), ctx.roleName(), ctx.permissions(), Instant.now().plus(ttl));
-        tokens.put(token, renewed);
+        put(token, renewed);
         return Optional.of(renewed);
     }
 
     public void remove(String token) {
-        tokens.remove(token);
+        if (token == null || token.isBlank()) {
+            return;
+        }
+        if (redis != null) {
+            redis.delete(KEY_PREFIX + token);
+        }
+        memory.remove(token);
     }
 
     public int size() {
-        return tokens.size();
+        return redis != null ? redis.keys(KEY_PREFIX + "*").size() : memory.size();
     }
 
     @Scheduled(fixedDelay = 300_000)
     public void prune() {
-        Instant now = Instant.now();
-        tokens.entrySet().removeIf(e -> e.getValue().expiresAt().isBefore(now));
+        if (redis == null) {
+            Instant now = Instant.now();
+            memory.entrySet().removeIf(e -> e.getValue().expiresAt().isBefore(now));
+        }
+        // Redis 模式由 TTL 自动过期
+    }
+
+    private void put(String token, AuthContext ctx) {
+        if (redis != null) {
+            try {
+                redis.opsForValue().set(KEY_PREFIX + token, json.writeValueAsString(ctx), ttl);
+                return;
+            } catch (Exception e) {
+                log.warn("Redis 写入失败，回退内存: {}", e.getMessage());
+            }
+        }
+        memory.put(token, ctx);
+    }
+
+    private AuthContext read(String token) {
+        if (redis != null) {
+            try {
+                String body = redis.opsForValue().get(KEY_PREFIX + token);
+                if (body != null) {
+                    return json.readValue(body, AuthContext.class);
+                }
+            } catch (Exception e) {
+                log.warn("Redis 读取失败: {}", e.getMessage());
+            }
+        }
+        return memory.get(token); // Redis 未启用或写入时曾回退
     }
 }

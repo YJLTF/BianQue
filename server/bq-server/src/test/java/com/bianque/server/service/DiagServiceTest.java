@@ -58,7 +58,7 @@ class DiagServiceTest {
 
     private final MemAuditTrail audit = new MemAuditTrail();
     private final DiagService service = new DiagService(new MockDiagExecutor(),
-            emptyLocalProvider(), audit, new com.bianque.server.repo.FleetRepository(), 30);
+            emptyLocalProvider(), audit, new com.bianque.server.repo.FleetRepository(null), 30);
 
     /** 测试装配：本机真实通道未启用 */
     private static org.springframework.beans.factory.ObjectProvider<LocalAsShExecutor> emptyLocalProvider() {

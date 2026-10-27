@@ -9,6 +9,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-bianque_dev_only}
       MYSQL_DATABASE: bianque
+      MYSQL_USER: bianque
+      MYSQL_PASSWORD: ${BIANQUE_DB_PASSWORD:-bianque123}
     ports:
       - "3306:3306"
     volumes:

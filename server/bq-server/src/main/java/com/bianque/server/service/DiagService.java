@@ -69,10 +69,10 @@ public class DiagService {
         return mockExecutor;
     }
 
-    /** as.sh --select 目标：本机实例用主类名，靶场实例用 instanceId */
-    private String selectTarget(Instance ins) {
+    /** as.sh --select 目标：本机实例用主类名，其余（含未登记实例）用 instanceId */
+    private String selectTarget(Instance ins, String instanceId) {
         return ins != null && ins.mainClass() != null && !ins.mainClass().isBlank()
-                ? ins.mainClass() : ins.instanceId();
+                ? ins.mainClass() : instanceId;
     }
 
     public SessionInfo openSession(String instanceId, String operator) {
@@ -103,7 +103,7 @@ public class DiagService {
         String sessionId = ensureSession(instanceId, operator);
         RiskLevel risk = CommandAllowlist.ENHANCED.contains(
                 commandText.trim().split("\\s+")[0].toLowerCase()) ? RiskLevel.MID : RiskLevel.LOW;
-        String selectTarget = selectTarget(ins);
+        String selectTarget = selectTarget(ins, instanceId);
         DiagCommand command = new DiagCommand(selectTarget, instanceId, risk.name(), risk, commandText, 60);
         DiagResult result = route(ins).execute(command);
         audit.append(source, operator, instanceId, commandText, result.costMs(),
