@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bianque.core.diag.DiagResult;
+import com.bianque.server.exec.LocalAsShExecutor;
 import com.bianque.server.exec.MockDiagExecutor;
 import com.bianque.server.model.Types.AuditEntry;
 import com.bianque.server.repo.AuditTrail;
@@ -56,7 +57,33 @@ class DiagServiceTest {
     }
 
     private final MemAuditTrail audit = new MemAuditTrail();
-    private final DiagService service = new DiagService(new MockDiagExecutor(), audit, 30);
+    private final DiagService service = new DiagService(new MockDiagExecutor(),
+            emptyLocalProvider(), audit, new com.bianque.server.repo.FleetRepository(), 30);
+
+    /** 测试装配：本机真实通道未启用 */
+    private static org.springframework.beans.factory.ObjectProvider<LocalAsShExecutor> emptyLocalProvider() {
+        return new org.springframework.beans.factory.ObjectProvider<>() {
+            @Override
+            public LocalAsShExecutor getObject() {
+                throw new IllegalStateException("测试环境不提供本机通道");
+            }
+
+            @Override
+            public LocalAsShExecutor getObject(Object... args) {
+                throw new IllegalStateException("测试环境不提供本机通道");
+            }
+
+            @Override
+            public LocalAsShExecutor getIfAvailable() {
+                return null;
+            }
+
+            @Override
+            public LocalAsShExecutor getIfUnique() {
+                return null;
+            }
+        };
+    }
 
     @Test
     void 高危命令被拦截并留审计() {

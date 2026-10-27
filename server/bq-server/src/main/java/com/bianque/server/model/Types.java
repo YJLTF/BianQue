@@ -12,7 +12,7 @@ public final class Types {
     private Types() {
     }
 
-    /** 受管应用下的实例（agent 信息） */
+    /** 受管应用下的实例（agent 信息；localAgent=true 时 mainClass 为 as.sh --select 目标） */
     public record Instance(
             String instanceId,
             String appId,
@@ -20,7 +20,8 @@ public final class Types {
             String agentVersion,
             boolean online,
             boolean localAgent,
-            int baseHealth) {
+            int baseHealth,
+            String mainClass) {
     }
 
     /** 应用聚合视图 */

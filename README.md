@@ -79,6 +79,11 @@ S1 可用能力（在 V0.1.0 八大功能流之上新增）：
   巡检结果重启不丢，`/api/checkup/history` 可回看最近 20 次。
 - **真实操作人审计**：所有诊断动作记录登录账号（不再是演示账号）。
 
+**S2 真实诊断闭环（免 telnet）**：诊断台"本机进程纳管"卡片可扫描本机 JVM（jps）并一键纳管，
+纳管实例自动路由到 arthas-boot.jar 纯 Java 通道（`java -jar arthas-boot.jar --select <主类> -c "<命令>"`，
+不依赖系统 telnet，内网禁 telnet 环境可用）；靶场实例继续走拟真通道。启动靶场演示进程：
+`java -jar docs/research/arthas-inspect/math-game.jar`。开关：`bianque.execution.local-enabled`（生产建议 false）。
+
 V0.1.0 基础能力保留：工作台总览、诊断台（模板/命令执行、高危黑名单拦截、会话 30 分钟托管）、
 急诊取证、巡检体检（虚拟线程并行+健康分）、档案扫描（批量 sc -d）、
 文档中心（Arthas 4.3.5 官方 78 页离线托管+全文搜索）、安全基线与 agent 安装向导。

@@ -5,20 +5,28 @@ import com.bianque.core.diag.DiagCommand;
 import com.bianque.core.diag.DiagExecutor;
 import com.bianque.core.diag.DiagResult;
 import com.bianque.core.diag.RiskLevel;
+import com.bianque.server.exec.LocalAsShExecutor;
+import com.bianque.server.exec.MockDiagExecutor;
+import com.bianque.server.model.Types.Instance;
 import com.bianque.server.model.Types.SessionInfo;
 import com.bianque.server.repo.AuditTrail;
+import com.bianque.server.repo.FleetRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 诊断执行门面：平台是唯一执行入口。
- * 白名单拦截 → 会话托管（默认 30 分钟自动回收）→ 通道分发 → 审计留痕（含真实操作人）。
+ * 白名单拦截 → 会话托管（默认 30 分钟自动回收）→ 通道分发（本机实例走 as.sh 真实通道，
+ * 模拟靶场走拟真通道）→ 审计留痕（含真实操作人）。
  */
 @Service
 public class DiagService {
@@ -27,20 +35,44 @@ public class DiagService {
     public static final String SYSTEM = "system";
 
     private final CommandAllowlist allowlist = new CommandAllowlist();
-    private final DiagExecutor executor;
+    private final MockDiagExecutor mockExecutor;
+    private final LocalAsShExecutor localExecutor; // local-enabled=false 时为 null
     private final AuditTrail audit;
+    private final FleetRepository fleet;
     private final Map<String, SessionHandle> sessions = new ConcurrentHashMap<>();
     private final Duration sessionTtl;
 
     private record SessionHandle(SessionInfo info) {
     }
 
-    public DiagService(DiagExecutor executor,
+    public DiagService(MockDiagExecutor mockExecutor,
+                       ObjectProvider<LocalAsShExecutor> localExecutor,
                        AuditTrail audit,
+                       FleetRepository fleet,
                        @Value("${bianque.session.ttl-minutes:30}") long ttlMinutes) {
-        this.executor = executor;
+        this.mockExecutor = mockExecutor;
+        this.localExecutor = localExecutor.getIfAvailable();
         this.audit = audit;
+        this.fleet = fleet;
         this.sessionTtl = Duration.ofMinutes(ttlMinutes);
+    }
+
+    /** 通道分发：localAgent 实例走真实 as.sh，其余走拟真通道 */
+    private DiagExecutor route(Instance ins) {
+        if (ins != null && ins.localAgent()) {
+            if (localExecutor == null) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "本机真实通道未启用（bianque.execution.local-enabled=false）");
+            }
+            return localExecutor;
+        }
+        return mockExecutor;
+    }
+
+    /** as.sh --select 目标：本机实例用主类名，靶场实例用 instanceId */
+    private String selectTarget(Instance ins) {
+        return ins != null && ins.mainClass() != null && !ins.mainClass().isBlank()
+                ? ins.mainClass() : ins.instanceId();
     }
 
     public SessionInfo openSession(String instanceId, String operator) {
@@ -62,11 +94,18 @@ public class DiagService {
             audit.append(source, operator, instanceId, commandText, 0, "blocked");
             return DiagResult.fail("已拦截：命令命中高危黑名单 " + allowlist.blockedCommands(), 0);
         }
+        Instance ins = fleet.find(instanceId).orElse(null);
+        if (ins == null && instanceId.startsWith("local-")) {
+            // 本机纳管实例登记在内存：后端重启后需重新 attach
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "纳管实例不存在（后端重启后需重新 attach）: " + instanceId);
+        }
         String sessionId = ensureSession(instanceId, operator);
         RiskLevel risk = CommandAllowlist.ENHANCED.contains(
                 commandText.trim().split("\\s+")[0].toLowerCase()) ? RiskLevel.MID : RiskLevel.LOW;
-        DiagCommand command = new DiagCommand(instanceId, instanceId, risk.name(), risk, commandText, 60);
-        DiagResult result = executor.execute(command);
+        String selectTarget = selectTarget(ins);
+        DiagCommand command = new DiagCommand(selectTarget, instanceId, risk.name(), risk, commandText, 60);
+        DiagResult result = route(ins).execute(command);
         audit.append(source, operator, instanceId, commandText, result.costMs(),
                 result.success() ? "ok" : "fail");
         return result;

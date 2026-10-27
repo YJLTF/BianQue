@@ -22,9 +22,18 @@ export function closeSession(sessionId: string) {
 }
 
 /** 实例与应用 */
-export interface InstanceVO { instanceId: string; appId: string; host: string; agentVersion: string; online: boolean; localAgent: boolean; baseHealth: number }
+export interface InstanceVO { instanceId: string; appId: string; host: string; agentVersion: string; online: boolean; localAgent: boolean; baseHealth: number; mainClass?: string }
 export function getInstances(appId?: string) {
   return http.get("/fleet/instances", { params: appId ? { appId } : {} }) as unknown as Promise<InstanceVO[]>;
+}
+
+/** 本机真实进程纳管（bianque.execution.local-enabled 时开放；免 telnet 的 arthas-boot 通道） */
+export interface LocalProcessVO { pid: number; mainClass: string }
+export function getLocalProcesses() {
+  return http.get("/fleet/local-processes") as unknown as Promise<{ localEnabled: boolean; processes: LocalProcessVO[] }>;
+}
+export function attachLocalProcess(pid: number) {
+  return http.post(`/fleet/local-processes/${pid}/attach`) as unknown as Promise<InstanceVO>;
 }
 
 export function unwrap<T>(resp: unknown): T {

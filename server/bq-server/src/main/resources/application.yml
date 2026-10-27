@@ -27,9 +27,12 @@ management:
 
 bianque:
   execution:
-    # mock：拟真演示通道（默认）；local：本机 as.sh 真实执行
+    # mock：拟真演示通道；local：本机 as.sh 真实执行（按实例路由）
     mode: mock
-    as-sh-path: ../docs/research/arthas-inspect/as.sh
+    # 本机真实进程纳管开关（127.0.0.1 + 登录墙之内；生产环境建议 false）
+    local-enabled: true
+    # 真实通道：java -jar arthas-boot.jar（纯 Java，无 telnet 依赖，Windows/Linux 通用）
+    boot-jar-path: docs/research/arthas-inspect/arthas-boot.jar
   docs:
     unpack-root: ""   # 空值时按运行目录自动探测 docs/arthas-docs/4.3.5
   session:

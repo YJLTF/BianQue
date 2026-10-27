@@ -4,7 +4,7 @@
       <el-card shadow="never" header="应用 / 实例">
         <el-select v-model="instanceId" filterable style="width: 100%">
           <el-option v-for="i in instances" :key="i.instanceId"
-                     :label="`${i.appId}/${i.instanceId}`" :value="i.instanceId"
+                     :label="`${i.appId}/${i.instanceId}${i.localAgent ? ' · 真实' : ''}`" :value="i.instanceId"
                      :disabled="!i.online" />
         </el-select>
         <div class="sub" style="margin-top: 8px">
@@ -13,6 +13,19 @@
         <el-button size="small" :disabled="!session.active" style="margin-top: 8px" @click="closeSessionNow">
           结束并重置
         </el-button>
+      </el-card>
+      <el-card shadow="never" header="本机进程纳管（真实通道）" style="margin-top: 12px">
+        <div v-if="localProcs.localEnabled">
+          <div v-for="p in localProcs.processes" :key="p.pid" class="lproc">
+            <code class="cmd">{{ p.mainClass }}</code>
+            <span class="sub">#{{ p.pid }}</span>
+            <el-button v-if="!managedPids.has(p.pid)" size="small" type="primary" plain
+                       :loading="attaching === p.pid" @click="attach(p.pid)">纳管</el-button>
+            <el-tag v-else size="small" type="success" effect="plain">已纳管</el-tag>
+          </div>
+          <div class="sub" style="margin-top: 6px">纳管后即可对其执行真实 Arthas 命令（免 telnet）</div>
+        </div>
+        <div v-else class="sub">本机纳管未启用（bianque.execution.local-enabled=false）</div>
       </el-card>
     </el-col>
 
@@ -33,7 +46,7 @@
           <span class="sub">高危命令将被平台黑名单拦截并审计</span>
         </div>
       </el-card>
-      <el-card shadow="never" header="执行结果" style="margin-top: 12px">
+      <el-card shadow="never" :header="resultHeader" style="margin-top: 12px">
         <el-alert v-if="blocked" type="error" :closable="false" :title="result?.error" show-icon />
         <pre v-else-if="result" class="out">{{ result.output }}</pre>
         <el-empty v-else description="执行后在此查看结构化输出（原始输出全程可查）" :image-size="60" />
@@ -74,7 +87,8 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { executeDiag, getInstances, getSession, closeSession, type DiagResultVO, type InstanceVO } from "@/api/diag";
+import { executeDiag, getInstances, getSession, closeSession, getLocalProcesses, attachLocalProcess,
+         type DiagResultVO, type InstanceVO, type LocalProcessVO } from "@/api/diag";
 import { errMsg } from "@/api/http";
 import { riskMeta, riskOfCommand, highRiskFamilies } from "@/config/risk";
 
@@ -92,6 +106,37 @@ const cmdDocs = ref<DocHit[]>([]);
 const risk = computed(() => riskOfCommand(command.value));
 const remain = ref("--:--");
 let timer: number | undefined;
+
+const localProcs = ref<{ localEnabled: boolean; processes: LocalProcessVO[] }>({ localEnabled: false, processes: [] });
+const attaching = ref<number | null>(null);
+const managedPids = computed(() => new Set(
+  instances.value.filter((i) => i.localAgent).map((i) => Number(i.instanceId.replace("local-", ""))),
+));
+const currentInstance = computed(() => instances.value.find((i) => i.instanceId === instanceId.value) ?? null);
+const resultHeader = computed(() =>
+  currentInstance.value?.localAgent ? "执行结果（真实通道 · arthas-boot）" : "执行结果");
+
+async function loadLocal() {
+  try {
+    localProcs.value = await getLocalProcesses();
+  } catch {
+    localProcs.value = { localEnabled: false, processes: [] };
+  }
+}
+
+async function attach(pid: number) {
+  attaching.value = pid;
+  try {
+    const ins = await attachLocalProcess(pid);
+    ElMessage.success(`已纳管 ${ins.mainClass ?? ins.appId}（#${pid}），走真实通道`);
+    instances.value = await getInstances();
+    instanceId.value = ins.instanceId;
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  } finally {
+    attaching.value = null;
+  }
+}
 
 const templates = [
   { label: "慢接口排查", cmd: "trace com.bianque.order.OrderService placeOrder '#cost>100'" },
@@ -146,6 +191,7 @@ function tick() {
 onMounted(async () => {
   instances.value = await getInstances();
   instanceId.value = instances.value.find((i) => i.online)?.instanceId ?? "";
+  loadLocal();
   const catalog = await fetch("/api/docs/catalog").then((r) => r.json());
   cmdDocs.value = (catalog.pages ?? []).filter((p: DocHit) =>
     ["thread", "memory", "jvm", "watch", "trace", "tt", "dashboard", "profiler", "sc"].includes(p.slug));
@@ -161,4 +207,7 @@ onUnmounted(() => window.clearInterval(timer));
 .out { background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 6px; padding: 8px 10px;
        font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow-y: auto; margin: 0; }
 .tpl { cursor: pointer; }
+.lproc { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.lproc .cmd { flex: 1; font-size: 11px; overflow-wrap: anywhere; }
+.lproc .el-button { margin-left: auto; }
 </style>
