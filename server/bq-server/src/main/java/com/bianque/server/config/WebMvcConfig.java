@@ -21,6 +21,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/login", "/api/health");
+                // 告警接入走独立 X-Alert-Token 认证（外部系统无平台登录态）
+                .excludePathPatterns("/api/auth/login", "/api/health", "/api/alerts/ingest");
     }
 }

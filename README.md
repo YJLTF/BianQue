@@ -84,6 +84,14 @@ S1 可用能力（在 V0.1.0 八大功能流之上新增）：
   巡检结果重启不丢，`/api/checkup/history` 可回看最近 20 次。
 - **真实操作人审计**：所有诊断动作记录登录账号（不再是演示账号）。
 
+**S4 常驻会话与告警接入**：
+- 常驻会话：纳管实例首次执行时 attach-only 建立常驻 agent，热命令（version/jvm/memory/thread）
+  直连 agent HTTP 端口毫秒级返回（实测 376~510ms，对比一次性通道 1.2~1.4s）；其余命令自动回落
+  一次性 boot 通道；会话回收/超时对真实实例执行真实 stop（卸载增强防残留）。
+- 告警接入（仅预留通用接口，不绑定企微/钉钉）：入站 `POST /api/alerts/ingest`（X-Alert-Token 认证，
+  `bianque.alerts.ingest-token` 配置后开放），事件落 MySQL `alert_event` 表；出站 `AlertNotifier` SPI
+  （实现 Bean 即插即用）+ 内置通用 Webhook（`bianque.alerts.webhook-url`），新告警/取证完成时推送 JSON。
+
 **S3 真库真缓存**：`--spring.profiles.active=mysql` 时数据落 MySQL 8.4（docker）、登录态存 Redis 7.4（滑动过期 8h）。
 实测收益：后端重启后 token 直接可用、已纳管实例自动恢复（免重新 attach）、审计哈希链跨重启完整校验。
 

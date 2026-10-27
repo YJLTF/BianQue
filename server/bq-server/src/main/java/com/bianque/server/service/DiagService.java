@@ -111,15 +111,26 @@ public class DiagService {
         return result;
     }
 
-    /** 结束会话：reset + stop（防增强残留） */
+    /** 结束会话：reset + stop（真实通道卸载 agent，防增强残留） */
     public SessionInfo closeSession(String sessionId) {
         SessionHandle h = sessions.remove(sessionId);
         if (h == null) {
             return null;
         }
-        audit.append("人工", h.info().openedBy(), h.info().instanceId(),
-                "reset + stop（会话回收 " + shortId(sessionId) + "）", 300, "ok");
-        return new SessionInfo(sessionId, h.info().instanceId(), h.info().openedBy(),
+        String operator = h.info().openedBy();
+        String instanceId = h.info().instanceId();
+        Instance ins = fleet.find(instanceId).orElse(null);
+        if (ins != null && ins.localAgent() && localExecutor != null) {
+            boolean stopped = localExecutor.stopAgent(
+                    ins.mainClass() != null && !ins.mainClass().isBlank() ? ins.mainClass() : instanceId);
+            audit.append("人工", operator, instanceId,
+                    stopped ? "stop（agent 已卸载，增强已还原）" : "stop 指令未确认（agent 可能已退出）",
+                    200, stopped ? "ok" : "fail");
+        } else {
+            audit.append("人工", operator, instanceId,
+                    "reset + stop（会话回收 " + shortId(sessionId) + "）", 300, "ok");
+        }
+        return new SessionInfo(sessionId, instanceId, h.info().openedBy(),
                 h.info().openedAt(), h.info().expiresAt(), false);
     }
 

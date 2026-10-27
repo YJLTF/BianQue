@@ -17,6 +17,13 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="来源" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.alertId.startsWith('AL-1') ? 'info' : 'success'" effect="plain">
+                {{ row.alertId.startsWith("AL-1") ? "演示" : "已接入" }}
+              </el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="110">
             <template #default="{ row }">
               <el-button size="small" type="primary" :loading="busy === row.alertId"
@@ -24,6 +31,16 @@
             </template>
           </el-table-column>
         </el-table>
+      </el-card>
+      <el-card shadow="never" header="告警接入（自有告警系统 · 通用接口，不绑定 IM）" style="margin-top: 12px">
+        <pre class="out"># 入站：自有告警系统推入（服务端配置 bianque.alerts.ingest-token 后开放）
+curl -X POST http://&lt;平台&gt;:8080/api/alerts/ingest \
+  -H "X-Alert-Token: &lt;ingest-token&gt;" -H "Content-Type: application/json" \
+  -d '{"alertId":"EXT-001","appId":"order-app","instanceId":"pod-3",
+       "message":"CPU 96%","severity":"严重","source":"my-alert-center"}'
+
+# 出站：新告警/取证完成时平台 POST JSON 到 bianque.alerts.webhook-url
+# 报文：{event, alertId, appId, instanceId, severity, message, status, time[, conclusion]}</pre>
       </el-card>
     </el-col>
     <el-col :span="13">

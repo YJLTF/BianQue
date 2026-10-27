@@ -33,10 +33,18 @@ bianque:
     local-enabled: true
     # 真实通道：java -jar arthas-boot.jar（纯 Java，无 telnet 依赖，Windows/Linux 通用）
     boot-jar-path: docs/research/arthas-inspect/arthas-boot.jar
+    # 常驻会话快路径：attach 一次后 HTTP 直连 agent（毫秒级）；热命令 version/jvm/memory/thread 走此通道
+    fast-path: true
+    fast-port-base: 18600
   docs:
     unpack-root: ""   # 空值时按运行目录自动探测 docs/arthas-docs/4.3.5
   session:
     ttl-minutes: 30
+  alerts:
+    # 告警接入（入站预留）：配置 token 后 /api/alerts/ingest 开放，外部告警系统以 X-Alert-Token 头推入
+    ingest-token: ""
+    # 告警通知（出站预留）：通用 webhook，新告警/取证完成时 POST JSON；不绑定企微/钉钉
+    webhook-url: ""
   auth:
     token-ttl-hours: 8
 

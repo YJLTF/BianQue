@@ -3,36 +3,59 @@ package com.bianque.server.exec;
 import com.bianque.core.diag.DiagCommand;
 import com.bianque.core.diag.DiagExecutor;
 import com.bianque.core.diag.DiagResult;
+import com.bianque.server.exec.FastPathClient.ExecOut;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 
 /**
- * 本机真实通道：经发行包 arthas-boot.jar 非交互执行（--select 目标 + -c 命令批处理）。
- * 纯 Java 进程链（java -jar arthas-boot.jar），不依赖系统 telnet（内网禁 telnet 环境可用）。
- * 4.3.5 的 arthas-boot 无 --execution-timeout（那是 as.sh 包装参数），超时由进程级 waitFor 兜底。
- * 仅对 localAgent 实例启用；bianque.execution.local-enabled=false 时整体不装配（默认）。
+ * 本机真实通道：
+ * 1) 快路径——常驻 agent HTTP 直连（仅 version/jvm/memory/thread 等平台已适配渲染的热命令，毫秒级）；
+ * 2) 兜底——一次性 arthas-boot 批处理（全命令可用，秒级），快路径不可用或冷命令时走此路径。
+ * 兜底命令行：java -jar arthas-boot.jar --select <主类> -c "<命令>"，纯 Java 无 telnet 依赖。
  */
 public class LocalAsShExecutor implements DiagExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(LocalAsShExecutor.class);
     private static final String ANSI = "\u001B\\[[0-9;]*[A-Za-z]";
+    /** 快路径白名单：FastPathClient 已实现文本渲染的命令族 */
+    private static final Set<String> FAST_COMMANDS = Set.of("version", "jvm", "memory", "thread");
 
     private final String bootJarPath;
     private final String javaPath;
+    private final LocalArthasSessionManager sessions; // 可为 null（fast-path 关闭时）
 
     public LocalAsShExecutor(
             @Value("${bianque.execution.boot-jar-path:docs/research/arthas-inspect/arthas-boot.jar}") String bootJarPath,
-            @Value("${bianque.execution.java-path:${java.home}/bin/java}") String javaPath) {
+            @Value("${bianque.execution.java-path:${java.home}/bin/java}") String javaPath,
+            LocalArthasSessionManager sessions) {
         this.bootJarPath = bootJarPath;
         this.javaPath = javaPath;
+        this.sessions = sessions;
     }
 
     @Override
     public DiagResult execute(DiagCommand command) {
         long begin = System.currentTimeMillis();
+        String head = command.commandText().trim().split("\\s+")[0].toLowerCase();
+        if (sessions != null && sessions.enabled() && FAST_COMMANDS.contains(head)) {
+            ExecOut out = sessions.exec(command.appName(), command.commandText());
+            if (out.output() != null) {
+                return DiagResult.ok(out.output(), System.currentTimeMillis() - begin);
+            }
+        }
+        return oneShotBoot(command, begin);
+    }
+
+    /** 会话回收时卸载目标 agent（reset+stop 防增强残留） */
+    public boolean stopAgent(String selectTarget) {
+        return sessions != null && sessions.stop(selectTarget);
+    }
+
+    private DiagResult oneShotBoot(DiagCommand command, long begin) {
         try {
             ProcessBuilder pb = new ProcessBuilder(
                     javaPath, "-jar", bootJarPath,

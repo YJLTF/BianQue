@@ -1,5 +1,6 @@
 package com.bianque.server.service;
 
+import com.bianque.server.alert.AlertService;
 import com.bianque.server.model.Types.Alert;
 import com.bianque.server.model.Types.RescueReport;
 import com.bianque.server.model.Types.RescueStep;
@@ -11,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * 扁鹊·急诊：告警联动现场取证。告警触发 → 按模板顺序采集（thread→memory→jvm）→ 聚合现场报告并落库。
+ * 告警来源：演示种子（内存）+ 外部告警系统接入（/api/alerts/ingest，落 MySQL）。
  */
 @Service
 public class RescueService {
@@ -30,23 +31,18 @@ public class RescueService {
 
     private final DiagService diag;
     private final RescueReportJpa reports;
+    private final AlertService alerts;
     private final ObjectMapper json;
-    private final List<Alert> alerts = new CopyOnWriteArrayList<>(List.of(
-            new Alert("AL-1001", Instant.now().minusSeconds(600), "order-app", "pod-3",
-                    "CPU 使用率 96%，持续 3 分钟", "严重", "待取证"),
-            new Alert("AL-1002", Instant.now().minusSeconds(1500), "user-app", "inst-2",
-                    "Full GC 频繁（4 次/小时）", "警告", "待取证"),
-            new Alert("AL-1003", Instant.now().minusSeconds(3700), "gateway", "edge-1",
-                    "5xx 比例 3.2%", "警告", "待取证")));
 
-    public RescueService(DiagService diag, RescueReportJpa reports, ObjectMapper json) {
+    public RescueService(DiagService diag, RescueReportJpa reports, AlertService alerts, ObjectMapper json) {
         this.diag = diag;
         this.reports = reports;
+        this.alerts = alerts;
         this.json = json;
     }
 
     public List<Alert> listAlerts() {
-        return List.copyOf(alerts);
+        return alerts.listAlerts();
     }
 
     public RescueReport rescue(String alertId) {
@@ -54,8 +50,10 @@ public class RescueService {
     }
 
     public RescueReport rescue(String alertId, String operator) {
-        Alert alert = alerts.stream().filter(a -> a.alertId().equals(alertId)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("告警不存在: " + alertId));
+        Alert alert = alerts.find(alertId);
+        if (alert == null) {
+            throw new IllegalArgumentException("告警不存在: " + alertId);
+        }
         long begin = System.currentTimeMillis();
         List<RescueStep> steps = new ArrayList<>();
         String threadOut = run(steps, 1, "最忙线程 + 死锁检测", "thread -n 5", alert.instanceId(), operator);
@@ -73,9 +71,7 @@ public class RescueService {
                 Map.of("oldGen", oldGen, "threads", threadTotal),
                 System.currentTimeMillis() - begin, Instant.now());
         persist(operator, report);
-        alerts.remove(alert);
-        alerts.add(new Alert(alert.alertId(), alert.time(), alert.appId(), alert.instanceId(),
-                alert.message(), alert.severity(), "已取证"));
+        alerts.markRescued(alertId, report);
         return report;
     }
 
