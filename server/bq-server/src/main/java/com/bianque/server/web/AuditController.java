@@ -1,15 +1,14 @@
 package com.bianque.server.web;
 
-import com.bianque.server.model.Types.AuditEntry;
 import com.bianque.server.repo.AuditRepository;
-import java.util.List;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 审计中心 API：谁·何时·何实例·何命令·何结果。
+ * 审计中心 API：谁·何时·何实例·何命令·何结果。列表走数据库侧分页。
  */
 @RestController
 @RequestMapping("/api/audit")
@@ -22,10 +21,12 @@ public class AuditController {
     }
 
     @GetMapping
-    public List<AuditEntry> query(@RequestParam(required = false) String source,
-                                  @RequestParam(required = false) String operator,
-                                  @RequestParam(defaultValue = "100") int limit) {
-        return audit.query(source, operator, limit);
+    public Map<String, Object> query(@RequestParam(required = false) String source,
+                                     @RequestParam(required = false) String operator,
+                                     @RequestParam(defaultValue = "0") int page,
+                                     @RequestParam(defaultValue = "20") int size) {
+        AuditRepository.PageResult r = audit.searchPage(source, operator, page, size);
+        return Map.of("total", r.total(), "records", r.records());
     }
 
     @GetMapping("/stats")

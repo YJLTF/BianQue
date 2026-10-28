@@ -188,10 +188,11 @@ class LlmIntegrationTest {
         assertTrue(body.path("messages").path(0).path("content").asText().contains("诊断上下文"));
 
         // 审计留痕：AI 问诊来源 + 哈希链仍然有效
-        ResponseEntity<List> audit = http.exchange("/api/audit?limit=30",
-                HttpMethod.GET, new HttpEntity<>(authHeader(admin)), List.class);
+        ResponseEntity<Map> audit = http.exchange("/api/audit?page=0&size=30",
+                HttpMethod.GET, new HttpEntity<>(authHeader(admin)), Map.class);
         assertEquals(HttpStatus.OK, audit.getStatusCode());
-        assertTrue(audit.getBody().stream().anyMatch(e ->
+        List<?> auditRecords = audit.getBody() == null ? null : (List<?>) audit.getBody().get("records");
+        assertTrue(auditRecords != null && auditRecords.stream().anyMatch(e ->
                         "AI 问诊".equals(((Map<?, ?>) e).get("source"))
                                 && String.valueOf(((Map<?, ?>) e).get("command")).startsWith("chat:")),
                 "chat 与 test 都应留痕");

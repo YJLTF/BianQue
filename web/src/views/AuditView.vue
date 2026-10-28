@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="row">
-      <el-select v-model="source" placeholder="全部来源" clearable style="width: 140px" @change="load">
+      <el-select v-model="source" placeholder="全部来源" clearable style="width: 140px" @change="resetFilters">
         <el-option v-for="s in ['人工', '急诊', '系统']" :key="s" :label="s" :value="s" />
       </el-select>
       <el-input v-model="operator" placeholder="按操作人过滤…" style="width: 200px" clearable @input="debouncedLoad" />
@@ -50,13 +50,24 @@
           </template>
         </el-table-column>
       </el-table>
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        class="pager"
+        :page-sizes="[20, 50, 100, 200]"
+        :total="total"
+        :disabled="loading"
+        layout="total, sizes, prev, pager, next, jumper"
+        @current-change="load"
+        @size-change="onSizeChange" />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { http } from "@/api/http";
+import { ElMessage } from "element-plus";
+import { errMsg, http } from "@/api/http";
 
 interface AuditEntry { seq: number; time: string; source: string; operator: string; instanceId: string; command: string; costMs: number; result: string; prevHash: string; hash: string }
 interface VerifyResult { valid: boolean; checked: number; brokenAtSeq: number; reason: string }
@@ -65,6 +76,9 @@ const rows = ref<AuditEntry[]>([]);
 const source = ref("");
 const operator = ref("");
 const stats = ref<Record<string, number>>({});
+const total = ref(0);
+const page = ref(1);
+const size = ref(20);
 const loading = ref(true);
 const verifying = ref(false);
 const verifyResult = ref<VerifyResult | null>(null);
@@ -72,12 +86,25 @@ let timer: number | undefined;
 
 async function load() {
   loading.value = true;
-  const params: Record<string, string | number> = { limit: 100 };
-  if (source.value) params.source = source.value;
-  if (operator.value) params.operator = operator.value;
-  rows.value = await http.get("/audit", { params }) as unknown as AuditEntry[];
-  stats.value = await http.get("/audit/stats") as unknown as Record<string, number>;
-  loading.value = false;
+  try {
+    const params: Record<string, string | number> = { page: page.value - 1, size: size.value };
+    if (source.value) params.source = source.value;
+    if (operator.value) params.operator = operator.value;
+    const data = await http.get("/audit", { params }) as unknown as { total: number; records: AuditEntry[] };
+    rows.value = data.records ?? [];
+    total.value = data.total ?? 0;
+    stats.value = await http.get("/audit/stats") as unknown as Record<string, number>;
+  } catch (e) {
+    ElMessage.error("审计记录加载失败：" + errMsg(e));
+  } finally {
+    loading.value = false;
+  }
+}
+
+/** 切换每页条数后回到第一页，避免页码越界 */
+function onSizeChange() {
+  page.value = 1;
+  load();
 }
 
 async function verify() {
@@ -89,9 +116,15 @@ async function verify() {
   }
 }
 
+/** 过滤条件变化时回到第一页再查，避免停留在越界页码 */
+function resetFilters() {
+  page.value = 1;
+  load();
+}
+
 function debouncedLoad() {
   window.clearTimeout(timer);
-  timer = window.setTimeout(load, 250);
+  timer = window.setTimeout(resetFilters, 250);
 }
 
 function hhmmss(t: string) {
@@ -105,6 +138,7 @@ onMounted(load);
 <style scoped>
 .row { display: flex; align-items: center; gap: 10px; }
 .sub { font-size: 12px; color: #909399; margin-left: auto; }
+.pager { margin-top: 12px; justify-content: flex-end; }
 .cmd { font-size: 12px; overflow-wrap: anywhere; }
 .hash { font-size: 12px; color: #b88230; }
 </style>

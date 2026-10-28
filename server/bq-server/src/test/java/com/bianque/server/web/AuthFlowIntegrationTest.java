@@ -98,15 +98,43 @@ class AuthFlowIntegrationTest {
         assertEquals(HttpStatus.OK, r.getStatusCode());
         assertEquals(Boolean.TRUE, r.getBody().get("success"));
 
-        List<Map> entries = http.exchange("/api/audit?limit=10", HttpMethod.GET,
-                new HttpEntity<>(auth(admin)), List.class).getBody();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resp = http.exchange("/api/audit?page=0&size=10", HttpMethod.GET,
+                new HttpEntity<>(auth(admin)), Map.class).getBody();
+        List<Map> entries = resp == null ? null : (List<Map>) resp.get("records");
         assertFalse(entries == null || entries.isEmpty());
+        assertTrue(((Number) resp.get("total")).longValue() >= entries.size());
         assertTrue(String.valueOf(entries.get(0).get("operator")).startsWith("admin"));
         assertNotEquals("", entries.get(0).get("hash"));
     }
 
     @Test
     @Order(6)
+    void 审计分页返回总数且seq倒序无重叠() {
+        String admin = login("admin", "admin123");
+        // 自播种 5 条，不依赖其它用例的写入量
+        com.bianque.server.repo.AuditRepository repo = auditRepo.getObject();
+        for (int i = 1; i <= 5; i++) {
+            repo.append("系统", "pager-test", "pod-3", "seed " + i, i, "ok");
+        }
+        Map<String, Object> p0 = http.exchange("/api/audit?page=0&size=2", HttpMethod.GET,
+                new HttpEntity<>(auth(admin)), Map.class).getBody();
+        Map<String, Object> p1 = http.exchange("/api/audit?page=1&size=2", HttpMethod.GET,
+                new HttpEntity<>(auth(admin)), Map.class).getBody();
+        List<Map> r0 = (List<Map>) p0.get("records");
+        List<Map> r1 = (List<Map>) p1.get("records");
+        assertEquals(2, r0.size());
+        assertEquals(2, r1.size());
+        long total = ((Number) p0.get("total")).longValue();
+        assertTrue(total >= 5);
+        assertEquals(total, ((Number) p1.get("total")).longValue());
+        long firstSeq0 = ((Number) r0.get(0).get("seq")).longValue();
+        long firstSeq1 = ((Number) r1.get(0).get("seq")).longValue();
+        assertTrue(firstSeq0 > firstSeq1, "seq 应倒序：第 1 页 seq 大于第 2 页");
+    }
+
+    @Test
+    @Order(7)
     void 审计哈希链校验通过() {
         String admin = login("admin", "admin123");
         ResponseEntity<Map> v = get("/api/audit/verify", admin);
@@ -116,7 +144,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     void 用户管理仅管理员可见() {
         String admin = login("admin", "admin123");
         String viewer = login("viewer", "viewer123");
@@ -134,7 +162,7 @@ class AuthFlowIntegrationTest {
     org.springframework.beans.factory.ObjectProvider<com.bianque.server.repo.AuditRepository> auditRepo;
 
     @Test
-    @Order(8)
+    @Order(9)
     void 篡改审计记录后哈希链断链可检() {
         String admin = login("admin", "admin123");
         jdbc.update("update audit_log set command = concat(command, '_篡改') where seq = 1");
@@ -145,7 +173,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     void 并发审计追加不重号且链完整() throws Exception {
         // 先还原 Order(8) 的篡改，保证全链可校验
         jdbc.update("update audit_log set command = replace(command, '_篡改', '') where command like '%\\_篡改'");

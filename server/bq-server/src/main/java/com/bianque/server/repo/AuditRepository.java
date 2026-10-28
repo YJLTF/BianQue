@@ -12,8 +12,10 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +30,6 @@ public class AuditRepository implements AuditTrail {
     static final String GENESIS = "0".repeat(64);
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
             .withZone(ZoneOffset.UTC);
-    private static final int QUERY_SCAN_CAP = 500;
 
     private final AuditLogJpa jpa;
     private final ObjectProvider<AuditRepository> self; // 自代理：让事务提交发生在 appendLock 临界区内
@@ -71,17 +72,21 @@ public class AuditRepository implements AuditTrail {
 
     @Override
     public List<AuditEntry> query(String source, String operatorLike, int limit) {
-        List<AuditLogEntity> scan = jpa.findAll().stream()
-                .sorted(Comparator.comparingLong((AuditLogEntity e) -> e.seq).reversed())
-                .limit(QUERY_SCAN_CAP)
-                .toList();
-        return scan.stream()
-                .map(this::toRecord)
-                .filter(e -> source == null || source.isBlank() || e.source().equals(source))
-                .filter(e -> operatorLike == null || operatorLike.isBlank()
-                        || e.operator().toLowerCase().contains(operatorLike.toLowerCase()))
-                .limit(limit <= 0 ? 50 : Math.min(limit, QUERY_SCAN_CAP))
-                .collect(Collectors.toList());
+        return searchPage(source, operatorLike, 0, limit <= 0 ? 50 : limit).records();
+    }
+
+    /** 分页结果：total 为过滤后的总条数，records 为当前页（seq 倒序） */
+    public record PageResult(List<AuditEntry> records, long total) {
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult searchPage(String source, String operatorLike, int page, int size) {
+        String s = source == null ? "" : source.trim();
+        String op = operatorLike == null ? "" : operatorLike.trim();
+        int safeSize = size <= 0 ? 20 : Math.min(size, 200);
+        Page<AuditLogEntity> p = jpa.search(s, op,
+                PageRequest.of(Math.max(page, 0), safeSize, Sort.by(Sort.Direction.DESC, "seq")));
+        return new PageResult(p.getContent().stream().map(this::toRecord).toList(), p.getTotalElements());
     }
 
     @Override

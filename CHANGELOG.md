@@ -2,6 +2,15 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 优化 · 审计中心数据库侧分页
+
+- 原实现 `findAll()` 全表载入内存排序截断（最多 500 条），前端固定取前 100 条、更早记录不可见
+- 改为 JPA `Page` 查询（seq 倒序 + 来源/操作人条件在 SQL 侧过滤），接口返回 `{total, records}`
+  并新增 page/size 参数（size 上限 200）；`AuditTrail.query` 接口签名不变，复用分页实现
+- 前端上 `el-pagination`（20/50/100/200 每页可切，总数/跳页），切过滤条件自动回第 1 页
+- 实测：369 条记录翻页/切页大小/来源过滤正常；集成测试新增分页用例（自播种 5 条断言
+  total 一致性与 seq 倒序无重叠），28 项测试全绿
+
 ## 修复 · 文档中心空白（0 页）
 
 - **目录接口 401**：DocsView 用裸 `fetch` 调 `/api/docs/catalog|search` 未携带登录 token，被全量鉴权拦截后
