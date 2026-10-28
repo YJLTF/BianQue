@@ -59,19 +59,19 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="节点" min-width="170">
+        <el-table-column label="节点" min-width="170" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="pulse-dot" :class="{ off: !row.online }" />
             <code>{{ row.agentId }}</code>
           </template>
         </el-table-column>
-        <el-table-column label="主机" min-width="150">
+        <el-table-column label="主机" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.hostname }} <span class="sub">({{ row.host }})</span>
           </template>
         </el-table-column>
         <el-table-column prop="os" label="系统" min-width="130" show-overflow-tooltip />
-        <el-table-column prop="javaVersion" label="JDK" width="70" />
+        <el-table-column prop="javaVersion" label="JDK" width="92" />
         <el-table-column prop="agentVersion" label="Agent" width="80" />
         <el-table-column label="进程" width="70" align="right">
           <template #default="{ row }">{{ row.processes.length }}</template>

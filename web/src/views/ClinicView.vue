@@ -40,7 +40,8 @@
         <el-input v-model="command" type="textarea" :rows="3" placeholder="watch 类名 方法名 '{params,returnObj}' -n 100" />
         <div style="margin-top: 8px" class="row">
           <el-tag :type="risk.type" effect="plain">{{ risk.label }}</el-tag>
-          <el-button type="primary" size="small" :disabled="!instanceId || !command.trim()" @click="onExecute">
+          <el-button type="primary" size="small" :loading="running"
+                     :disabled="!instanceId || !command.trim()" @click="onExecute">
             执行诊断
           </el-button>
           <el-tag v-if="result && !blocked" size="small" :type="result.channel === 'real' ? 'success' : 'info'" effect="plain">
@@ -50,9 +51,11 @@
         </div>
       </el-card>
       <el-card shadow="never" :header="resultHeader" style="margin-top: 12px">
-        <el-alert v-if="blocked" type="error" :closable="false" :title="result?.error" show-icon />
-        <pre v-else-if="result" class="out">{{ result.output }}</pre>
-        <el-empty v-else description="选择实例与命令，执行后在此查看输出" :image-size="60" />
+        <div v-loading="running" element-loading-text="命令执行中，请稍候…" class="result-body">
+          <el-alert v-if="blocked" type="error" :closable="false" :title="result?.error" show-icon />
+          <pre v-else-if="result" class="out">{{ result.output }}</pre>
+          <el-empty v-else description="选择实例与命令，执行后在此查看输出" :image-size="60" />
+        </div>
       </el-card>
     </el-col>
 
@@ -104,6 +107,7 @@ const instanceId = ref("");
 const command = ref("thread -n 5");
 const result = ref<DiagResultVO | null>(null);
 const blocked = ref(false);
+const running = ref(false);
 const confirmVisible = ref(false);
 const session = ref<{ active?: boolean; sessionId?: string; expiresAt?: string }>({});
 const cmdDocs = ref<DocHit[]>([]);
@@ -165,12 +169,15 @@ async function onExecute() {
     confirmVisible.value = true;
     return;
   }
+  running.value = true;
   try {
     result.value = await executeDiag(instanceId.value, command.value, "人工");
     blocked.value = !result.value.success;
     if (!blocked.value) ElMessage.success(`执行完成（${result.value.costMs}ms）`);
   } catch (e) {
     ElMessage.error(errMsg(e));
+  } finally {
+    running.value = false;
   }
   await refreshSession();
 }
@@ -227,6 +234,7 @@ onUnmounted(() => window.clearInterval(timer));
 <style scoped>
 .sub { font-size: 12px; color: #909399; }
 .row { display: flex; align-items: center; gap: 10px; }
+.result-body { min-height: 160px; }
 .tpl { cursor: pointer; }
 .lproc { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .lproc .cmd { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
