@@ -2,12 +2,19 @@
   <el-row :gutter="12">
     <el-col :span="5">
       <el-card shadow="never" header="应用 / 实例">
-        <el-select v-model="instanceId" filterable style="width: 100%">
-          <el-option v-for="i in instances" :key="i.instanceId"
-                     :label="instanceLabel(i)" :value="i.instanceId"
-                     :disabled="!i.online" />
+        <el-select v-model="instanceId" filterable class="instance-select" style="width: 100%">
+          <el-option v-for="i in instances" :key="i.instanceId" :value="i.instanceId"
+                     :label="compactLabel(i)" :disabled="!i.online">
+            <div class="opt">
+              <div class="opt-t">{{ i.appId }}<span class="opt-id"> / {{ i.instanceId }}</span></div>
+              <div class="opt-s">{{ channelName(i) }} · {{ i.host || "-" }} · pid {{ pidOf(i.instanceId) }}{{ i.online ? "" : " · 离线" }}</div>
+            </div>
+          </el-option>
         </el-select>
-        <div class="sub" style="margin-top: 8px">
+        <div class="sub ellip" style="margin-top: 8px" :title="fullLabel">
+          {{ instanceId ? `当前：${fullLabel}` : "未选择实例" }}
+        </div>
+        <div class="sub">
           会话：{{ session.active ? `剩余 ${remain}（超时自动 reset+stop）` : "未开启" }}
         </div>
         <el-button size="small" :disabled="!session.active" style="margin-top: 8px" @click="closeSessionNow">
@@ -126,12 +133,57 @@ const resultHeader = computed(() => {
   if (id.startsWith("agent-")) return "执行结果（Agent 通道）";
   return currentInstance.value?.localAgent ? "执行结果（本机通道）" : "执行结果";
 });
-/** 下拉选项文案：标注实例来源（演示靶场不加标注，Agent/本机为真实通道） */
-function instanceLabel(i: InstanceVO) {
+/** 选中态紧凑文案：短应用名 + 节点/通道（输入框宽度预算内逐级缩短应用名） */
+function compactLabel(i: InstanceVO) {
+  if (i.instanceId.startsWith("local-")) return `${twoSeg(i.appId)} · 本机`;
+  if (!i.instanceId.startsWith("agent-")) return `${i.appId} / ${i.instanceId}`;
+  const node = nodeShort(i.instanceId);
+  const budget = Math.max(6, 24 - node.length - 3);
+  let app = twoSeg(i.appId);
+  if (app.length > budget) {
+    app = oneSeg(i.appId);
+  }
+  if (app.length > budget) {
+    app = app.slice(0, Math.max(4, budget - 1)) + "…";
+  }
+  return `${app} · ${node}`;
+}
+
+function channelName(i: InstanceVO) {
+  return i.instanceId.startsWith("agent-") ? "Agent 节点"
+    : i.instanceId.startsWith("local-") ? "本机纳管" : "演示靶场";
+}
+
+function pidOf(instanceId: string) {
+  return instanceId.slice(instanceId.lastIndexOf("-") + 1);
+}
+
+/** agent-windevdemo-a624-50632 → windevdemo（去通道前缀/随机尾缀/pid） */
+function nodeShort(instanceId: string) {
+  return instanceId.slice("agent-".length).replace(/-[0-9]+$/, "").replace(/-[0-9a-f]{1,4}$/, "");
+}
+
+/** 末两段包名并去 jar 版本后缀：org.eclipse.equinox.launcher_1.8.0 → equinox.launcher */
+function twoSeg(appId: string) {
+  const s = appId.split("_")[0];
+  const parts = s.split(".");
+  return parts.length > 2 ? parts.slice(-2).join(".") : s;
+}
+
+/** 末一段：equinox.launcher → launcher */
+function oneSeg(appId: string) {
+  const parts = appId.split("_")[0].split(".");
+  return parts[parts.length - 1];
+}
+
+/** 完整标识（当前实例一行 + 悬停 title） */
+const fullLabel = computed(() => {
+  const i = currentInstance.value;
+  if (!i) return "";
   const suffix = i.instanceId.startsWith("agent-") ? " · Agent 节点"
     : i.instanceId.startsWith("local-") ? " · 本机" : "";
   return `${i.appId}/${i.instanceId}${suffix}`;
-}
+});
 
 async function loadLocal() {
   try {
@@ -237,6 +289,14 @@ onUnmounted(() => window.clearInterval(timer));
 .result-body { min-height: 160px; }
 .tpl { cursor: pointer; }
 .lproc { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ellip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 窄栏下拉：小字号容纳「应用 · 节点」紧凑标识 */
+.instance-select :deep(.el-select__wrapper),
+.instance-select :deep(.el-input__inner) { font-size: 12px; }
+.opt { line-height: 1.35; padding: 2px 0; }
+.opt-t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt-id { color: var(--el-text-color-secondary); font-size: 11px; }
+.opt-s { font-size: 11px; color: var(--el-text-color-secondary); margin-top: 1px; }
 .lproc .cmd { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lproc .el-button { margin-left: auto; }
 </style>
