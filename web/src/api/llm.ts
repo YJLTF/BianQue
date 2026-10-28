@@ -29,6 +29,13 @@ export interface LlmConfigPayload {
   systemPrompt?: string;
 }
 
+/** 命中的知识库参考文档（点击跳文档中心） */
+export interface LlmDocRef {
+  slug: string;
+  title: string;
+  path: string;
+}
+
 export interface LlmChatVO {
   content: string;
   reasoning: string;
@@ -36,6 +43,8 @@ export interface LlmChatVO {
   completionTokens: number;
   costMs: number;
   model: string;
+  /** 本次回答自动检索命中的文档中心页面 */
+  refs: LlmDocRef[];
 }
 
 export function getLlmConfig() {

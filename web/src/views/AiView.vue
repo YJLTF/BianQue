@@ -91,6 +91,11 @@
                 </el-collapse-item>
               </el-collapse>
               <div class="content">{{ m.content }}</div>
+              <div class="refs" v-if="m.refs?.length">
+                <span class="hint">参考文档：</span>
+                <el-tag v-for="r in m.refs" :key="r.slug" size="small" effect="plain" class="ref"
+                        :title="r.path" @click="goDoc(r.path)">{{ r.title }}</el-tag>
+              </div>
               <div class="meta" v-if="m.model">{{ m.model }} · {{ m.costMs }}ms · tokens {{ m.promptTokens }}/{{ m.completionTokens }}</div>
             </template>
           </div>
@@ -122,15 +127,17 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { errMsg } from "@/api/http";
-import { getLlmConfig, llmChat, testLlm, updateLlmConfig, type LlmChatVO, type LlmConfigVO, type LlmTurn } from "@/api/llm";
+import { getLlmConfig, llmChat, testLlm, updateLlmConfig, type LlmChatVO, type LlmConfigVO, type LlmDocRef, type LlmTurn } from "@/api/llm";
 import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
+const router = useRouter();
 const isAdmin = computed(() => auth.can("admin:user"));
 
-interface Msg extends LlmTurn { reasoning?: string; model?: string; costMs?: number; promptTokens?: number; completionTokens?: number }
+interface Msg extends LlmTurn { reasoning?: string; model?: string; costMs?: number; promptTokens?: number; completionTokens?: number; refs?: LlmDocRef[] }
 
 const DEFAULT_PROMPT = `你是扁鹊（BianQue）平台的线上 JVM 诊断助手，面向运维与研发。回答要求：
 1) 先给结论，再列证据（引用提供的线程栈/内存/JVM 数据），最后给处置建议；
@@ -245,7 +252,8 @@ function ask(preset?: string) {
   llmChat({ question: q, history, context: context.value.trim() || undefined })
     .then(out => {
       msgs.value.push({ role: "assistant", content: out.content, reasoning: out.reasoning || undefined,
-        model: out.model, costMs: out.costMs, promptTokens: out.promptTokens, completionTokens: out.completionTokens });
+        model: out.model, costMs: out.costMs, promptTokens: out.promptTokens, completionTokens: out.completionTokens,
+        refs: out.refs?.length ? out.refs : undefined });
     })
     .catch(e => {
       msgs.value.push({ role: "assistant", content: "调用失败：" + errMsg(e) });
@@ -256,6 +264,10 @@ function ask(preset?: string) {
       context.value = "";
       scrollBottom();
     });
+}
+
+function goDoc(path: string) {
+  router.push({ path: "/docs", query: { page: path } });
 }
 
 function scrollBottom() {
@@ -300,6 +312,9 @@ onMounted(load);
 .think :deep(.el-collapse-item__header) { font-size: 12px; color: var(--el-text-color-secondary); }
 .reason { font-size: 12px; color: var(--el-text-color-secondary); white-space: pre-wrap; }
 .meta { margin-top: 6px; font-size: 11px; color: var(--el-text-color-secondary); }
+.refs { margin-top: 7px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; white-space: normal; }
+.ref { cursor: pointer; }
+.ref:hover { color: var(--el-color-primary); border-color: var(--el-color-primary-light-5); }
 .quick { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .q { cursor: pointer; }
 .q:hover { color: var(--el-color-primary); border-color: var(--el-color-primary-light-5); }

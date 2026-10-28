@@ -1,6 +1,7 @@
 package com.bianque.server.llm;
 
 import com.bianque.server.repo.AuditTrail;
+import com.bianque.server.service.DocsService;
 import com.bianque.server.store.LlmConfigEntity;
 import com.bianque.server.store.LlmConfigJpa;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,14 +35,21 @@ public class LlmService {
     public record ChatTurn(String role, String content) {
     }
 
+    /** 命中的知识库参考文档（前端可点击跳文档中心） */
+    public record DocRef(String slug, String title, String path) {
+    }
+
     public record ChatOut(String content, String reasoning, int promptTokens, int completionTokens,
-                          long costMs, String model) {
+                          long costMs, String model, List<DocRef> refs) {
     }
 
     private static final int MAX_HISTORY = 10;
     private static final int MAX_TEXT = 12_000;
+    private static final int MAX_KB_DOCS = 4;
+    private static final int MAX_KB_DOC_CHARS = 2_500;
 
     private final LlmConfigJpa jpa;
+    private final DocsService docs;
     private final AuditTrail audit;
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
@@ -50,12 +58,13 @@ public class LlmService {
     private final String defModel;
     private final String defSystemPrompt;
 
-    public LlmService(LlmConfigJpa jpa, ObjectProvider<AuditTrail> audit, ObjectMapper json,
+    public LlmService(LlmConfigJpa jpa, DocsService docs, ObjectProvider<AuditTrail> audit, ObjectMapper json,
                       @Value("${bianque.llm.base-url:}") String defBaseUrl,
                       @Value("${bianque.llm.api-key:}") String defApiKey,
                       @Value("${bianque.llm.model:}") String defModel,
                       @Value("${bianque.llm.system-prompt:}") String defSystemPrompt) {
         this.jpa = jpa;
+        this.docs = docs;
         this.audit = audit.getIfAvailable();
         this.json = json;
         this.defBaseUrl = defBaseUrl;
@@ -123,7 +132,7 @@ public class LlmService {
         return m;
     }
 
-    /** 对话：系统提示词（+诊断上下文）→ 历史（截尾）→ 本轮问题 */
+    /** 对话：系统提示词（+知识库命中+诊断上下文）→ 历史（截尾）→ 本轮问题 */
     public ChatOut chat(String operator, String instanceId, String question,
                         List<ChatTurn> history, String context) {
         LlmConfigEntity c = config();
@@ -132,9 +141,14 @@ public class LlmService {
                     "LLM 未配置：请先在「AI 问诊」页填写 OpenAI 兼容端点、API Key 与模型名");
         }
         String q = cap(question, 8000);
+        // 知识库检索：问题 + 诊断上下文共同作为检索源；无命中则不注入（寒暄/闲聊零干扰）
+        List<DocsService.DocHit> kb = docs.searchKnowledge(q + "\n" + (context == null ? "" : context), MAX_KB_DOCS);
         List<Map<String, Object>> messages = new ArrayList<>();
         String system = c.systemPrompt == null || c.systemPrompt.isBlank()
                 ? "你是线上 JVM 诊断助手。" : c.systemPrompt;
+        if (!kb.isEmpty()) {
+            system = system + "\n\n" + knowledgeBlock(kb);
+        }
         if (context != null && !context.isBlank()) {
             system = system + "\n\n【诊断上下文（平台采集，供分析参考）】\n" + cap(context, MAX_TEXT);
         }
@@ -186,7 +200,8 @@ public class LlmService {
                     msg.hasNonNull("reasoning_content") ? msg.path("reasoning_content").asText("") : "",
                     root.path("usage").path("prompt_tokens").asInt(0),
                     root.path("usage").path("completion_tokens").asInt(0),
-                    cost, c.model);
+                    cost, c.model,
+                    kb.stream().map(h -> new DocRef(h.slug(), h.title(), h.path())).toList());
             audit(operator, instanceId, q, cost, "ok");
             return out;
         } catch (java.io.IOException | InterruptedException e) {
@@ -198,6 +213,16 @@ public class LlmService {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "LLM 调用失败：" + e.getClass().getSimpleName() + " " + e.getMessage());
         }
+    }
+
+    /** 知识库片段：每页标题 + 正文摘录（单页截断），整体再按 MAX_TEXT 兜底 */
+    private static String knowledgeBlock(List<DocsService.DocHit> kb) {
+        StringBuilder sb = new StringBuilder("【Arthas 知识库参考（来自平台文档中心，讲解命令用法时优先遵循以下内容）】");
+        for (DocsService.DocHit h : kb) {
+            sb.append("\n\n◆ ").append(h.title()).append("\n")
+              .append(cap(h.snippet(), MAX_KB_DOC_CHARS));
+        }
+        return cap(sb.toString(), MAX_TEXT);
     }
 
     private void audit(String operator, String instanceId, String question, long costMs, String result) {

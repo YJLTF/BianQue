@@ -7,7 +7,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -93,6 +99,96 @@ public class DocsService {
             throw new IllegalArgumentException("非法路径");
         }
         return normalized;
+    }
+
+    private static final Pattern ASCII_TERM = Pattern.compile("[a-zA-Z][a-zA-Z0-9_.-]{1,}");
+    private static final Pattern CJK_SEG = Pattern.compile("[\\u4e00-\\u9fff]{2,}");
+    /** 通用停用双字组：命中只见于 FAQ 类页面的泛词，不作为检索信号 */
+    private static final Set<String> STOP_BIGRAMS = Set.of("怎么", "什么", "如何", "请问", "这个", "哪些",
+            "可以", "需要", "是否", "或者", "以及", "使用", "进行", "应该", "情况", "帮助", "一下");
+
+    /**
+     * AI 知识库检索：从问题提取检索词（ASCII 词元 = 命令/类名；中文段滑窗双字组），
+     * 多路打分合并（slug/标题强加权，正文按出现频次计分封顶防泛词刷分），返回 Top-N 命中页。
+     * 无命中（寒暄/无关问题）返回空列表，调用方据此跳过知识注入。
+     */
+    public List<DocHit> searchKnowledge(String question, int limit) {
+        List<String> terms = searchTerms(question);
+        if (terms.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Integer> scores = new TreeMap<>();
+        for (String term : terms) {
+            for (DocHit d : index) {
+                int s = knowledgeScore(d, term);
+                if (s > 0) {
+                    scores.merge(d.slug(), s, Integer::sum);
+                }
+            }
+        }
+        return index.stream()
+                .filter(d -> scores.getOrDefault(d.slug(), 0) >= 6)
+                .sorted(Comparator.comparingInt((DocHit d) -> scores.getOrDefault(d.slug(), 0)).reversed())
+                .limit(limit <= 0 ? 4 : limit)
+                .toList();
+    }
+
+    /** 检索词提取（包内可见便于单测） */
+    static List<String> searchTerms(String text) {
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
+        LinkedHashSet<String> terms = new LinkedHashSet<>();
+        Matcher am = ASCII_TERM.matcher(text);
+        while (am.find()) {
+            String t = am.group().toLowerCase();
+            if (t.length() <= 40) {
+                terms.add(t);
+            }
+        }
+        Matcher cm = CJK_SEG.matcher(text);
+        while (cm.find()) {
+            String seg = cm.group();
+            for (int i = 0; i + 2 <= seg.length(); i++) {
+                String bi = seg.substring(i, i + 2);
+                if (!STOP_BIGRAMS.contains(bi)) {
+                    terms.add(bi);
+                }
+            }
+        }
+        return new ArrayList<>(terms);
+    }
+
+    /** 单词元打分：slug 精确/包含强加权，标题次之，正文按出现次数（封顶） */
+    private static int knowledgeScore(DocHit d, String term) {
+        String lt = term.toLowerCase();
+        if (lt.length() < 2) {
+            return 0;
+        }
+        int s = 0;
+        if (d.slug().equalsIgnoreCase(lt)) {
+            s += 60;
+        } else if (d.slug().toLowerCase().contains(lt)) {
+            s += 30;
+        }
+        if (d.title().toLowerCase().contains(lt)) {
+            s += 24;
+        }
+        int inBody = countOf(d.snippet().toLowerCase(), lt);
+        if (inBody > 0) {
+            s += 2 * Math.min(inBody, 20);
+        }
+        return s;
+    }
+
+    private static int countOf(String text, String term) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = text.indexOf(term, idx)) >= 0) {
+            count++;
+            idx += term.length();
+        }
+        return count;
     }
 
     private record Scored(DocHit hit, int score) {

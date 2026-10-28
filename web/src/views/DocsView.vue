@@ -44,7 +44,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { http, errMsg } from "@/api/http";
 import { riskMeta } from "@/config/risk";
@@ -98,11 +99,25 @@ function onSearch() {
   }, 250);
 }
 
+/** 深链支持：/docs?page=doc/xxx.html（命令速查 / 全局搜索 / AI 参考文档跳入） */
+const route = useRoute();
+function applyDeepLink() {
+  const p = String(route.query.page ?? "");
+  if (!p || !all.value.length) return;
+  const hit = all.value.find((x) => x.path === p);
+  if (hit) {
+    currentCat.value = hit.category;
+    select(hit);
+  }
+}
+watch(() => route.query.page, applyDeepLink);
+
 onMounted(async () => {
   try {
     const data = await http.get("/docs/catalog") as unknown as { pages: DocHit[] };
     all.value = data.pages ?? [];
     currentCat.value = categories.value[0]?.name ?? "入门";
+    applyDeepLink();
   } catch (e) {
     ElMessage.error("文档目录加载失败：" + errMsg(e));
   }

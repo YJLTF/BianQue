@@ -208,6 +208,40 @@ class LlmIntegrationTest {
                 Map.of("question", "hi"), viewer).getStatusCode());
     }
 
+    @Test
+    @Order(7)
+    void 对话自动检索知识库注入提示词并回传引用() throws Exception {
+        String admin = login("admin", "admin123");
+        ResponseEntity<Map> chat = method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "watch 命令怎么用？观察方法出参有什么限制？"), admin);
+        assertEquals(HttpStatus.OK, chat.getStatusCode());
+
+        // 发往 LLM 的请求应注入知识库片段（watch 页内容）
+        JsonNode body = JSON.readTree(LAST_BODY.get());
+        String sys = body.path("messages").path(0).path("content").asText();
+        assertTrue(sys.contains("Arthas 知识库参考"), "system 应注入知识库段：" + sys.substring(0, Math.min(200, sys.length())));
+        assertTrue(sys.contains("watch"), "命中片段应包含 watch 文档内容");
+
+        // 引用随响应回传，供前端溯源跳转
+        List<?> refs = (List<?>) chat.getBody().get("refs");
+        assertTrue(refs != null && !refs.isEmpty(), "应回传参考文档列表");
+        assertTrue(String.valueOf(refs.get(0)).contains("watch"), "首条引用应为 watch 页：" + refs.get(0));
+    }
+
+    @Test
+    @Order(8)
+    void 无关问题不注入知识库() throws Exception {
+        String admin = login("admin", "admin123");
+        ResponseEntity<Map> chat = method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "今天天气怎么样"), admin);
+        assertEquals(HttpStatus.OK, chat.getStatusCode());
+        JsonNode body = JSON.readTree(LAST_BODY.get());
+        assertFalse(body.path("messages").path(0).path("content").asText().contains("知识库参考"),
+                "无命中时不应注入知识库段");
+        List<?> refs = (List<?>) chat.getBody().get("refs");
+        assertTrue(refs == null || refs.isEmpty(), "无命中时引用应为空");
+    }
+
     private HttpHeaders authHeader(String token) {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
