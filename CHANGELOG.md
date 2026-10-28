@@ -2,6 +2,17 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 修复 · 文档中心空白（0 页）
+
+- **目录接口 401**：DocsView 用裸 `fetch` 调 `/api/docs/catalog|search` 未携带登录 token，被全量鉴权拦截后
+  静默降级为空列表；改走带 Bearer 的 `http` 客户端，加载失败显式报错
+- **整页加载 404**：`/docs` 既是前端路由又被 vite/nginx 代理到后端静态文档，刷新即撞 Whitelabel 404；
+  代理范围收窄为实际静态前缀 `/docs/4.3.5/`（`vite.config.ts` + `deploy/docker/nginx.conf`）
+- **正文无样式/404 视图**：离线文档为 VuePress 构建产物，资源与路由 base 均按站点根（`/assets/...`、
+  `"base":"/"`）打包，挂到 `/docs/4.3.5/` 子路径后全部失配；对 235 个 HTML/CSS/app.js 做一次性基路径
+  适配（`/docs/4.3.5/` 前缀 + siteData base），官方站样式、正文、站内路由在子路径下完整可用
+- 实测（:80 生产视图）：目录 78 页/10 分类、搜索、watch 正文带官方样式渲染；dev(:5174) 一致
+
 ## 修复 · 急诊取证活动告警表窄屏溢出
 
 - 活动告警 6 列表格在半宽卡片里放不下，「一键取证」按钮被截断：压缩列宽

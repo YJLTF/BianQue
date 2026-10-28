@@ -46,6 +46,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { ElMessage } from "element-plus";
+import { http, errMsg } from "@/api/http";
 import { riskMeta } from "@/config/risk";
 
 interface DocHit { slug: string; title: string; category: string; risk: string; path: string; snippet: string }
@@ -88,18 +90,25 @@ function onSearch() {
   timer = window.setTimeout(async () => {
     const q = query.value.trim();
     if (!q) { currentCat.value = categories.value[0]?.name ?? "入门"; return; }
-    const resp = await fetch(`/api/docs/search?q=${encodeURIComponent(q)}&limit=50`);
-    const data = await resp.json();
-    hits.value = data.hits ?? [];
-    if (hits.value.length) currentCat.value = hits.value[0].category;
+    try {
+      const data = await http.get("/docs/search", { params: { q, limit: 50 } }) as unknown as { hits: DocHit[] };
+      hits.value = data.hits ?? [];
+      if (hits.value.length) currentCat.value = hits.value[0].category;
+    } catch {
+      hits.value = [];
+    }
   }, 250);
 }
 
 onMounted(async () => {
-  const data = await fetch("/api/docs/catalog").then((r) => r.json());
-  all.value = data.pages ?? [];
-  total.value = data.total ?? all.value.length;
-  currentCat.value = categories.value[0]?.name ?? "入门";
+  try {
+    const data = await http.get("/docs/catalog") as unknown as { total: number; pages: DocHit[] };
+    all.value = data.pages ?? [];
+    total.value = data.total ?? all.value.length;
+    currentCat.value = categories.value[0]?.name ?? "入门";
+  } catch (e) {
+    ElMessage.error("文档目录加载失败：" + errMsg(e));
+  }
 });
 </script>
 
