@@ -1,33 +1,33 @@
 <template>
   <el-row :gutter="12">
-    <el-col :span="11">
+    <el-col :span="24" class="col-alerts">
       <el-card shadow="never" header="活动告警（Webhook 接入：Prometheus / Grafana / Zabbix）">
-        <el-table :data="alerts" size="small" v-loading="loading">
-          <el-table-column prop="time" label="时间" width="90">
+        <el-table :data="alerts" size="small" v-loading="loading" class="alerts-table">
+          <el-table-column label="时间" width="54">
             <template #default="{ row }">{{ hhmm(row.time) }}</template>
           </el-table-column>
-          <el-table-column label="应用 / 实例" min-width="150">
+          <el-table-column label="应用 / 实例" min-width="120" show-overflow-tooltip>
             <template #default="{ row }"><code>{{ row.appId }}/{{ row.instanceId }}</code></template>
           </el-table-column>
-          <el-table-column prop="message" label="告警" min-width="160" />
-          <el-table-column prop="severity" label="级别" width="80">
+          <el-table-column prop="message" label="告警" min-width="126" show-overflow-tooltip />
+          <el-table-column prop="severity" label="级别" width="64">
             <template #default="{ row }">
               <el-tag size="small" :type="row.severity === '严重' ? 'danger' : 'warning'" effect="plain">
                 {{ row.severity }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="来源" width="90">
+          <el-table-column label="来源" width="74">
             <template #default="{ row }">
               <el-tag size="small" :type="row.alertId.startsWith('AL-1') ? 'info' : 'success'" effect="plain">
                 {{ row.alertId.startsWith("AL-1") ? "演示" : "已接入" }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="110">
+          <el-table-column label="操作" width="84">
             <template #default="{ row }">
               <el-button size="small" type="primary" :loading="busy === row.alertId"
-                         :disabled="row.status === '已取证'" @click="rescue(row.alertId)">一键取证</el-button>
+                         :disabled="row.status === '已取证'" @click="rescue(row.alertId)">取证</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -43,7 +43,7 @@ curl -X POST http://&lt;平台&gt;:8080/api/alerts/ingest \
 # 报文：{event, alertId, appId, instanceId, severity, message, status, time[, conclusion]}</pre>
       </el-card>
     </el-col>
-    <el-col :span="13">
+    <el-col :span="24" class="col-report">
       <el-card shadow="never" header="现场报告">
         <template v-if="report">
           <el-alert type="warning" :closable="false" :title="report.conclusion" show-icon />
@@ -60,7 +60,7 @@ curl -X POST http://&lt;平台&gt;:8080/api/alerts/ingest \
           <h4 class="h">线程 TOP</h4>
           <pre class="out">{{ report.threadTop.join("\n") }}</pre>
         </template>
-        <el-empty v-else description="点击「一键取证」：attach → thread → memory → jvm → 生成现场报告" :image-size="60" />
+        <el-empty v-else description="点击「取证」：attach → thread → memory → jvm → 生成现场报告" :image-size="60" />
       </el-card>
     </el-col>
   </el-row>
@@ -109,4 +109,13 @@ onMounted(async () => {
 
 <style scoped>
 .h { margin: 12px 0 6px; font-size: 13px; }
+.alerts-table :deep(.cell) { padding: 0 8px; }
+/* 6 列表格至少需要 ~520px：视口 ≥1560px 才左右分栏，否则上下堆叠 */
+@media (min-width: 1560px) {
+  .col-alerts { flex: 0 0 45.833%; max-width: 45.833%; }
+  .col-report { flex: 0 0 54.167%; max-width: 54.167%; }
+}
+@media (max-width: 1559px) {
+  .col-report { margin-top: 12px; }
+}
 </style>

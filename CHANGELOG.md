@@ -2,6 +2,13 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 修复 · 急诊取证活动告警表窄屏溢出
+
+- 活动告警 6 列表格在半宽卡片里放不下，「一键取证」按钮被截断：压缩列宽
+  （时间/级别/来源/操作 + 文本列 `show-overflow-tooltip` 省略号）、单元格内边距收紧、按钮改短为「取证」
+- 分栏断点改按表格实际所需宽度自定义（视口 ≥1560px 左右分栏，否则上下堆叠全宽），
+  实测 993/1280/1540 堆叠完整、1560 起分栏无横向滚动；取证流程回归通过
+
 ## S8 · 一键部署镜像 + 节点探针服务
 
 - 三个镜像（多阶段构建，`docker compose -f deploy/docker-compose.prod.yml up -d --build` 一键起全栈）：
