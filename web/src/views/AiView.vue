@@ -1,7 +1,22 @@
 <template>
   <el-row :gutter="12">
-    <el-col :span="10">
-      <el-card shadow="never" header="模型接入（OpenAI Chat Completions 兼容）">
+    <el-col :span="configOpen ? 10 : 24">
+      <el-card shadow="never" class="cfg-card" :class="{ folded: !configOpen }">
+        <template #header>
+          <div class="cfg-head" @click="toggleCfg" title="点击展开 / 折叠">
+            <span class="cfg-title">模型接入（OpenAI Chat Completions 兼容）</span>
+            <span class="cfg-sum">
+              <el-tag size="small" :type="cfg.configured ? 'success' : 'warning'" effect="plain">
+                {{ cfg.configured ? "已配置" : "未配置" }}
+              </el-tag>
+              <span class="sum-text" :title="cfgSummary">{{ cfgSummary }}</span>
+            </span>
+            <svg class="cfg-arrow" :class="{ open: configOpen }" viewBox="0 0 24 24" width="14" height="14" fill="none"
+                 stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
+        </template>
         <el-alert v-if="!isAdmin" type="info" :closable="false" show-icon style="margin-bottom: 12px"
                   title="当前为只读视图：仅管理员可修改配置与测试连通" />
         <el-form label-position="top" size="small">
@@ -63,8 +78,9 @@
       </el-card>
     </el-col>
 
-    <el-col :span="14">
-      <el-card shadow="never" header="AI 问诊 · Diag Copilot（对话式排障）" class="chat-card">
+    <el-col :span="configOpen ? 14 : 24">
+      <el-card shadow="never" header="AI 问诊 · Diag Copilot（对话式排障）" class="chat-card"
+               :class="{ 'full-mode': !configOpen }">
         <div class="chat" ref="chatBox">
           <div v-for="(m, i) in msgs" :key="i" class="msg" :class="m.role === 'user' ? 'u' : 'a'">
             <template v-if="m.role === 'user'">{{ m.content }}</template>
@@ -140,6 +156,21 @@ const saving = ref(false);
 const testing = ref(false);
 const testOut = ref<LlmChatVO | null>(null);
 
+const CFG_OPEN_KEY = "bianque.aiCfgOpen";
+const savedOpen = localStorage.getItem(CFG_OPEN_KEY);
+const configOpen = ref(savedOpen === null ? true : savedOpen === "1");
+
+const effortShort = computed(() => {
+  const e = cfg.value.reasoningEffort;
+  return e === "OFF" ? "普通模式" : `思考=${e.toLowerCase()}`;
+});
+const cfgSummary = computed(() => `${cfg.value.model || "未设模型"} · ${effortShort.value}`);
+
+function toggleCfg() {
+  configOpen.value = !configOpen.value;
+  localStorage.setItem(CFG_OPEN_KEY, configOpen.value ? "1" : "0");
+}
+
 const msgs = ref<Msg[]>([]);
 const draft = ref("");
 const context = ref("");
@@ -158,6 +189,8 @@ async function load() {
     const c = await getLlmConfig();
     cfg.value = { ...c, apiKeyDraft: "" };
     if (!c.systemPrompt) cfg.value.systemPrompt = DEFAULT_PROMPT;
+    // 首次访问（无本地记忆）时：尚未配置默认展开引导设置，已配置默认折叠
+    if (savedOpen === null) configOpen.value = !c.configured;
   } catch (e) {
     ElMessage.error(errMsg(e));
   }
@@ -240,7 +273,16 @@ onMounted(load);
 <style scoped>
 .hint { font-size: 11.5px; color: var(--el-text-color-secondary); }
 .row { display: flex; align-items: center; gap: 10px; }
+.cfg-head { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; min-width: 0; }
+.cfg-head:hover .cfg-title { color: var(--el-color-primary); }
+.cfg-title { font-weight: 600; white-space: nowrap; }
+.cfg-sum { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; }
+.sum-text { font-size: 12px; color: var(--el-text-color-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfg-arrow { flex: none; color: var(--el-text-color-secondary); transition: transform 0.2s; }
+.cfg-arrow.open { transform: rotate(180deg); }
+.cfg-card.folded :deep(.el-card__body) { display: none; }
 .chat-card :deep(.el-card__body) { display: flex; flex-direction: column; height: calc(100vh - 170px); }
+.chat-card.full-mode :deep(.el-card__body) { height: calc(100vh - 234px); }
 .chat {
   flex: 1;
   overflow-y: auto;
@@ -250,7 +292,7 @@ onMounted(load);
   padding: 4px 2px;
   min-height: 120px;
 }
-.msg { max-width: 88%; border-radius: 10px; padding: 9px 12px; font-size: 13px; line-height: 1.6; }
+.msg { max-width: min(88%, 780px); border-radius: 10px; padding: 9px 12px; font-size: 13px; line-height: 1.6; }
 .msg.u { align-self: flex-end; background: var(--el-color-primary); color: #fff; border-bottom-right-radius: 3px; white-space: pre-wrap; }
 .msg.a { align-self: flex-start; background: #f8fafc; border: 1px solid #eef1f6; border-bottom-left-radius: 3px; white-space: pre-wrap; }
 .msg.pending { color: var(--el-text-color-secondary); }
