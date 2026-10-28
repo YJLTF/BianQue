@@ -50,10 +50,11 @@ docker compose -f docker-compose.prod.yml up -d --build
 | `INGEST_TOKEN` | 空（关闭） | 告警接入令牌（`X-Alert-Token`），配置后外部告警系统可推入 `POST /api/alerts/ingest` |
 | `LLM_BASE_URL` | 空 | AI 问诊端点预置（OpenAI 兼容，不含 `/chat/completions` 尾巴；也可部署后在「AI 问诊」页填写） |
 | `LLM_API_KEY` | 空 | AI 问诊 LLM 密钥预置（落库存储、只回传掩码） |
-| `BIANQUE_DB_PASSWORD` | bianque123 | MySQL 业务账号密码（仅内网演示默认值） |
+| `BIANQUE_DB_PASSWORD` | bianque123 | MySQL 业务账号密码（仅内网演示默认值）。**仅在数据卷首次初始化时生效**，已初始化的环境改密码用 `ALTER USER` 或删卷重来；密码由 compose 同时注入 MySQL 与服务端，两侧自动一致 |
 | `MYSQL_ROOT_PASSWORD` | bianque_dev_only | MySQL root 密码（仅内网演示默认值） |
 | `WEB_PORT` | 80 | 前端对外端口 |
 | `PROBE_NAME` | hostname | `--profile probe` 演示节点显示名 |
+| `PROBE_INTERVAL` | 5 | `--profile probe` 演示节点心跳间隔（秒） |
 
 **验证**：
 
@@ -66,6 +67,8 @@ curl http://<主机>/api/health                 # {"app":"bianque-server","versi
 
 - 容器化 server **自动关闭本机纳管通道**（`bianque.execution.local-enabled=false`）——容器内看不到宿主 JVM，
   真实诊断一律由目标主机探针回连提供；拟真靶场、审计、巡检、AI 问诊等全功能可用
+- **`GET /api/agent/download` 开箱即用**：bq-agent.jar 已打入镜像（/app/agents/），节点接入指引的
+  下载步骤无需手工放置
 - 数据落 MySQL volume（`mysql-data`），重启/升级不丢；server 日志与临时文件在 `server-data` volume
 - 升级：修改 `.env` 的 `BQ_VERSION` → `docker compose -f docker-compose.prod.yml up -d --build`
   （DDL 自动增量，向后兼容）

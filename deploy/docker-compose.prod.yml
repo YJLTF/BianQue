@@ -42,6 +42,8 @@ services:
       - "--bianque.alerts.ingest-token=${INGEST_TOKEN:-}"
       - "--bianque.llm.base-url=${LLM_BASE_URL:-}"
     environment:
+      # 数据库密码透传给服务端（application-docker.yml 的 ${BIANQUE_DB_PASSWORD}），与 mysql 服务同源
+      BIANQUE_DB_PASSWORD: ${BIANQUE_DB_PASSWORD:-bianque123}
       BIANQUE_LLM_API_KEY: ${LLM_API_KEY:-}
     depends_on:
       mysql:
@@ -78,6 +80,7 @@ services:
       SERVER_URL: http://server:8080
       AGENT_TOKEN: ${AGENT_TOKEN:-}
       PROBE_NAME: ${PROBE_NAME:-}
+      PROBE_INTERVAL: ${PROBE_INTERVAL:-5}
     volumes:
       - /tmp:/tmp
     depends_on:

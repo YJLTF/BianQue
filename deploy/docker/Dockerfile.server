@@ -9,11 +9,13 @@ COPY server/bq-server/pom.xml bq-server/
 COPY server/bq-agent/pom.xml bq-agent/
 RUN mvn -B -q -pl bq-server -am dependency:go-offline || true
 COPY server/ ./
-RUN mvn -B -q -pl bq-server -am package -DskipTests
+RUN mvn -B -q -pl bq-server,bq-agent -am package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /src/bq-server/target/bq-server-*.jar app.jar
+# 节点探针包随镜像分发：容器化部署时 GET /api/agent/download 直接可用
+COPY --from=build /src/bq-agent/target/bq-agent.jar /app/agents/bq-agent.jar
 # 文档中心按相对路径探测：docs/ 一并打入（78 页离线文档随镜像分发）
 COPY docs/arthas-docs/ /app/docs/arthas-docs/
 EXPOSE 8080

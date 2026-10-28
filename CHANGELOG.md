@@ -31,6 +31,15 @@
   改为紧凑标识（短应用名 · 节点，窄栏 12px 小字、预算内逐级缩短应用名）；展开为两行明细
   （应用全名 / 实例 ID + 通道 · 主机 · pid · 离线标记）；卡片下方新增「当前：」完整标识行（悬停看全文）。
   选项条目取消固定 34px 高改为自适应 + 上下留白（popper 挂在 body 下，改用 popper-class 全局样式）
+- **发布配置一致性修复（修「数据库连不上」隐患）**：compose 的 server 服务此前未注入
+  `BIANQUE_DB_PASSWORD`，服务端 `application-docker.yml` 的 `${BIANQUE_DB_PASSWORD:bianque123}`
+  永远落到默认值——一旦按 .env.example 指引修改数据库密码，MySQL 密码已变而服务端仍用 bianque123，
+  连接必失败；现由 compose 同时注入 MySQL 与服务端，两侧自动一致。同批修复：
+  ① `GET /api/agent/download` 容器内 404（镜像未带 bq-agent.jar，节点接入指引第一步即失败）——
+  bq-agent.jar 随 server 镜像分发（/app/agents/）；② `PROBE_INTERVAL` 补充 compose 透传与 .env 文档；
+  ③ .env.example 补充「MySQL 密码仅首次初始化生效，改密码用 ALTER USER」说明。
+  审计项：dev compose（docker-compose.yml）变量名同源一致、Redis 双方均无密码一致、
+  JDBC URL 服务名/库名/时区与 compose 服务定义一致、healthcheck mysqladmin ping 语义正确
 
 ## 功能 · AI 问诊接入文档知识库（检索增强）
 
