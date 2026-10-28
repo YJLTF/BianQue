@@ -21,6 +21,9 @@
 - **无效目录清理**：移除被服务端 `DocsService` 取代的 S0 文档管线（`docs-center/`、
   `deploy/docs-site/` 入库产物）与 arthas 运行时残留空目录（`arthas-output/`、`agents/arthas-output/`，
   忽略规则保留、运行时自动重建）；`data/`（开发 H2 库）与 `agents/`（探针下载分发）为有效目录保留
+- **探针独立镜像包**：新增 `dist/bianque-probe-1.0.0.tar.gz`（186MB，仅探针镜像）——目标主机只需
+  `docker load` + 一条 `docker run --pid=host` 即接入，附 `probe/README-探针镜像.md` 使用说明；
+  交付前用 1.0.0 镜像重建本机 bq-probe 容器，节点重新注册在线（验证探针镜像端到端可用）
 
 ## 功能 · AI 问诊接入文档知识库（检索增强）
 
