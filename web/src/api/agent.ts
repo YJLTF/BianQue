@@ -43,3 +43,8 @@ export function getAgentNodes() {
 export function getAgentInstall() {
   return http.get("/agents/install") as unknown as Promise<AgentInstallVO>;
 }
+
+/** 删除节点（仅 admin；仅离线节点可删，服务端强校验） */
+export function deleteAgent(agentId: string) {
+  return http.delete(`/agents/${agentId}`) as unknown as Promise<{ deleted: string; instancesRemoved: number }>;
+}

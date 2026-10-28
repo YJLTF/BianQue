@@ -102,6 +102,23 @@ public class AgentDirectory {
                 .orElse(false);
     }
 
+    /** 删除节点（调用方须保证已离线）：台账、内存进程表与机队实例一并清理；返回摘除的实例数 */
+    public synchronized int removeNode(String agentId) {
+        if (!nodes.existsById(agentId)) {
+            return -1;
+        }
+        nodes.deleteById(agentId);
+        int removed = 0;
+        Map<Long, String> ps = processes.remove(agentId);
+        if (ps != null) {
+            for (Long pid : ps.keySet()) {
+                fleet.remove(instanceId(agentId, pid));
+                removed++;
+            }
+        }
+        return removed;
+    }
+
     public boolean exists(String agentId) {
         return agentId != null && nodes.existsById(agentId);
     }

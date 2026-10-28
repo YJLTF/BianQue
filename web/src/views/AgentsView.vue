@@ -86,6 +86,17 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column v-if="canManage" label="操作" width="80">
+          <template #default="{ row }">
+            <el-tooltip content="仅支持删除离线节点" :disabled="!row.online">
+              <span>
+                <el-button size="small" text type="danger" :disabled="row.online" @click="removeNode(row)">
+                  删除
+                </el-button>
+              </span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
       </el-table>
       <el-empty v-if="list && !list.nodes.length"
                 description="尚无节点接入，按下方指引部署" :image-size="70" />
@@ -118,10 +129,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ElMessage } from "element-plus";
-import { getAgentInstall, getAgentNodes, type AgentInstallVO, type AgentListVO } from "@/api/agent";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { deleteAgent, getAgentInstall, getAgentNodes, type AgentInstallVO, type AgentListVO } from "@/api/agent";
+import { errMsg } from "@/api/http";
+import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
+const auth = useAuthStore();
+const canManage = computed(() => auth.can("admin:user"));
 const list = ref<AgentListVO | null>(null);
 const install = ref<AgentInstallVO | null>(null);
 const loading = ref(true);
@@ -159,6 +174,26 @@ async function copy(text: string, i: number) {
 
 function goClinic(instanceId: string) {
   router.push({ path: "/clinic", query: { instanceId } });
+}
+
+/** 删除离线节点（服务端强校验：在线节点 409） */
+async function removeNode(row: { agentId: string }) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除离线节点 ${row.agentId}？节点台账与其实例将一并清理；探针重新上线会自动重新注册。`,
+      "删除离线节点",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" },
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteAgent(row.agentId);
+    ElMessage.success("节点已删除");
+    await load();
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  }
 }
 
 async function load() {

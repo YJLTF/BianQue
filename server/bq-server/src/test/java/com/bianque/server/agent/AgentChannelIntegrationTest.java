@@ -281,4 +281,64 @@ class AgentChannelIntegrationTest {
                 HttpEntity.EMPTY, String.class);
         assertEquals(HttpStatus.NOT_FOUND, dl.getStatusCode());
     }
+
+    private ResponseEntity<Map> delete(String url, String bearer) {
+        HttpHeaders h = new HttpHeaders();
+        if (bearer != null) {
+            h.setBearerAuth(bearer);
+        }
+        return http.exchange(url, HttpMethod.DELETE, new HttpEntity<>(h), Map.class);
+    }
+
+    private void registerNode(String agentId) throws Exception {
+        Raw r = rawPost("/api/agent/register",
+                "{\"agentId\":\"" + agentId + "\",\"agentVersion\":\"1.0.0\",\"host\":\"127.0.0.1\","
+                        + "\"hostname\":\"" + agentId + "\",\"os\":\"Linux\",\"javaVersion\":\"17\"}",
+                TOKEN);
+        assertEquals(200, r.status(), "注册应成功: " + r.body());
+    }
+
+    @Autowired
+    com.bianque.server.store.AgentNodeJpa nodeRepo;
+
+    /** 注册即置 lastHeartbeat=now（20s 内算在线）；回拨 60s 模拟离线，避免测试睡眠 */
+    private void backdate(String agentId) {
+        com.bianque.server.store.AgentNodeEntity e = nodeRepo.findById(agentId).orElseThrow();
+        e.lastHeartbeat = java.time.Instant.now().minusSeconds(60);
+        nodeRepo.save(e);
+    }
+
+    @Test
+    @Order(6)
+    void 仅管理员可删除离线节点且在线节点拒绝删除() throws Exception {
+        String admin = login("admin", "admin123");
+        String viewer = login("viewer", "viewer123");
+
+        // 权限门槛：非管理员 403
+        registerNode("tmp-del-offline");
+        backdate("tmp-del-offline");
+        assertEquals(HttpStatus.FORBIDDEN,
+                delete("/api/agents/tmp-del-offline", viewer).getStatusCode());
+
+        // 删除离线节点成功 → 再删 404
+        ResponseEntity<Map> ok = delete("/api/agents/tmp-del-offline", admin);
+        assertEquals(HttpStatus.OK, ok.getStatusCode(), "删除离线节点应成功: " + ok.getBody());
+        assertEquals("tmp-del-offline", ok.getBody().get("deleted"));
+        assertEquals(HttpStatus.NOT_FOUND, delete("/api/agents/tmp-del-offline", admin).getStatusCode());
+
+        // 在线节点（注册后立即心跳）拒绝删除
+        registerNode("tmp-del-online");
+        rawPost("/api/agent/heartbeat", "{\"agentId\":\"tmp-del-online\",\"host\":\"127.0.0.1\",\"processes\":[]}", TOKEN);
+        assertEquals(HttpStatus.CONFLICT, delete("/api/agents/tmp-del-online", admin).getStatusCode(),
+                "在线节点禁止删除");
+
+        // 列表不再含已删节点，在线节点保留
+        ResponseEntity<Map> list = get("/api/agents", admin);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) list.getBody().get("nodes");
+        assertTrue(nodes.stream().noneMatch(n -> "tmp-del-offline".equals(n.get("agentId"))),
+                "已删节点不应出现在列表");
+        assertTrue(nodes.stream().anyMatch(n -> "tmp-del-online".equals(n.get("agentId"))),
+                "在线节点应保留");
+    }
 }
