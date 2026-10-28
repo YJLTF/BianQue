@@ -82,15 +82,19 @@ public class AgentViewController {
         boolean tokenConfigured = token != null && !token.isBlank();
         Object auth = request.getAttribute(AuthInterceptor.ATTR);
         boolean admin = auth instanceof AuthContext a && a.hasPermission(AuthInterceptor.PermissionCodes.ADMIN_USER);
-        String tokenShown = tokenConfigured ? (admin ? token : "<需 admin 权限查看>") : "<未配置：演示模式可省略>";
+        String tokenShown = tokenConfigured ? (admin ? token : "<需 admin 权限查看>")
+                : "<未配置（仅限内网演示模式；生产模式必须配置，否则拒绝启动）>";
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("serverUrl", serverUrl);
         resp.put("tokenConfigured", tokenConfigured);
         resp.put("token", admin ? token : null);
         resp.put("downloadUrl", serverUrl + "/api/agent/download");
+        String downloadCurl = tokenConfigured
+                ? "curl -o bq-agent.jar -H \"X-Agent-Token: " + tokenShown + "\" \"" + serverUrl + "/api/agent/download\""
+                : "curl -o bq-agent.jar \"" + serverUrl + "/api/agent/download\"";
         List<String> steps = new ArrayList<>();
-        steps.add("curl -o bq-agent.jar \"" + serverUrl + "/api/agent/download\"");
+        steps.add(downloadCurl);
         steps.add("将 arthas-boot.jar 与 bq-agent.jar 放在同一目录");
         steps.add("java -jar bq-agent.jar --server " + serverUrl + " --token " + tokenShown);
         resp.put("steps", steps);

@@ -2,6 +2,24 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 安全 · 后台接口鉴权审计与加固（本次）
+
+- **审计范围**：全部 Controller × 守卫矩阵（登录墙 / diag:execute / admin:user / X-Agent-Token / X-Alert-Token）逐一核对并实测
+- **修复①**：`/actuator/**` 不在 `/api/**` 鉴权墙内且暴露 metrics/env —— 收敛为仅 health（show-details: never）
+- **修复②**：生产模式（demo-enabled=false）节点令牌未配置时 `/api/agent/**` 完全开放（实测可注册伪造节点）——
+  新增 `SecurityGuard` fail-fast：AGENT_TOKEN 缺失拒绝启动；`/api/agent/download` 一并纳入令牌校验
+- **修复③**：口令存储 sha256(salt+pw) → **BCrypt**（spring-security-crypto，仅 crypto 模块无过滤器链）；
+  历史 sha256 行登录校验通过后透明升级（老库零迁移）
+- **修复④**：web nginx 增加安全响应头：CSP（default-src 'self' 等）/ X-Frame-Options DENY /
+  X-Content-Type-Options nosniff / Referrer-Policy no-referrer
+- 审计确认无问题项：告警 ingest 未配 token 即关闭（403 安全默认）、登录失败信息不区分用户存在性、
+  LLM key/Agent token 掩码或仅 admin 可见、/api/admin/** 拦截器 admin:user 门禁、CORS 未开放（同源）、
+  H2 console 关闭、无自查册/无文件上传、诊断命令黑名单全通道生效
+- 已知边界（记录不阻塞）：登录无速率限制（内网部署语义）；审计/LLM 配置(掩码)对登录用户只读属产品透明化设计
+- 测试 40 → 44（SecurityGuard 门禁 ×3、历史 sha256 透明升级 ×1）；实测：假节点 401、download 401/200、
+  actuator metrics 404、CSP 头生效、admin 行升级为 $2a$（60 位）
+- 部署注意：生产模式 `.env` 必配 `AGENT_TOKEN`（与服务端一致），否则拒绝启动
+
 ## 功能 · 生产去演示化 / 显示名与用户删除 / AI 流式与思考强度（本次）
 
 - **生产模式**（`BIANQUE_DEMO_ENABLED=false`，prod compose 默认）：不注入模拟靶场实例/种子告警、

@@ -26,7 +26,8 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:prodtest;MODE=MySQL",
         "bianque.demo-enabled=false",
-        "bianque.admin.password=prod-admin-777"
+        "bianque.admin.password=prod-admin-777",
+        "bianque.agent.token=guard-prod-token"
 })
 class ProdModeIntegrationTest {
 

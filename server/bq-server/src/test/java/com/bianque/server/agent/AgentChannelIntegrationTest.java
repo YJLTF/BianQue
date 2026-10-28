@@ -277,9 +277,11 @@ class AgentChannelIntegrationTest {
     @Test
     @Order(5)
     void 节点程序包未放置时下载返回404() {
+        HttpHeaders h = new HttpHeaders();
+        h.set("X-Agent-Token", TOKEN);
         ResponseEntity<String> dl = http.exchange("/api/agent/download", HttpMethod.GET,
-                HttpEntity.EMPTY, String.class);
-        assertEquals(HttpStatus.NOT_FOUND, dl.getStatusCode());
+                new HttpEntity<>(h), String.class);
+        assertEquals(HttpStatus.NOT_FOUND, dl.getStatusCode(), "配置令牌后下载必须携带 X-Agent-Token");
     }
 
     private ResponseEntity<Map> delete(String url, String bearer) {

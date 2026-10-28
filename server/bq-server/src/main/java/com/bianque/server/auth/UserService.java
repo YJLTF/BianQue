@@ -1,6 +1,5 @@
 package com.bianque.server.auth;
 
-import com.bianque.core.util.HashUtil;
 import com.bianque.server.store.PermissionEntity;
 import com.bianque.server.store.RoleEntity;
 import com.bianque.server.store.RolePermissionEntity;
@@ -12,7 +11,6 @@ import com.bianque.server.store.UserRoleJpa;
 import com.bianque.server.store.RoleJpa;
 import com.bianque.server.store.PermissionJpa;
 import jakarta.annotation.PostConstruct;
-import java.security.SecureRandom;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,7 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 用户与 RBAC：五表模型（users/roles/permissions/user_roles/role_permissions），
- * 口令 sha256(salt+password)，S2 可升级 BCrypt/OIDC。
+ * 口令 BCrypt 存储；历史 sha256(salt+password) 行在登录校验通过后透明升级为 BCrypt。
  * 演示模式（bianque.demo-enabled=true）首次启动种子 admin/ops/viewer 三个演示账号；
  * 生产模式（false）只引导 admin，初始口令必须由 BIANQUE_ADMIN_PASSWORD 提供（缺省拒绝启动防锁死）。
  */
@@ -44,7 +42,8 @@ public class UserService {
     private final RolePermissionJpa rolePermissions;
     private final boolean demoEnabled;
     private final String bootAdminPassword;
-    private final SecureRandom random = new SecureRandom();
+    private final org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder encoder =
+            new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
 
     public UserService(UserJpa users, RoleJpa roles, PermissionJpa permissions,
                        UserRoleJpa userRoles, RolePermissionJpa rolePermissions,
@@ -116,24 +115,13 @@ public class UserService {
         if (users.findByUsername(username).isPresent()) {
             return;
         }
-        String salt = newSalt();
-        UserEntity u = new UserEntity(username, HashUtil.sha256Hex(salt + password), salt, displayName);
+        UserEntity u = new UserEntity(username, encoder.encode(password), "", displayName);
         users.save(u);
         RoleEntity r = roles.findByCode(roleCode).orElseThrow();
         userRoles.save(new UserRoleEntity(u.id, r.id));
     }
 
-    private String newSalt() {
-        byte[] b = new byte[16];
-        random.nextBytes(b);
-        StringBuilder sb = new StringBuilder(b.length * 2);
-        for (byte x : b) {
-            sb.append(Character.forDigit((x >> 4) & 0xF, 16)).append(Character.forDigit(x & 0xF, 16));
-        }
-        return sb.toString();
-    }
-
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginOutcome login(String username, String password) {
         // 口令错误返回 400（而非 401）：与"未登录"语义区分，也避开流式请求体客户端对 401 的重试缺陷
         UserEntity u = users.findByUsername(username == null ? "" : username.trim())
@@ -141,8 +129,19 @@ public class UserService {
         if (!u.enabled) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号已停用");
         }
-        if (!HashUtil.sha256Hex(u.salt + password).equals(u.passwordHash)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名或密码错误");
+        if (u.passwordHash != null && u.passwordHash.startsWith("$2")) {
+            // BCrypt（当前形态）
+            if (!encoder.matches(password, u.passwordHash)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名或密码错误");
+            }
+        } else {
+            // 历史 sha256(salt+password) 行：校验通过后透明升级为 BCrypt（下次登录直接走 BCrypt）
+            if (!com.bianque.core.util.HashUtil.sha256Hex(u.salt + password).equals(u.passwordHash)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名或密码错误");
+            }
+            u.salt = "";
+            u.passwordHash = encoder.encode(password);
+            users.save(u);
         }
         List<RoleEntity> rs = userRoles.findByUserId(u.id).stream()
                 .map(ur -> roles.findById(ur.roleId).orElse(null))
@@ -204,8 +203,7 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "用户名已存在");
         }
         RoleEntity r = requireRole(roleCode);
-        String salt = newSalt();
-        UserEntity u = users.save(new UserEntity(un, HashUtil.sha256Hex(salt + password), salt,
+        UserEntity u = users.save(new UserEntity(un, encoder.encode(password), "",
                 displayName == null || displayName.isBlank() ? un : displayName.trim()));
         userRoles.save(new UserRoleEntity(u.id, r.id));
         return Map.of("username", u.username, "displayName", u.displayName,
@@ -217,8 +215,8 @@ public class UserService {
     public void resetPassword(String username, String newPassword) {
         UserEntity u = requireUser(username);
         checkPassword(newPassword);
-        u.salt = newSalt();
-        u.passwordHash = HashUtil.sha256Hex(u.salt + newPassword);
+        u.salt = "";
+        u.passwordHash = encoder.encode(newPassword);
         users.save(u);
     }
 

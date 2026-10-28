@@ -119,5 +119,7 @@ cd web && npm install && npm run dev                              # http://local
 - 节点探针为串行 worker（同一节点同时执行一条命令）；多节点天然并行
 - 探针 Docker 形态仅 Linux 主机可 attach 宿主 JVM（`--pid=host -v /tmp:/tmp` 且与目标 JVM 同用户）；
   Windows 目标主机用裸机 `java -jar bq-agent.jar` 方式
-- `AGENT_TOKEN` 为空时节点接入开放，仅限内网演示；生产必配且与告警 `INGEST_TOKEN` 区分
+- `AGENT_TOKEN` 为空时节点接入开放，**仅限演示模式**；生产模式（`BIANQUE_DEMO_ENABLED=false`）未配置令牌将拒绝启动；
+  生产必配且与告警 `INGEST_TOKEN` 区分
+- 口令 BCrypt 存储；历史 sha256 行首次登录成功后自动透明升级（老库无需迁移）
 - AI 问诊文档知识库为检索注入（Top-4 命中片段），非向量库全量语义检索；冷门表述可能零命中

@@ -6,6 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.bianque.core.util.HashUtil;
+import com.bianque.server.store.RoleEntity;
+import com.bianque.server.store.RoleJpa;
+import com.bianque.server.store.UserEntity;
+import com.bianque.server.store.UserJpa;
+import com.bianque.server.store.UserRoleEntity;
+import com.bianque.server.store.UserRoleJpa;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.MethodOrderer;
@@ -35,6 +42,15 @@ class AuthFlowIntegrationTest {
 
     @Autowired
     TestRestTemplate http;
+
+    @Autowired
+    UserJpa users;
+
+    @Autowired
+    RoleJpa roles;
+
+    @Autowired
+    UserRoleJpa userRoles;
 
     private ResponseEntity<Map> post(String url, Object body, String token) {
         HttpHeaders h = new HttpHeaders();
@@ -291,5 +307,32 @@ class AuthFlowIntegrationTest {
                 Map.of("username", "tmpdel", "password", "tmp123"), null).getStatusCode());
         assertEquals(HttpStatus.NOT_FOUND, http.exchange("/api/admin/users/tmpdel", HttpMethod.DELETE,
                 new HttpEntity<>(auth(admin)), Map.class).getStatusCode());
+    }
+
+    @Test
+    @Order(14)
+    void 历史sha256口令行登录校验通过后透明升级BCrypt() {
+        // 直接种一条历史形态的 sha256(salt+password) 用户
+        String username = "legacy0001";
+        users.findByUsername(username).ifPresent(u -> users.delete(u));
+        UserEntity legacy = new UserEntity(username,
+                HashUtil.sha256Hex("old-salt-16bytes!" + "legacy-pw-777"), "old-salt-16bytes!", "历史口令");
+        users.save(legacy);
+        RoleEntity viewer = roles.findByCode("VIEWER").orElseThrow();
+        userRoles.save(new UserRoleEntity(legacy.id, viewer.id));
+
+        // 登录成功（走遗留 sha256 分支）并升级
+        ResponseEntity<Map> r = post("/api/auth/login",
+                Map.of("username", username, "password", "legacy-pw-777"), null);
+        assertEquals(HttpStatus.OK, r.getStatusCode(), "历史 sha256 行应能登录");
+
+        // 库内已升级为 BCrypt，salt 清空；再次登录走 BCrypt 分支仍成功
+        UserEntity after = users.findByUsername(username).orElseThrow();
+        assertTrue(after.passwordHash.startsWith("$2"), "登录后应透明升级为 BCrypt: " + after.passwordHash);
+        assertEquals("", after.salt);
+        assertEquals(HttpStatus.OK, post("/api/auth/login",
+                Map.of("username", username, "password", "legacy-pw-777"), null).getStatusCode());
+        assertEquals(HttpStatus.BAD_REQUEST, post("/api/auth/login",
+                Map.of("username", username, "password", "wrong-pw"), null).getStatusCode());
     }
 }

@@ -23,7 +23,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        # 安全基线：只暴露 health（/actuator/** 不在 /api/** 鉴权墙内，metrics/env 属信息泄露面）
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 bianque:
   # 演示模式：模拟靶场实例/种子告警/演示账号(ops/viewer)/拟真通道；生产部署置 false（env：BIANQUE_DEMO_ENABLED）

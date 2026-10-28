@@ -98,9 +98,10 @@ public class AgentApiController {
         return Map.of("ok", true);
     }
 
-    /** 节点程序包下载：将 bq-agent.jar 拷贝至 bianque.agent.jar-path 后开放 */
+    /** 节点程序包下载：配置令牌后需带 X-Agent-Token（与其他 /api/agent/** 一致） */
     @GetMapping("/download")
-    public ResponseEntity<FileSystemResource> download() {
+    public ResponseEntity<FileSystemResource> download(HttpServletRequest request) {
+        requireToken(request);
         File f = new File(jarPath);
         if (!f.isFile()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,

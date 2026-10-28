@@ -46,7 +46,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
 | `BQ_VERSION` | 1.0.0 | 平台镜像 tag（升级版本时同步修改；离线部署需先 load 对应镜像） |
-| `AGENT_TOKEN` | 空（开放） | 探针接入令牌（`X-Agent-Token`）。**生产必配**，与探针侧保持一致 |
+| `AGENT_TOKEN` | 节点接入令牌；**生产模式必配**（未配置服务端拒绝启动），需与探针侧一致 | 生产必配 |
 | `INGEST_TOKEN` | 空（关闭） | 告警接入令牌（`X-Alert-Token`），配置后外部告警系统可推入 `POST /api/alerts/ingest` |
 | `LLM_BASE_URL` | 空 | AI 问诊端点预置（OpenAI 兼容，不含 `/chat/completions` 尾巴；也可部署后在「AI 问诊」页填写） |
 | `LLM_API_KEY` | 空 | AI 问诊 LLM 密钥预置（落库存储、只回传掩码） |
