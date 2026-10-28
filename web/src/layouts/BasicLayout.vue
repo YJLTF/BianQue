@@ -8,7 +8,7 @@
         </svg>
         <div class="brand-text">
           <span class="brand-name">扁鹊 BianQue</span>
-          <span class="brand-sub">线上诊断平台 v{{ APP_VERSION }} · Arthas 4.3.5</span>
+          <span class="brand-sub">线上诊断平台</span>
         </div>
       </div>
       <el-menu router :default-active="route.path" class="menu">
@@ -116,7 +116,7 @@ async function logout() {
 }
 .brand-text { display: flex; flex-direction: column; min-width: 0; }
 .brand-name { color: #f1f5f9; font-weight: 600; font-size: 15px; letter-spacing: 0.2px; }
-.brand-sub { color: #7d8aa5; font-size: 11px; margin-top: 2px; white-space: nowrap; }
+.brand-sub { color: #7d8aa5; font-size: 11px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu { border-right: none; background: transparent; flex: 1; padding: 8px; overflow-y: auto; }
 .menu :deep(.el-menu-item) {
   color: #aab6cc;

@@ -17,6 +17,7 @@
   内网离线 `docker load` 即用）+ `dist/bianque-1.0.0/`（compose 配置、.env.example、探针 jar/安装器、
   部署与使用指南副本）；交付物不入库（.gitignore dist/）
 - 后端测试 33 项全绿
+- 侧栏副标题精简为「线上诊断平台」（版本号与 Arthas 标识只在顶栏 tag 展示，消除横向滚动与重复）
 
 ## 功能 · AI 问诊接入文档知识库（检索增强）
 
