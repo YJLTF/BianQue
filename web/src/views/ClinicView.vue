@@ -2,7 +2,8 @@
   <el-row :gutter="12">
     <el-col :span="5">
       <el-card shadow="never" header="应用 / 实例">
-        <el-select v-model="instanceId" filterable class="instance-select" style="width: 100%">
+        <el-select v-model="instanceId" filterable class="instance-select" popper-class="opt-popper"
+                   style="width: 100%">
           <el-option v-for="i in instances" :key="i.instanceId" :value="i.instanceId"
                      :label="compactLabel(i)" :disabled="!i.online">
             <div class="opt">
@@ -293,10 +294,22 @@ onUnmounted(() => window.clearInterval(timer));
 /* 窄栏下拉：小字号容纳「应用 · 节点」紧凑标识 */
 .instance-select :deep(.el-select__wrapper),
 .instance-select :deep(.el-input__inner) { font-size: 12px; }
-.opt { line-height: 1.35; padding: 2px 0; }
-.opt-t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.opt-id { color: var(--el-text-color-secondary); font-size: 11px; }
-.opt-s { font-size: 11px; color: var(--el-text-color-secondary); margin-top: 1px; }
 .lproc .cmd { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lproc .el-button { margin-left: auto; }
+</style>
+
+<style>
+/* 实例下拉的选项在 teleported popper 里（挂在 body 下），须用全局样式；
+   两行明细条目取消固定 34px 高，自适应 + 上下留白拉开间距 */
+.el-popper.opt-popper .el-select-dropdown__item {
+  height: auto;
+  line-height: 1.4;
+  padding: 7px 20px;
+  margin: 3px 0;
+  border-radius: 6px;
+}
+.el-popper.opt-popper .opt { padding: 0; }
+.el-popper.opt-popper .opt-t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.el-popper.opt-popper .opt-id { color: var(--el-text-color-secondary); font-size: 11px; }
+.el-popper.opt-popper .opt-s { font-size: 11px; color: var(--el-text-color-secondary); margin-top: 3px; }
 </style>
