@@ -31,25 +31,72 @@
         </el-table>
       </el-card>
       <el-card shadow="never" header="用户与角色" style="margin-top: 12px">
+        <template #header>
+          <div class="card-hd">
+            <span>用户与角色</span>
+            <el-button v-if="canManage" size="small" type="primary" plain @click="createOpen = true">新增用户</el-button>
+          </div>
+        </template>
         <el-table :data="users" size="small" v-loading="usersLoading">
-          <el-table-column prop="username" label="账号" width="80" />
-          <el-table-column prop="displayName" label="姓名" width="120" />
-          <el-table-column label="角色" width="96">
+          <el-table-column prop="username" label="账号" width="90" />
+          <el-table-column prop="displayName" label="姓名" width="130" />
+          <el-table-column label="状态" width="80">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.roles?.[0] === 'ADMIN' ? 'danger' : (row.roles?.[0] === 'OPERATOR' ? 'warning' : 'info')" effect="plain">
-                {{ row.roles?.[0] ?? "-" }}
+              <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
+                {{ row.enabled ? "启用" : "停用" }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="权限点" min-width="180">
+          <el-table-column label="角色" width="130">
+            <template #default="{ row }">
+              <el-select v-if="canManage" :model-value="row.roles?.[0]" size="small" style="width: 100%"
+                         :disabled="row.username === 'admin'" @change="(v: string) => changeRole(row, v)">
+                <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
+              </el-select>
+              <el-tag v-else size="small" effect="plain">{{ row.roles?.[0] ?? "-" }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="权限点" min-width="170">
             <template #default="{ row }">
               <el-tag v-for="p in row.permissions ?? []" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">
                 {{ p }}
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column v-if="canManage" label="操作" width="150">
+            <template #default="{ row }">
+              <el-button size="small" text type="primary" @click="resetPwd(row)">重置密码</el-button>
+              <el-button size="small" text :type="row.enabled ? 'danger' : 'success'"
+                         :disabled="row.username === 'admin'" @click="toggleEnabled(row)">
+                {{ row.enabled ? "停用" : "启用" }}
+              </el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </el-card>
+
+      <el-dialog v-model="createOpen" title="新增用户" width="420px">
+        <el-form label-width="80px">
+          <el-form-item label="账号">
+            <el-input v-model="form.username" placeholder="字母/数字/_/-，2–32 位" />
+          </el-form-item>
+          <el-form-item label="姓名">
+            <el-input v-model="form.displayName" placeholder="显示名称（可选）" />
+          </el-form-item>
+          <el-form-item label="初始密码">
+            <el-input v-model="form.password" type="password" show-password placeholder="至少 6 位" />
+          </el-form-item>
+          <el-form-item label="角色">
+            <el-select v-model="form.role" style="width: 100%">
+              <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="createOpen = false">取消</el-button>
+          <el-button type="primary" :loading="creating" @click="createUser">创建</el-button>
+        </template>
+      </el-dialog>
     </el-col>
     <el-col :span="12">
       <el-card shadow="never" header="Agent 安装（Linux · systemd）">
@@ -69,15 +116,92 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { ElMessage } from "element-plus";
+import { computed, onMounted, reactive, ref } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { http, errMsg } from "@/api/http";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
+const canManage = computed(() => auth.can("admin:user"));
 
 interface Baseline { bindLocalOnly: boolean; authRequired: boolean; sessionTimeoutMinutes: number; blockedCommands: string[]; auditEnabled: boolean }
 interface PlatformUser { username: string; displayName: string; enabled: boolean; roles: string[]; permissions: string[] }
 
+const ROLES = [
+  { v: "ADMIN", l: "管理员" },
+  { v: "OPERATOR", l: "运维" },
+  { v: "VIEWER", l: "只读" },
+];
+
 const baseline = ref<Baseline>({ bindLocalOnly: true, authRequired: true, sessionTimeoutMinutes: 30, blockedCommands: [], auditEnabled: true });
 const users = ref<PlatformUser[]>([]);
 const usersLoading = ref(true);
+const createOpen = ref(false);
+const creating = ref(false);
+const form = reactive({ username: "", displayName: "", password: "", role: "VIEWER" });
+
+async function loadUsers() {
+  usersLoading.value = true;
+  try {
+    users.value = await http.get("/admin/users") as unknown as PlatformUser[];
+  } catch (e) {
+    users.value = [];
+    ElMessage.error("用户列表加载失败：" + errMsg(e));
+  } finally {
+    usersLoading.value = false;
+  }
+}
+
+async function createUser() {
+  creating.value = true;
+  try {
+    await http.post("/admin/users", { ...form });
+    createOpen.value = false;
+    form.username = "";
+    form.displayName = "";
+    form.password = "";
+    form.role = "VIEWER";
+    ElMessage.success("用户已创建");
+    await loadUsers();
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  } finally {
+    creating.value = false;
+  }
+}
+
+async function resetPwd(row: PlatformUser) {
+  try {
+    const { value } = await ElMessageBox.prompt(`为账号「${row.username}」设置新密码（至少 6 位）`, "重置密码", {
+      inputType: "password", inputPattern: /^.{6,}$/, inputErrorMessage: "密码至少 6 位",
+    });
+    await http.post(`/admin/users/${row.username}/password`, { password: value });
+    ElMessage.success("密码已重置");
+  } catch (e) {
+    if (e !== "cancel" && e !== "close") ElMessage.error(errMsg(e));
+  }
+}
+
+async function toggleEnabled(row: PlatformUser) {
+  try {
+    await http.post(`/admin/users/${row.username}/enabled`, { enabled: !row.enabled });
+    ElMessage.success(row.enabled ? `已停用 ${row.username}` : `已启用 ${row.username}`);
+    await loadUsers();
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  }
+}
+
+async function changeRole(row: PlatformUser, role: string) {
+  try {
+    await http.post(`/admin/users/${row.username}/role`, { role });
+    ElMessage.success(`${row.username} 角色已调整为 ${role}`);
+    await loadUsers();
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+    await loadUsers();
+  }
+}
 
 const linux = `unzip arthas-packaging-4.3.5-bin.zip -d /opt/arthas
 ./as.sh --tunnel-server ws://bq-center:7777/ws \\
@@ -104,18 +228,15 @@ async function copy(text: string) {
 }
 
 onMounted(async () => {
-  baseline.value = await fetch("/api/baseline").then((r) => r.json());
   try {
-    users.value = await fetch("/api/admin/users", {
-      headers: { Authorization: `Bearer ${JSON.parse(localStorage.getItem("bianque.auth") || "{}").token || ""}` },
-    }).then((r) => (r.ok ? r.json() : []));
-  } catch {
-    users.value = [];
-  } finally {
-    usersLoading.value = false;
+    baseline.value = await http.get("/baseline") as unknown as Baseline;
+  } catch (e) {
+    ElMessage.error("安全基线加载失败：" + errMsg(e));
   }
+  loadUsers();
 });
 </script>
 
 <style scoped>
+.card-hd { display: flex; align-items: center; justify-content: space-between; }
 </style>

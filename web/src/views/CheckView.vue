@@ -4,7 +4,7 @@
       <el-card shadow="never">
         <template #header>
           <div class="row"><b>体检结果</b>
-            <span v-if="avgScore" class="avg">平均健康分 <b>{{ avgScore }}</b> / {{ instanceCount }} 实例</span>
+            <span v-if="avgScore" class="avg">平均健康分 <b>{{ fmtScore(avgScore) }}</b> / {{ instanceCount }} 实例</span>
             <el-button size="small" type="primary" :loading="running" style="margin-left: auto" @click="run">
               立即巡检
             </el-button>
@@ -40,7 +40,9 @@
             <template #default="{ row }">{{ fmt(row.runAt) }}</template>
           </el-table-column>
           <el-table-column prop="instanceCount" label="实例数" width="80" align="center" />
-          <el-table-column prop="avgScore" label="平均分" width="80" align="center" />
+          <el-table-column label="平均分" width="80" align="center">
+            <template #default="{ row }">{{ fmtScore(row.avgScore) }}</template>
+          </el-table-column>
           <el-table-column prop="operator" label="触发人" min-width="100" />
         </el-table>
       </el-card>
@@ -96,6 +98,11 @@ async function loadHistory() {
 function fmt(t: string) {
   const d = new Date(t);
   return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** 分数最多保留 2 位小数，且不显示多余的尾零 */
+function fmtScore(v: number) {
+  return Number((v ?? 0).toFixed(2));
 }
 
 onMounted(async () => {

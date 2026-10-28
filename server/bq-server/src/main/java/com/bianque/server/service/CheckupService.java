@@ -104,18 +104,22 @@ public class CheckupService {
                         "runAt", r.runAt.toString(),
                         "operator", r.operator == null ? "" : r.operator,
                         "instanceCount", r.instanceCount,
-                        "avgScore", r.avgScore))
+                        "avgScore", round2(r.avgScore)))
                 .toList();
     }
 
     private void persist(String operator, List<CheckupRow> rows) {
         try {
             double avg = rows.stream().mapToInt(CheckupRow::score).average().orElse(0);
-            runs.save(new CheckupRunEntity(Instant.now(), operator, rows.size(), avg,
+            runs.save(new CheckupRunEntity(Instant.now(), operator, rows.size(), round2(avg),
                     json.writeValueAsString(rows)));
         } catch (Exception e) {
             log.warn("巡检结果落库失败", e);
         }
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100) / 100.0;
     }
 
     CheckupRow checkOne(Instance ins, String operator) {

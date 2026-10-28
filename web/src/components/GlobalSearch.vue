@@ -1,11 +1,11 @@
 <template>
   <el-dialog v-model="open" width="600px" :show-close="false" class="gs-dialog" @opened="focusInput">
     <el-input ref="inputRef" v-model="query" size="large" clearable
-              placeholder="搜索页面 / 实例 / 命令 / 文档…" @input="onQuery">
+              placeholder="搜索页面 / 实例 / 命令 / 文档…" @input="onQuery" @keydown="onKeydown">
       <template #prefix><el-icon><Search /></el-icon></template>
     </el-input>
 
-    <div class="results" @keydown="onKeydown">
+    <div class="results">
       <template v-for="g in groups" :key="g.label">
         <div class="g-label">{{ g.label }}</div>
         <div v-for="it in g.items" :key="g.label + it.key" class="item" :class="{ on: it.key === flat[idx]?.key }"
@@ -55,7 +55,7 @@ const templates = [
 ];
 
 interface Item { key: string; title: string; sub: string; tagType: string; go: () => void }
-const flat = ref<Item[]>([]);
+const flat = computed(() => groups.value.flatMap((g) => g.items));
 
 const groups = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -92,7 +92,7 @@ function onQuery() {
   idx.value = 0;
   window.clearTimeout(debounce);
   const q = query.value.trim();
-  if (!q) { docsHits.value = []; flat.value = groups.value.flatMap((g) => g.items); return; }
+  if (!q) { docsHits.value = []; return; }
   debounce = window.setTimeout(async () => {
     try {
       const data = await http.get("/docs/search", { params: { q, limit: 6 } }) as unknown as { hits: DocHit[] };
@@ -100,9 +100,7 @@ function onQuery() {
     } catch {
       docsHits.value = [];
     }
-    flat.value = groups.value.flatMap((g) => g.items);
   }, 200);
-  flat.value = groups.value.flatMap((g) => g.items);
 }
 
 function onKeydown(e: KeyboardEvent) {

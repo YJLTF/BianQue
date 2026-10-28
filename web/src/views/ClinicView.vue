@@ -122,9 +122,10 @@ const resultHeader = computed(() => {
   if (id.startsWith("agent-")) return "执行结果（Agent 通道）";
   return currentInstance.value?.localAgent ? "执行结果（本机通道）" : "执行结果";
 });
-/** 下拉选项文案：Agent 节点实例标注通道来源 */
+/** 下拉选项文案：标注实例来源（演示靶场不加标注，Agent/本机为真实通道） */
 function instanceLabel(i: InstanceVO) {
-  const suffix = i.instanceId.startsWith("agent-") ? " · Agent 节点" : "";
+  const suffix = i.instanceId.startsWith("agent-") ? " · Agent 节点"
+    : i.instanceId.startsWith("local-") ? " · 本机" : "";
   return `${i.appId}/${i.instanceId}${suffix}`;
 }
 

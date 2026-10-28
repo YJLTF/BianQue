@@ -162,4 +162,75 @@ public class UserService {
                 })
                 .toList();
     }
+
+    // ---------- 用户管理（仅 admin:user） ----------
+
+    /** 创建用户并绑定单一角色 */
+    @Transactional
+    public Map<String, Object> createUser(String username, String password, String displayName, String roleCode) {
+        String un = username == null ? "" : username.trim();
+        if (!un.matches("[a-zA-Z0-9_-]{2,32}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名仅限字母/数字/_/-，2–32 位");
+        }
+        checkPassword(password);
+        if (users.findByUsername(un).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "用户名已存在");
+        }
+        RoleEntity r = requireRole(roleCode);
+        String salt = newSalt();
+        UserEntity u = users.save(new UserEntity(un, HashUtil.sha256Hex(salt + password), salt,
+                displayName == null || displayName.isBlank() ? un : displayName.trim()));
+        userRoles.save(new UserRoleEntity(u.id, r.id));
+        return Map.of("username", u.username, "displayName", u.displayName,
+                "enabled", u.enabled, "roles", List.of(r.code));
+    }
+
+    /** 重置口令 */
+    @Transactional
+    public void resetPassword(String username, String newPassword) {
+        UserEntity u = requireUser(username);
+        checkPassword(newPassword);
+        u.salt = newSalt();
+        u.passwordHash = HashUtil.sha256Hex(u.salt + newPassword);
+        users.save(u);
+    }
+
+    /** 启用/停用（内置 admin 不允许停用，防止锁死平台） */
+    @Transactional
+    public void setEnabled(String username, boolean enabled) {
+        UserEntity u = requireUser(username);
+        if ("admin".equals(u.username) && !enabled) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内置 admin 账号不允许停用");
+        }
+        u.enabled = enabled;
+        users.save(u);
+    }
+
+    /** 调整角色（单角色模型；内置 admin 角色锁定，防止误降级锁死平台） */
+    @Transactional
+    public void setRole(String username, String roleCode) {
+        UserEntity u = requireUser(username);
+        if ("admin".equals(u.username)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内置 admin 账号角色不可变更");
+        }
+        RoleEntity r = requireRole(roleCode);
+        userRoles.findByUserId(u.id).forEach(userRoles::delete);
+        userRoles.save(new UserRoleEntity(u.id, r.id));
+    }
+
+    private UserEntity requireUser(String username) {
+        return users.findByUsername(username == null ? "" : username.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+    }
+
+    private RoleEntity requireRole(String roleCode) {
+        return roles.findByCode(roleCode == null ? "" : roleCode.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "角色无效（可选 ADMIN/OPERATOR/VIEWER）"));
+    }
+
+    private void checkPassword(String password) {
+        if (password == null || password.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
+        }
+    }
 }

@@ -3,6 +3,7 @@ package com.bianque.server.web;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -163,6 +164,42 @@ class AuthFlowIntegrationTest {
 
     @Test
     @Order(9)
+    void 用户管理全流程_创建改角停用与admin保护() {
+        String admin = login("admin", "admin123");
+        assertEquals(HttpStatus.OK, post("/api/admin/users", Map.of(
+                "username", "tester01", "password", "tester123", "displayName", "测试工", "role", "OPERATOR"),
+                admin).getStatusCode());
+        // 重复用户名 → 409
+        assertEquals(HttpStatus.CONFLICT, post("/api/admin/users", Map.of(
+                "username", "tester01", "password", "tester123", "role", "VIEWER"), admin).getStatusCode());
+        // 新用户可登录
+        String tester = login("tester01", "tester123");
+        assertNotNull(tester);
+        // 改为 VIEWER 后重置密码，旧/新密码均验证
+        assertEquals(HttpStatus.OK, post("/api/admin/users/tester01/role",
+                Map.of("role", "VIEWER"), admin).getStatusCode());
+        assertEquals(HttpStatus.OK, post("/api/admin/users/tester01/password",
+                Map.of("password", "newpass456"), admin).getStatusCode());
+        assertEquals(HttpStatus.BAD_REQUEST, post("/api/auth/login",
+                Map.of("username", "tester01", "password", "tester123"), null).getStatusCode());
+        assertNotNull(login("tester01", "newpass456"));
+        // 停用后登录被拒（403 账号已停用）
+        assertEquals(HttpStatus.OK, post("/api/admin/users/tester01/enabled",
+                Map.of("enabled", false), admin).getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, post("/api/auth/login",
+                Map.of("username", "tester01", "password", "newpass456"), null).getStatusCode());
+        // 内置 admin 不允许停用/改角色（防误降级锁死平台）
+        assertEquals(HttpStatus.BAD_REQUEST, post("/api/admin/users/admin/enabled",
+                Map.of("enabled", false), admin).getStatusCode());
+        assertEquals(HttpStatus.BAD_REQUEST, post("/api/admin/users/admin/role",
+                Map.of("role", "OPERATOR"), admin).getStatusCode());
+        // 非 admin 无权管理用户
+        assertEquals(HttpStatus.FORBIDDEN, post("/api/admin/users", Map.of(
+                "username", "tester02", "password", "tester123", "role", "VIEWER"), tester).getStatusCode());
+    }
+
+    @Test
+    @Order(10)
     void 篡改审计记录后哈希链断链可检() {
         String admin = login("admin", "admin123");
         jdbc.update("update audit_log set command = concat(command, '_篡改') where seq = 1");
@@ -173,7 +210,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     void 并发审计追加不重号且链完整() throws Exception {
         // 先还原 Order(8) 的篡改，保证全链可校验
         jdbc.update("update audit_log set command = replace(command, '_篡改', '') where command like '%\\_篡改'");
