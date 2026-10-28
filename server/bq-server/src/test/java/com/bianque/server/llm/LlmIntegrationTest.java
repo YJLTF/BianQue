@@ -53,8 +53,27 @@ class LlmIntegrationTest {
     static void startFakeOpenAi() throws Exception {
         fake = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         fake.createContext("/", ex -> {
-            LAST_BODY.set(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            String reqBody = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            LAST_BODY.set(reqBody);
             LAST_AUTH.set(ex.getRequestHeaders().getFirst("Authorization"));
+            boolean stream = JSON.readTree(reqBody).path("stream").asBoolean(false);
+            if (stream) {
+                // SSE 流式形态：reasoning 先流出 → content 分帧 → usage 尾帧 → [DONE]
+                StringBuilder sb = new StringBuilder();
+                sb.append(sse(Map.of("choices", List.of(Map.of(
+                        "delta", Map.of("role", "assistant", "reasoning_content", "（思考）线程分布正常，再看内存。"))))));
+                sb.append(sse(Map.of("choices", List.of(Map.of("delta", Map.of("content", "测试"))))));
+                sb.append(sse(Map.of("choices", List.of(Map.of("delta", Map.of("content", "流式回复。"))))));
+                sb.append(sse(Map.of("choices", List.of(Map.of("delta", Map.of()))),
+                        Map.of("prompt_tokens", 120, "completion_tokens", 48)));
+                sb.append("data: [DONE]\n\n");
+                byte[] resp = sb.toString().getBytes(StandardCharsets.UTF_8);
+                ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+                ex.sendResponseHeaders(200, resp.length);
+                ex.getResponseBody().write(resp);
+                ex.close();
+                return;
+            }
             byte[] resp = JSON.writeValueAsBytes(Map.of(
                     "choices", List.of(Map.of("message", Map.of(
                             "role", "assistant",
@@ -68,6 +87,22 @@ class LlmIntegrationTest {
         });
         fake.start();
         fakePort = fake.getAddress().getPort();
+    }
+
+    private static String sse(Map<?, ?> chunk) {
+        return sse(chunk, null);
+    }
+
+    private static String sse(Map<?, ?> chunk, Map<?, ?> usage) {
+        var obj = new java.util.LinkedHashMap<Object, Object>(chunk);
+        if (usage != null) {
+            obj.put("usage", usage);
+        }
+        try {
+            return "data: " + JSON.writeValueAsString(obj) + "\n\n";
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @AfterAll
@@ -240,6 +275,88 @@ class LlmIntegrationTest {
                 "无命中时不应注入知识库段");
         List<?> refs = (List<?>) chat.getBody().get("refs");
         assertTrue(refs == null || refs.isEmpty(), "无命中时引用应为空");
+    }
+
+    @Test
+    @Order(9)
+    void 请求级思考强度可覆盖接入配置() throws Exception {
+        String admin = login("admin", "admin123");
+        // 配置处于 OFF（Order(5) 已置），本条对话请求级 high → 推理形态
+        ResponseEntity<Map> chat = method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "帮我看线程", "reasoningLevel", "high"), admin);
+        assertEquals(HttpStatus.OK, chat.getStatusCode());
+        JsonNode body = JSON.readTree(LAST_BODY.get());
+        assertEquals("high", body.path("reasoning_effort").asText());
+        assertEquals(512, body.path("max_completion_tokens").asInt());
+        assertFalse(body.has("temperature"), "请求级 high 不应带 temperature");
+
+        // 非法等级 → 400
+        assertEquals(HttpStatus.BAD_REQUEST, method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "hi", "reasoningLevel", "turbo"), admin).getStatusCode());
+        // default = 跟随配置（OFF → 普通形态）
+        method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "hi", "reasoningLevel", "default"), admin);
+        assertFalse(JSON.readTree(LAST_BODY.get()).has("reasoning_effort"));
+    }
+
+    @Test
+    @Order(10)
+    void 推理参数映射按等级深度覆盖请求体() throws Exception {
+        String admin = login("admin", "admin123");
+        String mapping = "{\"off\":{\"thinking\":{\"type\":\"disabled\"}},"
+                + "\"high\":{\"reasoning_effort\":\"high\",\"thinking\":{\"type\":\"enabled\",\"budget_tokens\":2048}}}";
+        ResponseEntity<Map> put = method("/api/llm/config", HttpMethod.PUT,
+                Map.of("reasoningParams", mapping), admin);
+        assertEquals(HttpStatus.OK, put.getStatusCode(), "映射应保存: " + put.getBody());
+        assertEquals(Boolean.TRUE, put.getBody().get("configured"));
+        // 非法 JSON → 400，且不影响原值
+        assertEquals(HttpStatus.BAD_REQUEST, method("/api/llm/config", HttpMethod.PUT,
+                Map.of("reasoningParams", "not-json"), admin).getStatusCode());
+
+        // off 等级：映射片段深度覆盖（thinking.disabled），max_tokens 兜底回填
+        method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "hi", "reasoningLevel", "off"), admin);
+        JsonNode body = JSON.readTree(LAST_BODY.get());
+        assertEquals("disabled", body.path("thinking").path("type").asText());
+        assertFalse(body.has("reasoning_effort"), "off 片段不应含 reasoning_effort");
+        assertFalse(body.has("temperature"), "命中映射时采样参数归片段所有");
+        assertEquals(512, body.path("max_tokens").asInt(), "片段未给 max_tokens 时应回填");
+
+        // high 等级：映射片段 + reasoning_effort + max_tokens 兜底
+        method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "hi", "reasoningLevel", "high"), admin);
+        body = JSON.readTree(LAST_BODY.get());
+        assertEquals("enabled", body.path("thinking").path("type").asText());
+        assertEquals(2048, body.path("thinking").path("budget_tokens").asInt());
+        assertEquals("high", body.path("reasoning_effort").asText());
+        assertEquals(512, body.path("max_tokens").asInt());
+
+        // 清空映射（空串）→ 回内置形态
+        method("/api/llm/config", HttpMethod.PUT, Map.of("reasoningParams", ""), admin);
+        method("/api/llm/chat", HttpMethod.POST,
+                Map.of("question", "hi", "reasoningLevel", "off"), admin);
+        body = JSON.readTree(LAST_BODY.get());
+        assertFalse(body.has("thinking"), "清空映射后 off 应回内置普通形态");
+        assertTrue(body.has("temperature"));
+    }
+
+    @Test
+    @Order(11)
+    void SSE流式输出思考与回答增量() {
+        String admin = login("admin", "admin123");
+        ResponseEntity<String> sse = http.exchange("/api/llm/chat/stream", HttpMethod.POST,
+                new HttpEntity<>(Map.of("question", "你好", "reasoningLevel", "high"), authHeader(admin)),
+                String.class);
+        assertEquals(HttpStatus.OK, sse.getStatusCode(), "流式端点应 200");
+        assertTrue(sse.getHeaders().getContentType().toString().contains("text/event-stream"),
+                "应为 SSE： " + sse.getHeaders().getContentType());
+        String body = sse.getBody() == null ? "" : sse.getBody();
+        assertTrue(body.contains("event:reasoning"), "应有思考增量事件: " + body);
+        assertTrue(body.contains("（思考）线程分布正常"), "思考文本应随帧下发");
+        assertTrue(body.contains("event:content"), "应有回答增量事件");
+        assertTrue(body.contains("测试"), "回答文本应随帧下发");
+        assertTrue(body.contains("event:done"), "应有收尾汇总事件");
+        assertTrue(body.contains("\"promptTokens\":120"), "done 汇总应含 usage: " + body);
     }
 
     private HttpHeaders authHeader(String token) {

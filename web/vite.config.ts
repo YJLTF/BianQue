@@ -16,8 +16,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": { target: "http://127.0.0.1:8080", changeOrigin: true },
-      "/docs/4.3.5": { target: "http://127.0.0.1:8080", changeOrigin: true },
+      // 后端地址可用 BQ_API_TARGET 覆盖（默认本机 8080）
+      "/api": { target: `http://${process.env.BQ_API_TARGET || "127.0.0.1:8080"}`, changeOrigin: true },
+      "/docs/4.3.5": { target: `http://${process.env.BQ_API_TARGET || "127.0.0.1:8080"}`, changeOrigin: true },
     },
   },
 });

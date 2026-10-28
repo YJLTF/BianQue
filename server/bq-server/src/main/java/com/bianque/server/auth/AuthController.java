@@ -4,6 +4,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +29,9 @@ public class AuthController {
     public record LoginRequest(String username, String password) {
     }
 
+    public record ProfileReq(String displayName) {
+    }
+
     @PostMapping("/login")
     public Map<String, Object> login(@RequestBody LoginRequest req) {
         UserService.LoginOutcome o = users.login(req.username(), req.password());
@@ -49,6 +53,19 @@ public class AuthController {
             tokens.remove(token);
         }
         return Map.of("ok", true);
+    }
+
+    /** 修改自己的显示名：同步刷新当前登录态（/me 立即可见） */
+    @PutMapping("/profile")
+    public Map<String, Object> updateProfile(@RequestBody ProfileReq req,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String token = extractBearer(authorization);
+        AuthContext ctx = tokens.get(token)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录或登录已过期"));
+        Map<String, Object> out = users.updateDisplayName(ctx.username(), req.displayName());
+        tokens.replace(new AuthContext(ctx.token(), ctx.username(), (String) out.get("displayName"),
+                ctx.role(), ctx.roleName(), ctx.permissions(), ctx.expiresAt()));
+        return out;
     }
 
     @GetMapping("/me")

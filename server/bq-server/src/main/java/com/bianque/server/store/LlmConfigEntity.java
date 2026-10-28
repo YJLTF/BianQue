@@ -39,6 +39,13 @@ public class LlmConfigEntity {
     public Integer timeoutSeconds;
     @Lob
     public String systemPrompt;
+    /**
+     * 推理参数映射（JSON，按思考强度自定义请求体附加参数，深度合并）：
+     * {"off":{"thinking":{"type":"disabled"}},"high":{"reasoning_effort":"high","top_p":0.95}}。
+     * 键：off/minimal/low/medium/high；某等级未给出或整段留空 → 内置 OpenAI 风格（reasoning_effort + max_completion_tokens）。
+     */
+    @Lob
+    public String reasoningParams;
     public Instant updatedAt;
 
     public LlmConfigEntity() {

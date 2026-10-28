@@ -9,35 +9,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
 /**
- * 应用/实例台账：模拟靶场实例由代码种子；本机纳管实例落库（重启免重新 attach）。
+ * 应用/实例台账：模拟靶场实例由代码种子（演示模式）；本机纳管实例落库（重启免重新 attach）。
+ * 生产模式（bianque.demo-enabled=false）不种靶场，实例只来自真实探针与本机纳管。
  */
 @Repository
 public class FleetRepository {
 
     private final Map<String, Instance> instances = new ConcurrentHashMap<>();
     private final ManagedInstanceJpa managed;
+    private final boolean demoEnabled;
 
-    public FleetRepository(ManagedInstanceJpa managed) {
+    public FleetRepository(ManagedInstanceJpa managed,
+                           @Value("${bianque.demo-enabled:true}") boolean demoEnabled) {
         this.managed = managed;
+        this.demoEnabled = demoEnabled;
     }
 
     @PostConstruct
     public void init() {
-        seed("order-app", "pod-1", "10.1.2.1", true, 92);
-        seed("order-app", "pod-2", "10.1.2.2", true, 88);
-        seed("order-app", "pod-3", "10.1.2.3", true, 71);
-        seed("order-app", "pod-4", "10.1.2.4", false, 90);
-        seed("user-app", "inst-1", "10.2.0.1", true, 90);
-        seed("user-app", "inst-2", "10.2.0.2", true, 83);
-        seed("inventory-app", "inv-1", "10.3.0.1", true, 96);
-        seed("inventory-app", "inv-2", "10.3.0.2", true, 95);
-        seed("gateway", "edge-1", "10.4.0.1", true, 98);
-        seed("gateway", "edge-2", "10.4.0.2", true, 97);
-        seed("member-app", "mem-1", "10.5.0.1", true, 95);
-        seed("report-job", "runner-1", "10.6.0.1", false, 86);
+        if (demoEnabled) {
+            seed("order-app", "pod-1", "10.1.2.1", true, 92);
+            seed("order-app", "pod-2", "10.1.2.2", true, 88);
+            seed("order-app", "pod-3", "10.1.2.3", true, 71);
+            seed("order-app", "pod-4", "10.1.2.4", false, 90);
+            seed("user-app", "inst-1", "10.2.0.1", true, 90);
+            seed("user-app", "inst-2", "10.2.0.2", true, 83);
+            seed("inventory-app", "inv-1", "10.3.0.1", true, 96);
+            seed("inventory-app", "inv-2", "10.3.0.2", true, 95);
+            seed("gateway", "edge-1", "10.4.0.1", true, 98);
+            seed("gateway", "edge-2", "10.4.0.2", true, 97);
+            seed("member-app", "mem-1", "10.5.0.1", true, 95);
+            seed("report-job", "runner-1", "10.6.0.1", false, 86);
+        }
         // 恢复已纳管的本机实例（进程是否存活由执行期校验给出明确错误）
         if (managed != null) {
             managed.findAll().forEach(e -> instances.put(e.instanceId,

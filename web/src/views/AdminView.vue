@@ -80,13 +80,18 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column v-if="canManage" label="操作" width="160">
+      <el-table-column v-if="canManage" label="操作" width="240">
         <template #default="{ row }">
+          <el-button size="small" text type="primary" @click="rename(row)">改名</el-button>
           <el-button size="small" text type="primary" @click="resetPwd(row)">重置密码</el-button>
           <el-button size="small" text :type="row.enabled ? 'danger' : 'success'"
                      :disabled="row.username === 'admin'" @click="toggleEnabled(row)">
             {{ row.enabled ? "停用" : "启用" }}
           </el-button>
+          <el-button size="small" text type="danger"
+                     :disabled="row.username === 'admin' || row.username === auth.user?.username"
+                     title="内置 admin 与当前登录账号不可删除"
+                     @click="removeUser(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -190,6 +195,37 @@ async function toggleEnabled(row: PlatformUser) {
     await loadUsers();
   } catch (e) {
     ElMessage.error(errMsg(e));
+  }
+}
+
+async function rename(row: PlatformUser) {
+  try {
+    const { value } = await ElMessageBox.prompt(`修改账号「${row.username}」的显示名`, "改名", {
+      inputValue: row.displayName,
+      inputPattern: /^\S.{0,31}$/,
+      inputErrorMessage: "显示名需 1–32 个字符",
+      confirmButtonText: "保存",
+      cancelButtonText: "取消",
+    });
+    await http.post(`/admin/users/${row.username}/display-name`, { displayName: value });
+    if (row.username === auth.user?.username) auth.setDisplayName(value.trim());
+    ElMessage.success("显示名已更新");
+    await loadUsers();
+  } catch (e) {
+    if (e !== "cancel" && e !== "close") ElMessage.error(errMsg(e));
+  }
+}
+
+async function removeUser(row: PlatformUser) {
+  try {
+    await ElMessageBox.confirm(`确定删除账号「${row.username}」？删除后无法恢复（其登录态立即失效）。`, "删除用户", {
+      type: "warning", confirmButtonText: "删除", cancelButtonText: "取消",
+    });
+    await http.delete(`/admin/users/${row.username}`);
+    ElMessage.success(`已删除 ${row.username}`);
+    await loadUsers();
+  } catch (e) {
+    if (e !== "cancel" && e !== "close") ElMessage.error(errMsg(e));
   }
 }
 

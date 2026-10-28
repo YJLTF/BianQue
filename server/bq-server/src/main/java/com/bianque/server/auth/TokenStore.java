@@ -76,6 +76,11 @@ public class TokenStore {
         memory.remove(token);
     }
 
+    /** 原地更新登录态（如显示名变更）：token/TTL/权限保持不变 */
+    public void replace(AuthContext ctx) {
+        put(ctx.token(), ctx);
+    }
+
     public int size() {
         return redis != null ? redis.keys(KEY_PREFIX + "*").size() : memory.size();
     }

@@ -36,7 +36,7 @@ public class DiagService {
     public static final String SYSTEM = "system";
 
     private final CommandAllowlist allowlist = new CommandAllowlist();
-    private final MockDiagExecutor mockExecutor;
+    private final ObjectProvider<MockDiagExecutor> mockExecutor; // 演示模式才有（demo-enabled=false 时无靶场/拟真通道）
     private final LocalAsShExecutor localExecutor; // local-enabled=false 时为 null
     private final AgentChannelExecutor agentExecutor; // 平台 Agent 通道（恒装配，按实例路由）
     private final AuditTrail audit;
@@ -47,7 +47,7 @@ public class DiagService {
     private record SessionHandle(SessionInfo info) {
     }
 
-    public DiagService(MockDiagExecutor mockExecutor,
+    public DiagService(ObjectProvider<MockDiagExecutor> mockExecutor,
                        ObjectProvider<LocalAsShExecutor> localExecutor,
                        AgentChannelExecutor agentExecutor,
                        AuditTrail audit,
@@ -73,7 +73,12 @@ public class DiagService {
             }
             return localExecutor;
         }
-        return mockExecutor;
+        MockDiagExecutor mock = mockExecutor.getIfAvailable();
+        if (mock == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "演示靶场未启用（bianque.demo-enabled=false）：仅可对真实探针/本机纳管实例执行诊断");
+        }
+        return mock;
     }
 
     /** as.sh/arthas-boot 目标：本机纳管实例用 pid（免同名多进程歧义），其余用主类名/instanceId */

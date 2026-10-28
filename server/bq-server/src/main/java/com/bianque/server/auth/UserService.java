@@ -18,6 +18,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,25 +28,35 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 用户与 RBAC：五表模型（users/roles/permissions/user_roles/role_permissions），
- * 首次启动种子三个演示账号；口令 sha256(salt+password)，S2 可升级 BCrypt/OIDC。
+ * 口令 sha256(salt+password)，S2 可升级 BCrypt/OIDC。
+ * 演示模式（bianque.demo-enabled=true）首次启动种子 admin/ops/viewer 三个演示账号；
+ * 生产模式（false）只引导 admin，初始口令必须由 BIANQUE_ADMIN_PASSWORD 提供（缺省拒绝启动防锁死）。
  */
 @Service
 public class UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserJpa users;
     private final RoleJpa roles;
     private final PermissionJpa permissions;
     private final UserRoleJpa userRoles;
     private final RolePermissionJpa rolePermissions;
+    private final boolean demoEnabled;
+    private final String bootAdminPassword;
     private final SecureRandom random = new SecureRandom();
 
     public UserService(UserJpa users, RoleJpa roles, PermissionJpa permissions,
-                       UserRoleJpa userRoles, RolePermissionJpa rolePermissions) {
+                       UserRoleJpa userRoles, RolePermissionJpa rolePermissions,
+                       @Value("${bianque.demo-enabled:true}") boolean demoEnabled,
+                       @Value("${bianque.admin.password:}") String bootAdminPassword) {
         this.users = users;
         this.roles = roles;
         this.permissions = permissions;
         this.userRoles = userRoles;
         this.rolePermissions = rolePermissions;
+        this.demoEnabled = demoEnabled;
+        this.bootAdminPassword = bootAdminPassword == null ? "" : bootAdminPassword;
     }
 
     /** 角色权限矩阵：ADMIN 全量 / OPERATOR 可执行 / VIEWER 只读 */
@@ -80,9 +93,23 @@ public class UserService {
                 }
             }
         }
-        seedUser("admin", "admin123", "管理员(演示)", "ADMIN");
-        seedUser("ops", "ops123", "运维(演示)", "OPERATOR");
-        seedUser("viewer", "viewer123", "访客(只读)", "VIEWER");
+        if (demoEnabled) {
+            seedUser("admin", "admin123", "管理员(演示)", "ADMIN");
+            seedUser("ops", "ops123", "运维(演示)", "OPERATOR");
+            seedUser("viewer", "viewer123", "访客(只读)", "VIEWER");
+        } else {
+            if (users.findByUsername("admin").isEmpty()) {
+                if (bootAdminPassword.isBlank()) {
+                    throw new IllegalStateException("演示模式已关闭（bianque.demo-enabled=false）："
+                            + "首次启动必须通过 BIANQUE_ADMIN_PASSWORD 设置 admin 初始口令");
+                }
+                seedUser("admin", bootAdminPassword, "管理员", "ADMIN");
+            }
+            for (String legacy : List.of("ops", "viewer")) {
+                users.findByUsername(legacy).ifPresent(u ->
+                        log.warn("历史演示账号「{}」仍存在，生产环境请在「平台管理 → 用户与角色」中删除", legacy));
+            }
+        }
     }
 
     private void seedUser(String username, String password, String displayName, String roleCode) {
@@ -216,6 +243,33 @@ public class UserService {
         RoleEntity r = requireRole(roleCode);
         userRoles.findByUserId(u.id).forEach(userRoles::delete);
         userRoles.save(new UserRoleEntity(u.id, r.id));
+    }
+
+    /** 修改显示名（自己随时可改；管理员改他人走 /api/admin/users 通道） */
+    @Transactional
+    public Map<String, Object> updateDisplayName(String targetUsername, String displayName) {
+        String dn = displayName == null ? "" : displayName.trim();
+        if (dn.isEmpty() || dn.length() > 32) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "显示名需 1–32 个字符");
+        }
+        UserEntity u = requireUser(targetUsername);
+        u.displayName = dn;
+        users.save(u);
+        return Map.of("username", u.username, "displayName", u.displayName);
+    }
+
+    /** 删除用户（内置 admin 与当前登录账号不可删）；用于摘除历史演示账号等场景 */
+    @Transactional
+    public void deleteUser(String targetUsername, String operator) {
+        UserEntity u = requireUser(targetUsername);
+        if ("admin".equals(u.username)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内置 admin 账号不允许删除");
+        }
+        if (u.username.equals(operator)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能删除当前登录账号");
+        }
+        userRoles.findByUserId(u.id).forEach(userRoles::delete);
+        users.delete(u);
     }
 
     private UserEntity requireUser(String username) {

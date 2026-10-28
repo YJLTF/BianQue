@@ -244,4 +244,52 @@ class AuthFlowIntegrationTest {
         h.setBearerAuth(token);
         return h;
     }
+
+    @Test
+    @Order(12)
+    void 显示名修改_本人可改_改他人仅管理员() {
+        String viewer = login("viewer", "viewer123");
+        // 本人改显示名：即时生效（/me 可见）
+        ResponseEntity<Map> put = http.exchange("/api/auth/profile", HttpMethod.PUT,
+                new HttpEntity<>(Map.of("displayName", "访客张三"), auth(viewer)), Map.class);
+        assertEquals(HttpStatus.OK, put.getStatusCode(), "本人应可改显示名: " + put.getBody());
+        ResponseEntity<Map> me = get("/api/auth/me", viewer);
+        assertEquals("访客张三", me.getBody().get("displayName"));
+
+        // viewer 改他人 → 403（/api/admin/users 仅管理员）
+        assertEquals(HttpStatus.FORBIDDEN, http.exchange("/api/admin/users/ops/display-name", HttpMethod.POST,
+                new HttpEntity<>(Map.of("displayName", "冒充"), auth(viewer)), Map.class).getStatusCode());
+
+        // 管理员改他人 → 生效；非法值 → 400
+        String admin = login("admin", "admin123");
+        assertEquals(HttpStatus.OK, http.exchange("/api/admin/users/viewer/display-name", HttpMethod.POST,
+                new HttpEntity<>(Map.of("displayName", "访客改名"), auth(admin)), Map.class).getStatusCode());
+        assertEquals(HttpStatus.BAD_REQUEST, http.exchange("/api/admin/users/viewer/display-name", HttpMethod.POST,
+                new HttpEntity<>(Map.of("displayName", "  "), auth(admin)), Map.class).getStatusCode());
+        List<?> users = (List<?>) http.exchange("/api/admin/users", HttpMethod.GET,
+                new HttpEntity<>(auth(admin)), List.class).getBody();
+        assertTrue(users.stream().anyMatch(u -> "访客改名".equals(((Map<?, ?>) u).get("displayName"))));
+    }
+
+    @Test
+    @Order(13)
+    void 用户删除_保护规则与闭环() {
+        String admin = login("admin", "admin123");
+        // 内置 admin 不可删；viewer 删除 → 403
+        assertEquals(HttpStatus.BAD_REQUEST, http.exchange("/api/admin/users/admin", HttpMethod.DELETE,
+                new HttpEntity<>(auth(admin)), Map.class).getStatusCode());
+        String viewer = login("viewer", "viewer123");
+        assertEquals(HttpStatus.FORBIDDEN, http.exchange("/api/admin/users/ops", HttpMethod.DELETE,
+                new HttpEntity<>(auth(viewer)), Map.class).getStatusCode());
+        // 创建 → 删除 → 登录失效 → 重复删除 404
+        assertEquals(HttpStatus.OK, post("/api/admin/users",
+                Map.of("username", "tmpdel", "password", "tmp123", "displayName", "临时", "role", "VIEWER"), admin)
+                .getStatusCode());
+        assertEquals(HttpStatus.OK, http.exchange("/api/admin/users/tmpdel", HttpMethod.DELETE,
+                new HttpEntity<>(auth(admin)), Map.class).getStatusCode());
+        assertEquals(HttpStatus.BAD_REQUEST, post("/api/auth/login",
+                Map.of("username", "tmpdel", "password", "tmp123"), null).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, http.exchange("/api/admin/users/tmpdel", HttpMethod.DELETE,
+                new HttpEntity<>(auth(admin)), Map.class).getStatusCode());
+    }
 }

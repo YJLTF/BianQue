@@ -45,6 +45,10 @@ services:
       # 数据库密码透传给服务端（application-docker.yml 的 ${BIANQUE_DB_PASSWORD}），与 mysql 服务同源
       BIANQUE_DB_PASSWORD: ${BIANQUE_DB_PASSWORD:-bianque123}
       BIANQUE_LLM_API_KEY: ${LLM_API_KEY:-}
+      # 生产默认关闭演示模式（无模拟靶场/种子告警/演示账号）；BIANQUE_ADMIN_PASSWORD 为引导 admin 初始口令
+      # （仅 admin 账号不存在时生效一次，之后改密走「平台管理」页）
+      BIANQUE_DEMO_ENABLED: ${BIANQUE_DEMO_ENABLED:-false}
+      BIANQUE_ADMIN_PASSWORD: ${BIANQUE_ADMIN_PASSWORD:-}
     depends_on:
       mysql:
         condition: service_healthy

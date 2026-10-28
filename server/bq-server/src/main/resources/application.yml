@@ -26,6 +26,11 @@ management:
         include: health,info,metrics
 
 bianque:
+  # 演示模式：模拟靶场实例/种子告警/演示账号(ops/viewer)/拟真通道；生产部署置 false（env：BIANQUE_DEMO_ENABLED）
+  demo-enabled: true
+  admin:
+    # 演示模式关闭时引导 admin 账号的初始口令（仅 admin 不存在时生效一次；env：BIANQUE_ADMIN_PASSWORD）
+    password: ""
   execution:
     # mock：拟真演示通道；local：本机 as.sh 真实执行（按实例路由）
     mode: mock

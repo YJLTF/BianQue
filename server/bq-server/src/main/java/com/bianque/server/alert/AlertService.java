@@ -29,20 +29,22 @@ public class AlertService {
     private final AlertEventJpa events;
     private final AlertNotifier notifier;
     private final String ingestToken;
-    /** 演示靶场的种子告警（内存）；真实告警一律走 ingest 落库 */
-    private final List<Alert> seeds = new ArrayList<>(List.of(
-            new Alert("AL-1001", Instant.now().minusSeconds(600), "order-app", "pod-3",
-                    "CPU 使用率 96%，持续 3 分钟", "严重", "待取证"),
-            new Alert("AL-1002", Instant.now().minusSeconds(1500), "user-app", "inst-2",
-                    "Full GC 频繁（4 次/小时）", "警告", "待取证"),
-            new Alert("AL-1003", Instant.now().minusSeconds(3700), "gateway", "edge-1",
-                    "5xx 比例 3.2%", "警告", "待取证")));
+    /** 演示靶场的种子告警（内存，仅演示模式）；真实告警一律走 ingest 落库 */
+    private final List<Alert> seeds;
 
     public AlertService(AlertEventJpa events, AlertNotifier notifier,
-                        @Value("${bianque.alerts.ingest-token:}") String ingestToken) {
+                        @Value("${bianque.alerts.ingest-token:}") String ingestToken,
+                        @Value("${bianque.demo-enabled:true}") boolean demoEnabled) {
         this.events = events;
         this.notifier = notifier;
         this.ingestToken = ingestToken == null ? "" : ingestToken.trim();
+        this.seeds = demoEnabled ? List.of(
+                new Alert("AL-1001", Instant.now().minusSeconds(600), "order-app", "pod-3",
+                        "CPU 使用率 96%，持续 3 分钟", "严重", "待取证"),
+                new Alert("AL-1002", Instant.now().minusSeconds(1500), "user-app", "inst-2",
+                        "Full GC 频繁（4 次/小时）", "警告", "待取证"),
+                new Alert("AL-1003", Instant.now().minusSeconds(3700), "gateway", "edge-1",
+                        "5xx 比例 3.2%", "警告", "待取证")) : List.of();
     }
 
     public boolean ingestEnabled() {

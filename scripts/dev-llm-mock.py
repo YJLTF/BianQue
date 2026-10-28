@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """开发用假 OpenAI Chat Completions 端点（内网演示/E2E 用）。
 用法: python scripts/dev-llm-mock.py [port]   # 默认 8901
-行为: POST /v1/chat/completions → 回显诊断风格的固定回复（含 reasoning_content 思考过程）。
+行为: POST /v1/chat/completions
+  - body.stream=false/缺省 → 一次性 JSON 回复（含 reasoning_content 思考过程）
+  - body.stream=true       → SSE 流式：先思考增量、再回答增量、末帧 usage + [DONE]
 """
 import json
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8901
@@ -25,11 +28,15 @@ REPLY = """**结论**：old gen 水位 87% 且 Full GC 计数上升，属于堆�
 
 REASONING = "先看内存各分区水位 → 发现 old gen 超阈值；再看线程状态分布 → 大量等待连接池；二者结合判断为下游连接池打满导致的堆压力，暂无泄漏证据。"
 
+SSE_TAIL = "\n\n"
+
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(n) or b"{}")
+        if body.get("stream"):
+            return self.do_stream(body)
         out = {
             "choices": [{
                 "message": {
@@ -47,6 +54,31 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def do_stream(self, body):
+        """SSE 流式：reasoning_content 先流出，再流 content，末帧带 usage + [DONE]。"""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+
+        def frame(delta):
+            return "data: " + json.dumps({"choices": [{"delta": delta}]}, ensure_ascii=False) + SSE_TAIL
+
+        for ch in REASONING:
+            self.wfile.write(frame({"role": "assistant", "reasoning_content": ch}).encode("utf-8"))
+            self.wfile.flush()
+            time.sleep(0.012)
+        for ch in REPLY:
+            self.wfile.write(frame({"content": ch}).encode("utf-8"))
+            self.wfile.flush()
+            time.sleep(0.004)
+        tail = {"choices": [{"delta": {}}],
+                "usage": {"prompt_tokens": 1234, "completion_tokens": 289},
+                "model": body.get("model", "mock-diag")}
+        self.wfile.write(("data: " + json.dumps(tail, ensure_ascii=False) + SSE_TAIL).encode("utf-8"))
+        self.wfile.write(b"data: [DONE]" + SSE_TAIL.encode("ascii"))
+        self.wfile.flush()
 
     def log_message(self, fmt, *args):
         print("[mock-llm]", fmt % args)

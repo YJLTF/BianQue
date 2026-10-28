@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * 执行通道装配：
- * - 拟真通道恒在（模拟靶场实例）；
+ * - 拟真通道（模拟靶场）仅演示模式装配（bianque.demo-enabled=true）；
  * - 本机真实通道按 bianque.execution.local-enabled 开关装配（生产建议关闭），
  *   内含常驻会话快路径（HTTP 直连 agent）与一次性 boot 兜底。
  */
@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Configuration;
 public class ExecutorConfig {
 
     @Bean
+    @ConditionalOnProperty(name = "bianque.demo-enabled", havingValue = "true", matchIfMissing = true)
     public MockDiagExecutor mockDiagExecutor() {
         return new MockDiagExecutor();
     }

@@ -2,6 +2,26 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 功能 · 生产去演示化 / 显示名与用户删除 / AI 流式与思考强度（本次）
+
+- **生产模式**（`BIANQUE_DEMO_ENABLED=false`，prod compose 默认）：不注入模拟靶场实例/种子告警、
+  不创建演示账号 ops/viewer，拟真通道不装配；admin 由 `BIANQUE_ADMIN_PASSWORD` 引导
+  （仅 admin 不存在时生效一次，缺省拒绝启动防锁死）；历史演示账号在「管理设置」可删除
+- **显示名**：侧边栏点击显示名自助修改（`PUT /api/auth/profile`，登录态即时刷新）；
+  管理员可对任意账号改名（`POST /api/admin/users/{u}/display-name`）；
+  新增用户删除（内置 admin 与当前登录账号保护）
+- **AI 问诊流式**：新增 `POST /api/llm/chat/stream`（SSE）——思考过程（reasoning_content）与
+  回答增量实时下发，`X-Accel-Buffering: no` 防反代缓冲；前端 fetch 流式渲染，
+  思考面板自动展开/收起，done 事件汇总 tokens/refs
+- **会话级思考强度**：提问框下方 ZCode 式 默认/关/低/中/高 快捷切换（本地记忆），
+  请求级覆盖接入配置默认档；非法等级 400
+- **推理参数映射**：接入配置新增 reasoningParams（JSON）——按思考强度深度覆盖请求体参数
+  （如 `{"off":{"thinking":{"type":"disabled"}}}`），适配非 OpenAI 风格推理开关；
+  保存时校验，未映射等级回退内置形态
+- 测试 34 → 40（请求级思考强度/参数映射/SSE 流式/显示名与删除/生产模式隔离），全绿
+- 杂项：vite 代理目标支持 `BQ_API_TARGET` 覆盖；dev-llm-mock 支持 stream=true SSE 演示
+
+
 ## v1.0.0 · 首个正式版（6bf0a9e 之后）
 
 - **版本统一 1.0.0**：四模块 pom 0.1.0-SNAPSHOT → 1.0.0、web package.json、构建产物名与

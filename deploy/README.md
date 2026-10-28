@@ -55,6 +55,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 | `WEB_PORT` | 80 | 前端对外端口 |
 | `PROBE_NAME` | hostname | `--profile probe` 演示节点显示名 |
 | `PROBE_INTERVAL` | 5 | `--profile probe` 演示节点心跳间隔（秒） |
+| `BIANQUE_DEMO_ENABLED` | 服务端演示模式开关；prod 默认 `false`：无模拟靶场/种子告警/演示账号 | 否（生产建议 false） |
+| `BIANQUE_ADMIN_PASSWORD` | 生产模式引导 admin 初始口令（仅 admin 不存在时生效一次）；演示模式无需 | 生产模式必填 |
 
 **验证**：
 

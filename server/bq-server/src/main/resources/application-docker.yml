@@ -13,3 +13,9 @@ spring:
     redis:
       host: redis
       port: 6379
+
+bianque:
+  # 演示模式开关与引导 admin 口令：由 compose/env 注入（生产 .env 设 BIANQUE_DEMO_ENABLED=false + BIANQUE_ADMIN_PASSWORD）
+  demo-enabled: ${BIANQUE_DEMO_ENABLED:true}
+  admin:
+    password: ${BIANQUE_ADMIN_PASSWORD:}

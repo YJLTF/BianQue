@@ -20,10 +20,12 @@
       </el-menu>
       <div class="footer">
         <el-avatar :size="30" class="avatar">{{ auth.displayName.slice(0, 1) }}</el-avatar>
-        <div class="who">
-          <span class="name">{{ auth.displayName }}</span>
-          <span class="role">{{ auth.roleName }}</span>
-        </div>
+        <el-tooltip content="点击修改显示名" placement="top">
+          <div class="who" style="cursor: pointer" @click="renameSelf">
+            <span class="name">{{ auth.displayName }}</span>
+            <span class="role">{{ auth.roleName }}</span>
+          </div>
+        </el-tooltip>
         <el-tooltip content="退出登录" placement="top">
           <el-button link class="logout" @click="logout">
             <el-icon :size="16"><SwitchButton /></el-icon>
@@ -56,11 +58,12 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { navItems } from "@/config/nav";
 import { useAuthStore } from "@/stores/auth";
 
 const APP_VERSION = __APP_VERSION__;
-import { http } from "@/api/http";
+import { http, errMsg } from "@/api/http";
 import GlobalSearch from "@/components/GlobalSearch.vue";
 
 const route = useRoute();
@@ -77,6 +80,23 @@ function onGlobalKey(e: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener("keydown", onGlobalKey));
 onUnmounted(() => window.removeEventListener("keydown", onGlobalKey));
+
+async function renameSelf() {
+  try {
+    const { value } = await ElMessageBox.prompt("设置新的显示名（1–32 个字符）", "修改显示名", {
+      inputValue: auth.displayName,
+      inputPattern: /^\S.{0,31}$/,
+      inputErrorMessage: "显示名需 1–32 个字符",
+      confirmButtonText: "保存",
+      cancelButtonText: "取消",
+    });
+    const out = await http.put("/auth/profile", { displayName: value }) as unknown as { displayName: string };
+    auth.setDisplayName(out.displayName);
+    ElMessage.success("显示名已更新");
+  } catch (e) {
+    if (e !== "cancel" && e !== "close") ElMessage.error(errMsg(e));
+  }
+}
 
 async function logout() {
   try {

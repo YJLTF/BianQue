@@ -57,8 +57,33 @@ class DiagServiceTest {
     }
 
     private final MemAuditTrail audit = new MemAuditTrail();
-    private final DiagService service = new DiagService(new MockDiagExecutor(),
-            emptyLocalProvider(), stubAgentExecutor(), audit, new com.bianque.server.repo.FleetRepository(null), 30);
+    private final DiagService service = new DiagService(providerOf(new MockDiagExecutor()),
+            emptyLocalProvider(), stubAgentExecutor(), audit, new com.bianque.server.repo.FleetRepository(null, true), 30);
+
+    /** 测试装配：拟真通道恒可用（演示模式语义） */
+    private static <T> org.springframework.beans.factory.ObjectProvider<T> providerOf(T value) {
+        return new org.springframework.beans.factory.ObjectProvider<>() {
+            @Override
+            public T getObject() {
+                return value;
+            }
+
+            @Override
+            public T getObject(Object... args) {
+                return value;
+            }
+
+            @Override
+            public T getIfAvailable() {
+                return value;
+            }
+
+            @Override
+            public T getIfUnique() {
+                return value;
+            }
+        };
+    }
 
     /** 测试装配：Agent 通道不参与本单测（仅 mock 路由），用匿名子类桩替代 */
     private static com.bianque.server.agent.AgentChannelExecutor stubAgentExecutor() {

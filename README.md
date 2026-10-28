@@ -86,15 +86,19 @@ cp server/bq-agent/target/bq-agent.jar agents/                    # 本机演示
 cd web && npm install && npm run dev                              # http://localhost:5173
 ```
 
-**演示账号**（首次启动自动种子）：
+**演示模式与生产模式**（`BIANQUE_DEMO_ENABLED`，prod compose 默认 `false`）：
 
-| 账号 | 口令 | 角色 |
+- **演示模式 true**：首次启动种演示账号 + 模拟靶场实例/种子告警/拟真通道，开箱即可演练；
+- **生产模式 false**：不建靶场、不种演示账号，实例只来自真实探针/本机纳管；
+  admin 账号由 `BIANQUE_ADMIN_PASSWORD` 引导（仅 admin 不存在时生效一次，必须设置否则拒绝启动）；
+  历史演示账号（ops/viewer）可在「管理设置 → 用户与角色」删除。
+
+| 场景 | 演示模式（true） | 生产模式（false） |
 |------|------|------|
-| admin | admin123 | ADMIN（全量 + 用户管理） |
-| ops | ops123 | OPERATOR（诊断执行 + 只读） |
-| viewer | viewer123 | VIEWER（只读） |
+| 账号 | admin/admin123、ops/ops123、viewer/viewer123 | 仅 admin（口令来自 BIANQUE_ADMIN_PASSWORD） |
+| 实例/告警 | 模拟靶场 + 种子告警 | 仅真实探针上报 |
 
-> 仅限内网演示，上线前请修改口令并在「管理设置」管理真实用户。
+> 演示口令仅限内网演示。登录后可在侧边栏点击显示名改名；管理员在「管理设置」增删用户、改显示名。
 
 ## 版本升级与数据
 
