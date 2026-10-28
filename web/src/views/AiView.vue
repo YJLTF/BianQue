@@ -4,7 +4,7 @@
       <el-card shadow="never" class="cfg-card" :class="{ folded: !configOpen }">
         <template #header>
           <div class="cfg-head" @click="toggleCfg" title="点击展开 / 折叠">
-            <span class="cfg-title">模型接入（OpenAI Chat Completions 兼容）</span>
+            <span class="cfg-title">模型接入</span>
             <span class="cfg-sum">
               <el-tag size="small" :type="cfg.configured ? 'success' : 'warning'" effect="plain">
                 {{ cfg.configured ? "已配置" : "未配置" }}
@@ -20,7 +20,7 @@
         <el-alert v-if="!isAdmin" type="info" :closable="false" show-icon style="margin-bottom: 12px"
                   title="当前为只读视图：仅管理员可修改配置与测试连通" />
         <el-form label-position="top" size="small">
-          <el-form-item label="Base URL（不含 /chat/completions 尾巴）">
+          <el-form-item label="服务地址 Base URL">
             <el-input v-model="cfg.baseUrl" :disabled="!isAdmin" placeholder="https://api.openai.com/v1 或内网网关地址" />
           </el-form-item>
           <el-form-item label="API Key">
@@ -30,18 +30,18 @@
           <el-form-item label="模型名">
             <el-input v-model="cfg.model" :disabled="!isAdmin" placeholder="gpt-4o / o4-mini / deepseek-chat / glm-4.7 …" />
           </el-form-item>
-          <el-form-item label="思考强度（reasoning_effort，推理模型专用）">
+          <el-form-item label="思考强度（推理模型生效）">
             <el-select v-model="cfg.reasoningEffort" :disabled="!isAdmin" style="width: 100%">
               <el-option v-for="o in efforts" :key="o.v" :value="o.v" :label="o.l" />
             </el-select>
             <div class="hint" v-if="cfg.reasoningEffort !== 'OFF'">
-              推理模式：自动省略 temperature / top_p，max_tokens 以 max_completion_tokens 承载
+              推理模式下自动省略 temperature / top_p
             </div>
           </el-form-item>
-          <el-form-item label="温度 temperature（0–2）">
+          <el-form-item label="温度 temperature">
             <el-slider v-model="cfg.temperature" :min="0" :max="2" :step="0.1" :disabled="!isAdmin || cfg.reasoningEffort !== 'OFF'" />
           </el-form-item>
-          <el-form-item label="top_p（0–1）">
+          <el-form-item label="top_p">
             <el-slider v-model="cfg.topP" :min="0" :max="1" :step="0.05" :disabled="!isAdmin || cfg.reasoningEffort !== 'OFF'" />
           </el-form-item>
           <el-row :gutter="10">
@@ -56,7 +56,7 @@
               </el-form-item>
             </el-col>
           </el-row>
-          <el-form-item label="系统提示词（人设与输出规范）">
+          <el-form-item label="系统提示词">
             <el-input v-model="cfg.systemPrompt" type="textarea" :rows="7" :disabled="!isAdmin" />
             <div class="row" style="margin-top:6px">
               <el-button size="small" text type="primary" :disabled="!isAdmin" @click="cfg.systemPrompt = DEFAULT_PROMPT">
@@ -79,7 +79,7 @@
     </el-col>
 
     <el-col :span="configOpen ? 14 : 24">
-      <el-card shadow="never" header="AI 问诊 · Diag Copilot（对话式排障）" class="chat-card"
+      <el-card shadow="never" header="AI 问诊 · 对话式排障" class="chat-card"
                :class="{ 'full-mode': !configOpen }">
         <div class="chat" ref="chatBox">
           <div v-for="(m, i) in msgs" :key="i" class="msg" :class="m.role === 'user' ? 'u' : 'a'">
@@ -99,11 +99,11 @@
             <div class="hint" style="margin-top:4px">推理模型在复杂分析上可能需要 30s 以上</div>
           </div>
           <el-empty v-if="!msgs.length && !pending" :image-size="60"
-                    description="向诊断助手提问：粘贴线程栈 / 内存水位 / 告警信息，或直接描述现象" />
+                    description="粘贴线程栈 / 内存水位 / 告警信息，或直接描述现象" />
         </div>
 
         <el-collapse style="margin-top:8px">
-          <el-collapse-item title="附加诊断上下文（可选：粘贴 thread / memory / jvm 输出）" name="ctx">
+          <el-collapse-item title="附加诊断上下文（可粘贴诊断命令输出）" name="ctx">
             <el-input v-model="context" type="textarea" :rows="5" placeholder="把诊断台的真实命令输出粘贴到这里，助手将结合它分析" />
           </el-collapse-item>
         </el-collapse>
@@ -139,11 +139,11 @@ const DEFAULT_PROMPT = `你是扁鹊（BianQue）平台的线上 JVM 诊断助�
 4) 使用简体中文，简洁分点。`;
 
 const efforts = [
-  { v: "OFF", l: "关闭（普通对话模型）" },
-  { v: "MINIMAL", l: "minimal · 最快" },
-  { v: "LOW", l: "low · 低" },
-  { v: "MEDIUM", l: "medium · 中" },
-  { v: "HIGH", l: "high · 深度思考" },
+  { v: "OFF", l: "关闭（普通对话）" },
+  { v: "MINIMAL", l: "minimal（最快）" },
+  { v: "LOW", l: "low（较低）" },
+  { v: "MEDIUM", l: "medium（中等）" },
+  { v: "HIGH", l: "high（深度思考）" },
 ];
 
 const cfg = ref<LlmConfigVO & { apiKeyDraft: string }>({

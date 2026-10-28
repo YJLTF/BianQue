@@ -34,7 +34,7 @@
           {{ a.label }}
         </el-button>
       </div>
-      <p class="tip">登录即接受审计：所有诊断操作将记录操作人并进入防篡改哈希链。</p>
+      <p class="tip">登录即同意审计：所有操作记录操作人，并纳入防篡改链。</p>
     </div>
   </div>
 </template>

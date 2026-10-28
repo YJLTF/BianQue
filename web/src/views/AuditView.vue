@@ -6,7 +6,7 @@
       </el-select>
       <el-input v-model="operator" placeholder="按操作人过滤…" style="width: 200px" clearable @input="debouncedLoad" />
       <el-button size="small" type="warning" plain :loading="verifying" @click="verify">校验哈希链</el-button>
-      <span class="sub">累计写入 {{ stats.inDb ?? 0 }} 条 · 追加写 · 哈希链防篡改</span>
+      <span class="sub">共 {{ stats.inDb ?? 0 }} 条 · 追加写 · 防篡改</span>
     </div>
     <el-alert
       v-if="verifyResult"

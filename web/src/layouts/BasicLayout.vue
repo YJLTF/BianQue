@@ -44,7 +44,7 @@
           prefix-icon="Search"
         />
         <el-tag type="success" effect="plain" round>生产环境 · 内网</el-tag>
-        <el-tag type="info" effect="plain" round>Agent 4.3.5</el-tag>
+        <el-tag type="info" effect="plain" round>Arthas 4.3.5</el-tag>
       </el-header>
       <el-main class="main">
         <RouterView />

@@ -44,10 +44,10 @@ const cards = computed(() => {
   const o = ov.value;
   const offline = o ? o.instanceCount - o.onlineCount : 0;
   return [
-    { label: "监护应用 / 实例", value: o ? `${o.appCount} / ${o.instanceCount}` : "-", desc: `纳管实例 · ${offline} 台离线`, icon: "Histogram", tone: "indigo" },
-    { label: "平均健康分", value: o ? o.avgHealth.toFixed(1) : "-", desc: "最近一次巡检", icon: "Odometer", tone: "jade" },
-    { label: "审计事件", value: String(o?.auditCount ?? "-"), desc: "全操作留痕 · 哈希链", icon: "Memo", tone: "amber" },
-    { label: "执行通道", value: o?.executionMode === "local" ? "as.sh 真实" : "拟真演示", desc: "按实例路由 · Agent 节点可见", icon: "Connection", tone: "violet" },
+    { label: "应用 / 实例", value: o ? `${o.appCount} / ${o.instanceCount}` : "-", desc: `${offline} 台离线`, icon: "Histogram", tone: "indigo" },
+    { label: "平均健康分", value: o ? o.avgHealth.toFixed(1) : "-", desc: "来自最近一次巡检", icon: "Odometer", tone: "jade" },
+    { label: "审计事件", value: String(o?.auditCount ?? "-"), desc: "操作留痕 · 防篡改", icon: "Memo", tone: "amber" },
+    { label: "执行通道", value: o?.executionMode === "local" ? "真实执行" : "演示模拟", desc: "按实例自动路由", icon: "Connection", tone: "violet" },
   ];
 });
 

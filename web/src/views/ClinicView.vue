@@ -14,7 +14,7 @@
           结束并重置
         </el-button>
       </el-card>
-      <el-card shadow="never" header="本机进程纳管（真实通道）" style="margin-top: 12px">
+      <el-card shadow="never" header="本机进程纳管" style="margin-top: 12px">
         <div v-if="localProcs.localEnabled">
           <div v-for="p in localProcs.processes" :key="p.pid" class="lproc">
             <code class="cmd">{{ p.mainClass }}</code>
@@ -23,20 +23,20 @@
                        :loading="attaching === p.pid" @click="attach(p.pid)">纳管</el-button>
             <el-tag v-else size="small" type="success" effect="plain">已纳管</el-tag>
           </div>
-          <div class="sub" style="margin-top: 6px">纳管后即可对其执行真实 Arthas 命令（免 telnet）</div>
+          <div class="sub" style="margin-top: 6px">纳管后可对其执行真实 Arthas 命令</div>
         </div>
-        <div v-else class="sub">本机纳管未启用（bianque.execution.local-enabled=false）</div>
+        <div v-else class="sub">本机纳管未启用（local-enabled=false）</div>
       </el-card>
     </el-col>
 
     <el-col :span="10">
-      <el-card shadow="never" header="场景模板（一键填充）">
+      <el-card shadow="never" header="场景模板">
         <el-space wrap>
           <el-tag v-for="t in templates" :key="t.label" class="tpl" type="info" effect="plain"
                   style="cursor: pointer" @click="applyTemplate(t)">{{ t.label }}</el-tag>
         </el-space>
       </el-card>
-      <el-card shadow="never" header="命令构建（所见即所执行）" style="margin-top: 12px">
+      <el-card shadow="never" header="命令构建" style="margin-top: 12px">
         <el-input v-model="command" type="textarea" :rows="3" placeholder="watch 类名 方法名 '{params,returnObj}' -n 100" />
         <div style="margin-top: 8px" class="row">
           <el-tag :type="risk.type" effect="plain">{{ risk.label }}</el-tag>
@@ -44,7 +44,7 @@
             执行诊断
           </el-button>
           <el-tag v-if="result && !blocked" size="small" :type="result.channel === 'real' ? 'success' : 'info'" effect="plain">
-            {{ result.channel === "real" ? "真实通道" : "拟真演示" }} · {{ result.costMs }}ms
+            {{ result.channel === "real" ? "真实执行" : "演示模拟" }} · {{ result.costMs }}ms
           </el-tag>
           <span class="sub">高危命令将被平台黑名单拦截并审计</span>
         </div>
@@ -52,12 +52,12 @@
       <el-card shadow="never" :header="resultHeader" style="margin-top: 12px">
         <el-alert v-if="blocked" type="error" :closable="false" :title="result?.error" show-icon />
         <pre v-else-if="result" class="out">{{ result.output }}</pre>
-        <el-empty v-else description="执行后在此查看结构化输出（原始输出全程可查）" :image-size="60" />
+        <el-empty v-else description="选择实例与命令，执行后在此查看输出" :image-size="60" />
       </el-card>
     </el-col>
 
     <el-col :span="9">
-      <el-card shadow="never" header="文档即命令（点击查看官方文档）">
+      <el-card shadow="never" header="命令速查">
         <el-table :data="cmdDocs" size="small" @row-click="goDoc">
           <el-table-column prop="slug" label="命令" width="100" />
           <el-table-column prop="risk" label="风险" width="140">
@@ -71,14 +71,14 @@
         </el-table>
       </el-card>
       <el-alert type="info" :closable="false" style="margin-top: 12px"
-                title="增强类命令（watch/trace 等）由平台强制限次限频；会话结束自动 reset+stop，防止增强残留" />
+                title="watch / trace 等增强命令已限次限频；会话结束自动 reset+stop，防增强残留" />
     </el-col>
   </el-row>
 
   <el-dialog v-model="confirmVisible" title="高危命令确认" width="440px">
     <p>该命令等价于在目标进程内执行任意代码：</p>
     <pre class="out">{{ command }}</pre>
-    <p style="color: var(--el-color-danger)">V0.1.0 平台策略：高危命令默认拦截，仅观测类命令放行。</p>
+    <p style="color: var(--el-color-danger)">平台策略：高危命令默认拦截，仅放行观测类命令。</p>
     <template #footer>
       <el-button @click="confirmVisible = false">取消</el-button>
       <el-button type="danger" @click="confirmVisible = false">知道了</el-button>
@@ -92,7 +92,7 @@ import { useRouter, useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { executeDiag, getInstances, getSession, closeSession, getLocalProcesses, attachLocalProcess,
          type DiagResultVO, type InstanceVO, type LocalProcessVO } from "@/api/diag";
-import { errMsg } from "@/api/http";
+import { http, errMsg } from "@/api/http";
 import { riskMeta, riskOfCommand, highRiskFamilies } from "@/config/risk";
 
 interface DocHit { slug: string; title: string; category: string; risk: string; path: string }
@@ -119,8 +119,8 @@ const managedPids = computed(() => new Set(
 const currentInstance = computed(() => instances.value.find((i) => i.instanceId === instanceId.value) ?? null);
 const resultHeader = computed(() => {
   const id = currentInstance.value?.instanceId ?? "";
-  if (id.startsWith("agent-")) return "执行结果（真实通道 · 平台 Agent）";
-  return currentInstance.value?.localAgent ? "执行结果（真实通道 · arthas-boot）" : "执行结果";
+  if (id.startsWith("agent-")) return "执行结果（Agent 通道）";
+  return currentInstance.value?.localAgent ? "执行结果（本机通道）" : "执行结果";
 });
 /** 下拉选项文案：Agent 节点实例标注通道来源 */
 function instanceLabel(i: InstanceVO) {
@@ -208,9 +208,13 @@ onMounted(async () => {
     ? fromQuery
     : instances.value.find((i) => i.online)?.instanceId ?? "";
   loadLocal();
-  const catalog = await fetch("/api/docs/catalog").then((r) => r.json());
-  cmdDocs.value = (catalog.pages ?? []).filter((p: DocHit) =>
-    ["thread", "memory", "jvm", "watch", "trace", "tt", "dashboard", "profiler", "sc"].includes(p.slug));
+  try {
+    const catalog = await http.get("/docs/catalog") as unknown as { pages: DocHit[] };
+    cmdDocs.value = (catalog.pages ?? []).filter((p: DocHit) =>
+      ["thread", "memory", "jvm", "watch", "trace", "tt", "dashboard", "profiler", "sc"].includes(p.slug));
+  } catch {
+    cmdDocs.value = [];
+  }
   await refreshSession();
   timer = window.setInterval(tick, 1000);
 });

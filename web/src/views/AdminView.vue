@@ -1,7 +1,7 @@
 <template>
   <el-row :gutter="12">
     <el-col :span="12">
-      <el-card shadow="never" header="安全基线（平台统一下发到 agent）">
+      <el-card shadow="never" header="安全基线">
         <el-descriptions :column="1" border size="small">
           <el-descriptions-item label="端口绑定">
             <el-tag size="small" type="success" effect="plain">127.0.0.1（仅本地）</el-tag>
@@ -24,13 +24,13 @@
           </el-descriptions-item>
         </el-descriptions>
       </el-card>
-      <el-card shadow="never" header="RBAC 权限矩阵（命令族 × 操作员）" style="margin-top: 12px">
+      <el-card shadow="never" header="权限矩阵（命令族 × 角色）" style="margin-top: 12px">
         <el-table :data="rbac" size="small">
           <el-table-column prop="family" label="命令族" min-width="220" />
           <el-table-column prop="access" label="操作员" width="120" />
         </el-table>
       </el-card>
-      <el-card shadow="never" header="用户与角色（RBAC 五表）" style="margin-top: 12px">
+      <el-card shadow="never" header="用户与角色" style="margin-top: 12px">
         <el-table :data="users" size="small" v-loading="usersLoading">
           <el-table-column prop="username" label="账号" width="80" />
           <el-table-column prop="displayName" label="姓名" width="120" />
@@ -52,16 +52,16 @@
       </el-card>
     </el-col>
     <el-col :span="12">
-      <el-card shadow="never" header="Agent 安装向导（Linux · systemd + tunnel 纳管）">
+      <el-card shadow="never" header="Agent 安装（Linux · systemd）">
         <pre class="out">{{ linux }}</pre>
         <el-button size="small" style="margin-top: 6px" @click="copy(linux)">复制</el-button>
       </el-card>
-      <el-card shadow="never" header="Agent 安装向导（Windows · as-service.bat 注册服务）" style="margin-top: 12px">
+      <el-card shadow="never" header="Agent 安装（Windows · 注册服务）" style="margin-top: 12px">
         <pre class="out">{{ win }}</pre>
         <el-button size="small" style="margin-top: 6px" @click="copy(win)">复制</el-button>
       </el-card>
-      <el-card shadow="never" header="MCP 个人版接入（零开发）" style="margin-top: 12px">
-        <code>http://127.0.0.1:8563/mcp</code>（STREAMABLE HTTP · Bearer Token · 29 个诊断工具）
+      <el-card shadow="never" header="MCP 接入" style="margin-top: 12px">
+        <code>http://127.0.0.1:8563/mcp</code>（Bearer 认证 · 29 个诊断工具）
         <el-button size="small" style="margin-left: 8px" @click="copy('http://127.0.0.1:8563/mcp')">复制端点</el-button>
       </el-card>
     </el-col>

@@ -8,7 +8,7 @@
             <span class="k">接入节点</span>
           </div>
           <div class="v">{{ list?.total ?? "-" }}</div>
-          <div class="d">部署于目标主机的 bq-agent（平台版）</div>
+          <div class="d">部署于目标主机</div>
         </el-card>
       </el-col>
       <el-col :span="8">
@@ -25,10 +25,10 @@
         <el-card shadow="never" class="stat">
           <div class="stat-top">
             <span class="tile amber"><el-icon><Cpu /></el-icon></span>
-            <span class="k">接管 JVM 进程</span>
+            <span class="k">纳管 JVM 进程</span>
           </div>
           <div class="v">{{ list?.processes ?? "-" }}</div>
-          <div class="d">心跳自动上报 · 诊断台可直接执行</div>
+          <div class="d">心跳自动上报 · 可直接诊断</div>
         </el-card>
       </el-col>
     </el-row>
@@ -87,12 +87,12 @@
         </el-table-column>
       </el-table>
       <el-empty v-if="list && !list.nodes.length"
-                description="尚无节点接入：按下方指引在目标主机启动 bq-agent" :image-size="70" />
+                description="尚无节点接入，按下方指引部署" :image-size="70" />
     </el-card>
 
-    <el-card shadow="never" header="节点接入指引（平台版 Agent）" style="margin-top: 12px">
+    <el-card shadow="never" header="节点接入指引" style="margin-top: 12px">
       <el-alert type="info" :closable="false" show-icon style="margin-bottom: 14px"
-                title="架构：Agent 部署在目标主机，纯出站 HTTP 与平台通信（默认 5s 心跳）——目标主机无需开放任何入站端口；命令经平台命令单下发，节点用 arthas attach 执行并回传。" />
+                title="Agent 部署在目标主机，仅出站 HTTP 通信（5s 心跳），主机无需开放入站端口；命令经平台命令单下发并回传结果。" />
       <div class="steps">
         <div v-for="(s, i) in install?.steps ?? []" :key="i" class="step">
           <span class="no">{{ i + 1 }}</span>

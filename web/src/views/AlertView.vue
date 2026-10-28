@@ -1,7 +1,7 @@
 <template>
   <el-row :gutter="12">
     <el-col :span="24" class="col-alerts">
-      <el-card shadow="never" header="活动告警（Webhook 接入：Prometheus / Grafana / Zabbix）">
+      <el-card shadow="never" header="活动告警（支持 Webhook 接入）">
         <el-table :data="alerts" size="small" v-loading="loading" class="alerts-table">
           <el-table-column label="时间" width="54">
             <template #default="{ row }">{{ hhmm(row.time) }}</template>
@@ -32,7 +32,7 @@
           </el-table-column>
         </el-table>
       </el-card>
-      <el-card shadow="never" header="告警接入（自有告警系统 · 通用接口，不绑定 IM）" style="margin-top: 12px">
+      <el-card shadow="never" header="告警接入" style="margin-top: 12px">
         <pre class="out"># 入站：自有告警系统推入（服务端配置 bianque.alerts.ingest-token 后开放）
 curl -X POST http://&lt;平台&gt;:8080/api/alerts/ingest \
   -H "X-Alert-Token: &lt;ingest-token&gt;" -H "Content-Type: application/json" \
@@ -60,7 +60,7 @@ curl -X POST http://&lt;平台&gt;:8080/api/alerts/ingest \
           <h4 class="h">线程 TOP</h4>
           <pre class="out">{{ report.threadTop.join("\n") }}</pre>
         </template>
-        <el-empty v-else description="点击「取证」：attach → thread → memory → jvm → 生成现场报告" :image-size="60" />
+        <el-empty v-else description="点击「取证」，自动采集并生成现场报告" :image-size="60" />
       </el-card>
     </el-col>
   </el-row>
@@ -93,7 +93,7 @@ async function rescue(alertId: string) {
   try {
     report.value = await http.post(`/alerts/${alertId}/rescue`) as unknown as RescueReport;
     alerts.value = await http.get("/alerts") as unknown as Alert[];
-    ElMessage.success("现场报告已生成并推送值班群（模拟）");
+    ElMessage.success("现场报告已生成");
   } catch (e) {
     ElMessage.error(errMsg(e));
   } finally {

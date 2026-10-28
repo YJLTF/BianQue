@@ -1,9 +1,9 @@
 <template>
   <div>
     <div class="row">
-      <el-tag type="primary" effect="plain">Arthas 4.3.5 官方文档 · 离线全站</el-tag>
-      <el-tag type="info" effect="plain">{{ total }} 页 · 中/EN · 版本锚定 /docs/4.3.5/</el-tag>
-      <el-input v-model="query" placeholder="搜索文档：标题 / 命令名 / 正文，如 watch、tunnel、mcp…" style="max-width: 380px; margin-left: auto"
+      <el-tag type="primary" effect="plain">Arthas 4.3.5 官方文档</el-tag>
+      <el-tag type="info" effect="plain">共 {{ total }} 页 · 中/EN</el-tag>
+      <el-input v-model="query" placeholder="搜索标题 / 命令 / 正文…" style="max-width: 380px; margin-left: auto"
                 clearable @input="onSearch" />
     </div>
 
@@ -37,7 +37,7 @@
             </div>
           </template>
           <iframe v-if="current" :src="iframeSrc" class="doc-frame" :key="current.path" title="文档正文" />
-          <el-empty v-else description="左侧选择文档；正文为离线托管的官方原版页面" :image-size="60" />
+          <el-empty v-else description="在左侧选择文档查看正文" :image-size="60" />
         </el-card>
       </el-col>
     </el-row>

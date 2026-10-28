@@ -3,10 +3,10 @@
     <el-col :span="14">
       <el-card shadow="never">
         <template #header>
-          <div class="row"><b>巡检体检</b>
+          <div class="row"><b>体检结果</b>
             <span v-if="avgScore" class="avg">平均健康分 <b>{{ avgScore }}</b> / {{ instanceCount }} 实例</span>
             <el-button size="small" type="primary" :loading="running" style="margin-left: auto" @click="run">
-              立即巡检（在线实例）
+              立即巡检
             </el-button>
           </div>
         </template>
@@ -31,10 +31,10 @@
       </el-card>
     </el-col>
     <el-col :span="10">
-      <el-alert type="info" :closable="false" title="巡检模板：jvm / memory / thread（只读命令集）· 阈值打分 · 结果落库"
-                description="S1 起每次巡检写入数据库，重启不丢；S2 规划：每日 02:00 错峰调度、趋势周报、企微推送" />
+      <el-alert type="info" :closable="false" title="只读命令集（jvm / memory / thread）按阈值打分，结果落库"
+                description="巡检结果持久化，重启不丢" />
       <el-card shadow="never" style="margin-top: 12px">
-        <template #header><b>运行历史（最近 20 次）</b></template>
+        <template #header><b>运行历史</b></template>
         <el-table :data="history" size="small" v-loading="historyLoading" max-height="360">
           <el-table-column label="时间" width="160">
             <template #default="{ row }">{{ fmt(row.runAt) }}</template>
