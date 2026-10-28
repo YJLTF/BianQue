@@ -10,7 +10,7 @@
         </svg>
         <div class="brand-text">
           <span class="name">扁鹊 BianQue</span>
-          <span class="sub">线上诊断平台 · Arthas 4.3.5</span>
+          <span class="sub">线上诊断平台 v{{ APP_VERSION }} · Arthas 4.3.5</span>
         </div>
       </div>
       <el-form @submit.prevent="submit">
@@ -44,6 +44,8 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import axios from "axios";
+
+const APP_VERSION = __APP_VERSION__;
 import { useAuthStore, type AuthUser } from "@/stores/auth";
 
 const router = useRouter();

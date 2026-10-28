@@ -1,171 +1,117 @@
-# 扁鹊 · BianQue — 基于 Arthas 4.3.5 的线上诊断平台
+# 扁鹊 · BianQue v1.0.0 — 基于 Arthas 4.3.5 的线上诊断平台
 
-> 望闻问切，线上无障。把"SSH → arthas-boot → 敲命令"变成"浏览器选应用 → 选场景 → 看结论"，并用安全壳管住 Arthas 的进程内任意代码执行能力。
+> 望闻问切，线上无障。把"SSH → arthas-boot → 敲命令"变成"浏览器选应用 → 选场景 → 看结论"，
+> 并用安全壳管住 Arthas 进程内任意代码执行能力。
 
-## 项目文档地图
+**版本**：v1.0.0（2026-10）· 引擎 Arthas 4.3.5 · 运行时 JRE 21 · 目标 JVM JDK 11+
 
-| 阶段 | 文档 | 位置 |
+## 核心能力
+
+- **真实诊断**：节点探针（纯 JDK 零依赖，出站 HTTP 心跳）纳管目标主机 JVM，命令单下发 →
+  arthas attach 执行 → 结果回传；本机纳管通道（免 telnet）覆盖单机场景；高危命令黑名单、
+  增强命令限次限频、会话 30 分钟自动回收（reset+stop 防增强残留）
+- **AI 问诊**：任何 OpenAI Chat Completions 兼容端点（含推理模型思考强度）；自动检索文档中心
+  78 页官方文档作知识库（Top-4 命中注入，引用可溯源）；密钥集中管理、每次对话审计留痕
+- **急诊取证**：外部告警 Webhook 接入（级别归一化）→ 一键生成现场报告
+- **巡检体检**：虚拟线程并行体检机队，健康分 + 扣分项，单实例失败弹性降级
+- **资产档案**：应用/实例/进程台账，批量 `sc -d` 扫描
+- **文档中心**：官方 78 页离线托管 + 全文搜索 + 深链
+- **安全底座**：登录认证 + RBAC 三角色、审计哈希链防篡改、探针/告警双令牌接入、密钥不出平台
+
+## 文档地图
+
+| 文档 | 内容 | 位置 |
 |---|---|---|
-| 调研 | Arthas 4.3.5 运维产品调研评估报告（产品机会矩阵、品牌体系、安全红线） | [docs/research/Arthas-4.3.5-运维产品调研评估报告.md](docs/research/Arthas-4.3.5-运维产品调研评估报告.md) |
-| 设计 | 产品设计方案 V1.0（架构 / 易用性 / 文档集成 / 安全可靠性 / 路线图） | [design/BianQue-产品设计方案-v1.0.md](design/BianQue-产品设计方案-v1.0.md) |
-| 设计 | 可交互界面原型（8 类界面，含文档中心） | [design/BianQue-界面原型-离线版.html](design/BianQue-界面原型-离线版.html) |
-| 选型 | 技术选型 V1.0（前端 / 后端 / 存储 / 纳管 / MCP / 部署） | [plan/BianQue-技术选型-v1.0.md](plan/BianQue-技术选型-v1.0.md) |
-| 计划 | 开发计划 V1.0（S0–S5 里程碑 / 人力 / 验收门禁 / 风险；S6/S7 按迭代追加，见变更记录） | [plan/BianQue-开发计划-v1.0.md](plan/BianQue-开发计划-v1.0.md) |
-| 迭代 | 变更记录（S0→S8 每迭代交付与实测数据） | [CHANGELOG.md](CHANGELOG.md) |
-| 验收 | 验收清单（S1–S7，【自动】/【手动】逐项核对） | [ACCEPTANCE.md](ACCEPTANCE.md) |
-| 部署 | 一键全容器部署 + 节点探针安装（Docker/systemd/Windows） | [deploy/README.md](deploy/README.md) |
+| **部署指南** | 一键部署 / 离线交付包 / 节点探针（Docker・systemd・Windows） | [deploy/README.md](deploy/README.md) |
+| **使用指南** | 角色权限、十页导览、典型工作流、AI/MCP 接入、FAQ | [docs/USAGE.md](docs/USAGE.md) |
+| 变更记录 | S0→S8 迭代与 v1.0.0 发布记录（每项含实测数据） | [CHANGELOG.md](CHANGELOG.md) |
+| 验收清单 | S1–S7 【自动】/【手动】逐项核对 | [ACCEPTANCE.md](ACCEPTANCE.md) |
+| 产品设计 | 产品方案 / 界面原型 / 技术选型 / 开发计划 | [design/](design/)、[plan/](plan/) |
+| 调研报告 | Arthas 4.3.5 运维产品调研评估 | [docs/research/](docs/research/) |
 
 ## 目录结构
 
 ```
 bianque/
-├── README.md                    # 本文件：导览（快速开始 / 迭代能力 / 红线与边界）
-├── CHANGELOG.md                 # S0→S7 每迭代交付记录
-├── ACCEPTANCE.md                # 验收清单（【自动】= smoke/测试覆盖；【手动】= 浏览器核对）
-├── materials/                   # 原始发行物（只读物料）
-│   ├── arthas-packaging-4.3.5-bin.zip     # Arthas 官方二进制包（探针/引擎来源）
-│   └── arthas-packaging-4.3.5-doc.zip     # Arthas 官方文档包（文档中心来源）
+├── README.md                    # 本文件：导览（能力 / 快速开始 / 红线与边界）
+├── CHANGELOG.md                 # 迭代与发布记录
+├── ACCEPTANCE.md                # 验收清单
+├── materials/                   # 原始发行物（只读物料：Arthas bin/doc 包）
 ├── docs/
-│   ├── research/
-│   │   ├── Arthas-4.3.5-运维产品调研评估报告.md
-│   │   └── arthas-inspect/      # 发行包解包取证材料（调研实证，报告引用）
-│   └── arthas-docs/
-│       └── 4.3.5/               # 文档包解包产物（文档中心管线输入，版本锚定）
-├── design/                      # 产品设计交付物
-│   ├── BianQue-产品设计方案-v1.0.md
-│   ├── BianQue-界面原型-离线版.html
-│   └── arthas-docs-manifest.json          # 78 页文档清单（slug/分类/风险等级）
-├── plan/                        # 技术选型与开发计划
-├── server/                      # 后端：Spring Boot 3 多模块（bq-core / bq-server / bq-agent）
-│   └── bq-agent/                # 平台版 Agent（S6）：纯 JDK 零依赖，部署在目标主机
-├── web/       （S0 已建骨架）    # 前端：Vue 3 + TS + Vite + Element Plus
-├── docs-center/（阶段 2 创建）   # 文档中心构建管线（Python）
-├── deploy/                      # 部署：一键全容器编排（prod）、节点探针镜像/安装器（见 deploy/README.md）
-└── scripts/                     # 开发脚本（start-all / smoke / dev-llm-mock）+ 说明
+│   ├── USAGE.md                 # 使用指南
+│   ├── research/                # 调研报告 + 发行包解包取证 + arthas-boot.jar/math-game.jar
+│   └── arthas-docs/4.3.5/       # 文档中心源（78 页，随 server 镜像分发）
+├── design/ plan/                # 设计与计划交付物（含 78 页文档清单 manifest）
+├── server/                      # 后端 Spring Boot 3 多模块
+│   ├── bq-core/                 #   命令白名单 / as.sh 命令行构建
+│   ├── bq-server/               #   平台服务（API/审计/RBAC/巡检/AI/文档中心）
+│   └── bq-agent/                #   节点探针（纯 JDK 11+ 零依赖，finalName=bq-agent.jar）
+├── web/                         # 前端 Vue 3 + TS + Vite + Element Plus
+├── deploy/                      # 部署：compose（prod/dev）、三份 Dockerfile、探针安装器、.env.example
+│   └── probe/install.sh         #   裸机 systemd 安装器
+├── docs-center/                 # 文档构建管线（S0 产物 search-index；现由服务端 DocsService 全文检索接管）
+└── scripts/                     # 开发脚本：start-all.bat / smoke.sh / dev-llm-mock.py
 ```
 
-## 快速开始（V0.1.x · S8 一键部署镜像已就位）
+## 快速开始
 
 **① 全容器一键部署（生产/演示服务器，只需 Docker）**：
 
 ```bash
 cd deploy
-AGENT_TOKEN=<强随机令牌> docker compose -f docker-compose.prod.yml up -d --build
-# 浏览器打开 http://<主机>/（首次构建 5~15 分钟；探针部署与详细说明见 deploy/README.md）
+cp .env.example .env            # 按需修改令牌/密码/LLM（生产必改 AGENT_TOKEN）
+docker compose -f docker-compose.prod.yml up -d --build
+# 浏览器打开 http://<主机>/ ；首次构建 5~15 分钟，详见 deploy/README.md
 ```
 
-**② 宿主机直跑（开发模式）**：
+**② 离线部署（已有交付包，目标机无需构建）**：
 
 ```bash
-# 一键全栈（Windows）：起 MySQL/Redis → 构建三模块 → 起后端 → 起本机演示节点 → 起前端
-scripts\start-all.bat
-
-# 或分步：
-# 0. 基础设施（推荐，S3 起默认路径）：MySQL 8.4 + Redis 7.4
-docker compose -f deploy/docker-compose.yml up -d mysql redis
-
-# 1. 后端 —— 必须在仓库根目录启动（文档目录按相对路径解析）
-cd server && mvn -B package && cd ..
-#    生产/联调模式：数据落 MySQL、登录态存 Redis（重启不掉登录态、纳管关系保留）
-java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar --spring.profiles.active=mysql
-#    或轻量演示模式（H2 文件库 + 内存登录态，无需 Docker）：
-#    java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar
-
-# 2. 平台 Agent 节点（拷贝至 agents/ 供 /api/agent/download 分发，也可分发到其他主机）
-cp server/bq-agent/target/bq-agent.jar agents/
-java -jar agents/bq-agent.jar --server http://平台地址:8080 \
-     --token <bianque.agent.token> --arthas docs/research/arthas-inspect/arthas-boot.jar
-
-# 3. 前端（开发模式，/api 与 /docs 代理到 8080）
-cd web && npm install && npm run dev                             # http://localhost:5173
+docker load -i bianque-images-1.0.0.tar.gz   # 含 server/web/probe/mysql/redis 五镜像
+cd deploy && cp .env.example .env && docker compose -f docker-compose.prod.yml up -d
 ```
 
-登录账号（首次启动自动种子，RBAC 五表：users/roles/permissions/user_roles/role_permissions）：
+**③ 开发模式（宿主机直跑）**：
 
-| 账号 | 口令 | 角色 | 权限 |
-|------|------|------|------|
-| admin | admin123 | ADMIN（管理员） | 全量（含用户管理） |
-| ops | ops123 | OPERATOR（运维） | 只读 + 执行诊断/巡检/取证/扫描 |
-| viewer | viewer123 | VIEWER（只读） | 仅浏览，写操作返回 403 |
+```bash
+# 一键全栈（Windows）：scripts\start-all.bat
+# 或分步：
+docker compose -f deploy/docker-compose.yml up -d mysql redis     # 基础设施
+cd server && mvn -B package && cd ..
+java -jar server/bq-server/target/bq-server-1.0.0.jar --spring.profiles.active=mysql
+java -jar docs/research/arthas-inspect/math-game.jar              # 演示靶场进程
+cp server/bq-agent/target/bq-agent.jar agents/                    # 本机演示节点（可选）
+cd web && npm install && npm run dev                              # http://localhost:5173
+```
 
-S1 可用能力（在 V0.1.0 八大功能流之上新增）：
+**演示账号**（首次启动自动种子）：
 
-- **登录认证与 RBAC**：登录页签发 token（默认 8h 滑动过期），/api/** 全量鉴权（登录与探活除外），
-  写操作需 `diag:execute`，用户管理仅 ADMIN；前端路由守卫 + axios 自动携带 token + 401 自动跳登录。
-- **审计哈希链防篡改**：每条审计 `hash = sha256(记录内容 + prevHash)`，首条创世；审计中心一键
-  "校验哈希链"，任何记录被篡改即断链可检（`GET /api/audit/verify`）。
-- **持久化（H2 → MySQL 可切换）**：审计、巡检运行、急诊报告落库（默认 H2 文件库 MODE=MySQL，
-  数据在 `./data/`）；生产切换 `--spring.profiles.active=mysql`（见 deploy/docker-compose.yml）。
-  巡检结果重启不丢，`/api/checkup/history` 可回看最近 20 次。
-- **真实操作人审计**：所有诊断动作记录登录账号（不再是演示账号）。
+| 账号 | 口令 | 角色 |
+|------|------|------|
+| admin | admin123 | ADMIN（全量 + 用户管理） |
+| ops | ops123 | OPERATOR（诊断执行 + 只读） |
+| viewer | viewer123 | VIEWER（只读） |
 
-**S7 AI 问诊接入 LLM（OpenAI Chat Completions 兼容）**：
-- 平台侧 LLM 接入（`com.bianque.server.llm`）：配置单例落库（`llm_config` 表），「AI 问诊」页在线编辑
-  免重启；api-key 只回传掩码（`***尾4位`），支持 env 预置（`BIANQUE_LLM_API_KEY`）；每次对话写审计哈希链。
-- 参数调节：模型名、temperature（0–2）、top_p、max_tokens、超时（3–600s）、
-  **思考强度 reasoning_effort**（关闭/minimal/low/medium/high）。推理模式自动按推理模型约束发参：
-  省略 temperature/top_p、max_tokens 以 `max_completion_tokens` 承载；关闭时按普通对话模型发采样参数。
-- 提示词输入：系统提示词（人设与输出规范）页内可编辑、一键恢复默认；支持多轮对话（携带最近 10 轮）
-  与「附加诊断上下文」（粘贴 thread/memory/jvm 输出供模型分析）。
-- 权限：配置读写/连通测试仅 `admin:user`；chat 走全局 `diag:execute` 门槛（viewer 不可消耗配额）。
-- 端点要求：任何 OpenAI Chat Completions 兼容服务（OpenAI / DeepSeek / GLM / Qwen / vLLM 内网网关均可），
-  Base URL 不含 `/chat/completions` 尾巴；内网演示可用 `python scripts/dev-llm-mock.py`（假端点）。
-- 设计边界：LLM 调用收敛在平台侧（密钥集中管理 + 全量审计），节点 Agent 保持零依赖瘦执行器不持有密钥。
+> 仅限内网演示，上线前请修改口令并在「管理设置」管理真实用户。
 
-**S6 平台版 Agent + 现代化 UI**：
-- 平台版 Agent（`server/bq-agent`）：部署在目标主机的独立节点程序（纯 JDK 11+，**零第三方依赖**），
-  纯出站 HTTP 与平台通信（默认 5s 心跳），**目标主机无需开放任何入站端口**。心跳自动上报本机 JVM
-  进程清单（attach API，异常回落 jps），平台侧自动转成机队实例（`agent-<节点>-<pid>`）；
-  诊断命令经 MySQL 命令单下发（原子领单、超时判死），节点用 arthas attach 执行并回传
-  （快路径直连 agent HTTP 毫秒级，实测冷 attach 2.8s / 热命令 265ms / 会话回收 40ms）。
-  节点侧按 PID 附加（免同名多进程歧义），子进程看门狗强杀杜绝挂起；空闲 30 分钟自动 stop。
-- 节点管理页（`/agents`）：节点清单（呼吸点在线状态/JDK/版本/心跳）、展开可见接管进程并可
-  一键"去诊断"、三步接入指引（下载命令/放置 arthas-boot.jar/启动命令，可复制）。
-  接入认证：`bianque.agent.token`（X-Agent-Token 头；空=开放，仅限内网演示，生产必配）。
-- 巡检弹性化：单实例执行失败/超时降级为扣分项（执行失败 -5 / 巡检超时 30 分兜底），不再拖垮整轮；
-  前端巡检调用放宽至 150s。
-- UI 现代化改造：全局设计系统（靛青主色 + 朱砂高危 + 苍绿健康，`web/src/styles/main.css` 设计令牌）、
-  墨蓝渐变侧栏 + 脉搏波 logo + 图标导航、卡片诊籍签/胶囊标签/深色终端输出面板、
-  登录页极光渐变 + 毛玻璃卡片、工作台图标磁贴统计卡。
+## 版本升级与数据
 
-**S4 常驻会话与告警接入**：
-- 常驻会话：纳管实例首次执行时 attach-only 建立常驻 agent，热命令（version/jvm/memory/thread）
-  直连 agent HTTP 端口毫秒级返回（实测 376~510ms，对比一次性通道 1.2~1.4s）；其余命令自动回落
-  一次性 boot 通道；会话回收/超时对真实实例执行真实 stop（卸载增强防残留）。
-- 告警接入（仅预留通用接口，不绑定企微/钉钉）：入站 `POST /api/alerts/ingest`（X-Alert-Token 认证，
-  `bianque.alerts.ingest-token` 配置后开放），事件落 MySQL `alert_event` 表；出站 `AlertNotifier` SPI
-  （实现 Bean 即插即用）+ 内置通用 Webhook（`bianque.alerts.webhook-url`），新告警/取证完成时推送 JSON。
-
-**S3 真库真缓存**：`--spring.profiles.active=mysql` 时数据落 MySQL 8.4（docker）、登录态存 Redis 7.4（滑动过期 8h）。
-实测收益：后端重启后 token 直接可用、已纳管实例自动恢复（免重新 attach）、审计哈希链跨重启完整校验。
-
-**S2 真实诊断闭环（免 telnet）**：诊断台"本机进程纳管"卡片可扫描本机 JVM（jps）并一键纳管，
-纳管实例自动路由到 arthas-boot.jar 纯 Java 通道（`java -jar arthas-boot.jar --select <主类> -c "<命令>"`，
-不依赖系统 telnet，内网禁 telnet 环境可用）；靶场实例继续走拟真通道。启动靶场演示进程：
-`java -jar docs/research/arthas-inspect/math-game.jar`。开关：`bianque.execution.local-enabled`（生产建议 false）。
-
-V0.1.0 基础能力保留：工作台总览、诊断台（模板/命令执行、高危黑名单拦截、会话 30 分钟托管）、
-急诊取证、巡检体检（虚拟线程并行+健康分）、档案扫描（批量 sc -d）、
-文档中心（Arthas 4.3.5 官方 78 页离线托管+全文搜索）、安全基线与 agent 安装向导。
-`bianque.execution.mode=local` 可切换本机 as.sh 真实执行。
-
-## 开发环境要求（规划）
-
-- 后端：JDK 21、Maven 3.9+；前端：Node 20+；管线/脚本：Python 3.12
-- 本地编排：Docker + Docker Compose（MySQL 8 / Redis 7 / MinIO / Nginx）
-- 诊断靶场：Docker 运行 `math-game.jar`（发行包自带演示程序，JDK 8/11/17/21 多版本）
+- 数据落 MySQL volume（审计/巡检/取证/用户/LLM 配置），升级镜像不丢；DDL 自动增量
+- 升级：改 `.env` 的 `BQ_VERSION` → `docker compose -f docker-compose.prod.yml up -d`（重新 build 同理）
+- 备份：`docker exec bq-mysql mysqldump -ubianque -p$BIANQUE_DB_PASSWORD bianque > backup.sql`
+- 部署校验：`curl http://<主机>/api/health` 返回 `{"app":"bianque-server","version":"1.0.0","status":"UP"}`
 
 ## 红线（所有阶段生效）
 
-默认绑定 `127.0.0.1`、强制认证、`disabledCommands` 黑名单、全操作审计、会话超时自动回收。发布门禁见产品设计方案 6.3。
+默认绑定 `127.0.0.1`、强制认证、`disabledCommands` 黑名单、全操作审计、会话超时自动回收。
+发布门禁见产品设计方案 6.3；仓库与镜像不含任何真实密钥，默认口令仅限内网演示。
 
-## 已知边界（S6 起）
+## 已知边界
 
-- **同一目标进程只应归属一个通道**：平台本机纳管通道与节点探针通道都能 attach 同一 JVM，
-  但 arthas 每 JVM 仅一个 agent——混用时后 attach 的端口不生效（表现为"attach 成功但端口未就绪"）。
-  生产建议：有探针覆盖的主机不再启用本机纳管；容器化部署时平台侧本机纳管自动关闭
-- 节点探针为串行 worker（同一节点同时执行一条命令）；大规模巡检时多节点天然并行，单节点内命令排队
-- 探针 Docker 形态仅在 Linux 主机可 attach 宿主 JVM（需 `--pid=host -v /tmp:/tmp`，且与目标 JVM 同用户）；
-  Windows 主机用裸机 `java -jar` 方式运行探针
-- `bianque.agent.token` 为空时节点接入开放，仅限内网演示；生产必配且与告警 ingest-token 区分
-- Windows 下控制台中文经 curl 发送为 GBK 会被服务端按 UTF-8 拒绝（400）——属测试手段问题，页面操作不受影响。
+- **同一目标进程只应归属一个通道**：arthas 每 JVM 仅一个 agent——本机纳管与节点探针混用时
+  后 attach 的端口不生效。生产建议：有探针覆盖的主机不再启用本机纳管（容器化部署自动关闭）
+- 节点探针为串行 worker（同一节点同时执行一条命令）；多节点天然并行
+- 探针 Docker 形态仅 Linux 主机可 attach 宿主 JVM（`--pid=host -v /tmp:/tmp` 且与目标 JVM 同用户）；
+  Windows 目标主机用裸机 `java -jar bq-agent.jar` 方式
+- `AGENT_TOKEN` 为空时节点接入开放，仅限内网演示；生产必配且与告警 `INGEST_TOKEN` 区分
+- AI 问诊文档知识库为检索注入（Top-4 命中片段），非向量库全量语义检索；冷门表述可能零命中

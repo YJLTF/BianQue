@@ -1,16 +1,29 @@
-# deploy（部署）
+# deploy（部署）· v1.0.0
 
-扁鹊平台三种部署形态：
+扁鹊平台部署形态：
 
 | 形态 | 适用 | 入口 |
 |---|---|---|
-| ① 平台全容器一键部署 | 生产/演示服务器（只需 Docker） | [`docker-compose.prod.yml`](docker-compose.prod.yml) |
+| ⓪ 离线交付包部署 | 目标机无构建条件（内网常用） | `dist/bianque-images-1.0.0.tar.gz` + 本目录 |
+| ① 平台全容器一键部署 | 生产/演示服务器（只需 Docker） | [`docker-compose.prod.yml`](docker-compose.prod.yml) + [`.env.example`](.env.example) |
 | ② 节点探针 · Docker | Linux 目标主机（推荐，与平台镜像同源） | [`Dockerfile.probe`](docker/Dockerfile.probe) |
 | ③ 节点探针 · 裸机 systemd | 已装 JDK 11+ 的 Linux 主机 | [`probe/install.sh`](probe/install.sh) |
 
 开发者在宿主机直跑后端/前端时，只需基础设施层 [`docker-compose.yml`](docker-compose.yml)（MySQL + Redis）。
+使用指南（页面操作/工作流/FAQ）见 [`docs/USAGE.md`](../docs/USAGE.md)。
 
 ---
+
+## ⓪ 离线交付包部署（无需构建）
+
+交付包随版本发布（构建机执行 `docker save` 导出，见根 README「发布交付」）：
+
+```bash
+docker load -i bianque-images-1.0.0.tar.gz    # 导入 bianque/server|web|probe:1.0.0 + mysql:8.4 + redis:7.4
+cd deploy
+cp .env.example .env                          # 按需修改（BQ_VERSION 保持 1.0.0；生产必改令牌/口令）
+docker compose -f docker-compose.prod.yml up -d   # 镜像已就位，无需 --build
+```
 
 ## ① 平台一键部署（全容器）
 
@@ -25,22 +38,27 @@
 
 ```bash
 cd deploy
-AGENT_TOKEN=换一个强随机令牌 docker compose -f docker-compose.prod.yml up -d --build
+cp .env.example .env                # 修改 AGENT_TOKEN 等配置（compose 自动读取）
+docker compose -f docker-compose.prod.yml up -d --build
 # 首次构建需联网拉取 Maven/npm 依赖，约 5~15 分钟；之后命中缓存秒级
 ```
 
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
+| `BQ_VERSION` | 1.0.0 | 平台镜像 tag（升级版本时同步修改；离线部署需先 load 对应镜像） |
 | `AGENT_TOKEN` | 空（开放） | 探针接入令牌（`X-Agent-Token`）。**生产必配**，与探针侧保持一致 |
 | `INGEST_TOKEN` | 空（关闭） | 告警接入令牌（`X-Alert-Token`），配置后外部告警系统可推入 `POST /api/alerts/ingest` |
-| `LLM_API_KEY` | 空 | AI 问诊 LLM 密钥预置（也可部署后在「AI 问诊」页填写，落库） |
+| `LLM_BASE_URL` | 空 | AI 问诊端点预置（OpenAI 兼容，不含 `/chat/completions` 尾巴；也可部署后在「AI 问诊」页填写） |
+| `LLM_API_KEY` | 空 | AI 问诊 LLM 密钥预置（落库存储、只回传掩码） |
 | `BIANQUE_DB_PASSWORD` | bianque123 | MySQL 业务账号密码（仅内网演示默认值） |
+| `MYSQL_ROOT_PASSWORD` | bianque_dev_only | MySQL root 密码（仅内网演示默认值） |
 | `WEB_PORT` | 80 | 前端对外端口 |
+| `PROBE_NAME` | hostname | `--profile probe` 演示节点显示名 |
 
 **验证**：
 
 ```bash
-curl http://<主机>/api/health                 # {"status":"UP"}
+curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.0.0","status":"UP",...}
 # 浏览器打开 http://<主机>/ → admin/admin123 → 节点管理页
 ```
 
@@ -49,8 +67,9 @@ curl http://<主机>/api/health                 # {"status":"UP"}
 - 容器化 server **自动关闭本机纳管通道**（`bianque.execution.local-enabled=false`）——容器内看不到宿主 JVM，
   真实诊断一律由目标主机探针回连提供；拟真靶场、审计、巡检、AI 问诊等全功能可用
 - 数据落 MySQL volume（`mysql-data`），重启/升级不丢；server 日志与临时文件在 `server-data` volume
-- 升级：`git pull && docker compose -f docker-compose.prod.yml up -d --build`（DDL 自动增量，向后兼容）
-- 备份：`docker exec bq-mysql mysqldump -ubianque -pbianque123 bianque > backup.sql`
+- 升级：修改 `.env` 的 `BQ_VERSION` → `docker compose -f docker-compose.prod.yml up -d --build`
+  （DDL 自动增量，向后兼容）
+- 备份：`docker exec bq-mysql sh -c "mysqldump -ubianque -p\$MYSQL_PASSWORD bianque" > backup.sql`
 - TLS：镜像内不做 TLS，生产建议外层 Nginx/网关统一终结 HTTPS 后反代到 `WEB_PORT`
 
 ## ② 节点探针 · Docker（Linux 主机推荐）
@@ -59,13 +78,13 @@ curl http://<主机>/api/health                 # {"status":"UP"}
 （JVM attach 依赖宿主 `/tmp` 下的 hsperfdata/attach socket），探针以 root 运行可附加 root 启动的 JVM：
 
 ```bash
-docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:latest .   # 或由 compose 构建
+docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:1.0.0 .   # 或由 compose 构建
 docker run -d --name bq-probe --restart unless-stopped \
   --pid=host -v /tmp:/tmp \
   -e SERVER_URL=http://<平台IP>:8080 \
   -e AGENT_TOKEN=<与平台一致的令牌> \
   -e PROBE_NAME=<节点显示名，默认取 hostname> \
-  bianque/probe:latest
+  bianque/probe:1.0.0
 ```
 
 同机快速体验（平台本身用 compose 部署时）：`docker compose -f docker-compose.prod.yml --profile probe up -d probe`

@@ -8,7 +8,7 @@
         </svg>
         <div class="brand-text">
           <span class="brand-name">扁鹊 BianQue</span>
-          <span class="brand-sub">线上诊断平台 · Arthas 4.3.5</span>
+          <span class="brand-sub">线上诊断平台 v{{ APP_VERSION }} · Arthas 4.3.5</span>
         </div>
       </div>
       <el-menu router :default-active="route.path" class="menu">
@@ -43,7 +43,7 @@
           <span class="s-kbd">Ctrl K</span>
         </div>
         <el-tag type="success" effect="plain" round>生产环境 · 内网</el-tag>
-        <el-tag type="info" effect="plain" round>Arthas 4.3.5</el-tag>
+        <el-tag type="info" effect="plain" round>v{{ APP_VERSION }} · Arthas 4.3.5</el-tag>
       </el-header>
       <GlobalSearch v-model="searchOpen" />
       <el-main class="main">
@@ -58,6 +58,8 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { navItems } from "@/config/nav";
 import { useAuthStore } from "@/stores/auth";
+
+const APP_VERSION = __APP_VERSION__;
 import { http } from "@/api/http";
 import GlobalSearch from "@/components/GlobalSearch.vue";
 

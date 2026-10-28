@@ -33,13 +33,14 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/Dockerfile.server
-    image: bianque/server:latest
+    image: bianque/server:${BQ_VERSION:-1.0.0}
     container_name: bq-server
     # 容器内无本机 JVM 可 attach：关闭本机纳管通道，真实诊断一律走节点探针
     command:
       - "--bianque.execution.local-enabled=false"
       - "--bianque.agent.token=${AGENT_TOKEN:-}"
       - "--bianque.alerts.ingest-token=${INGEST_TOKEN:-}"
+      - "--bianque.llm.base-url=${LLM_BASE_URL:-}"
     environment:
       BIANQUE_LLM_API_KEY: ${LLM_API_KEY:-}
     depends_on:
@@ -57,7 +58,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/Dockerfile.web
-    image: bianque/web:latest
+    image: bianque/web:${BQ_VERSION:-1.0.0}
     container_name: bq-web
     depends_on:
       - server
@@ -70,7 +71,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/Dockerfile.probe
-    image: bianque/probe:latest
+    image: bianque/probe:${BQ_VERSION:-1.0.0}
     container_name: bq-probe
     pid: "host"
     environment:

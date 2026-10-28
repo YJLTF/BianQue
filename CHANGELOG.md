@@ -2,6 +2,22 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## v1.0.0 · 首个正式版（6bf0a9e 之后）
+
+- **版本统一 1.0.0**：四模块 pom 0.1.0-SNAPSHOT → 1.0.0、web package.json、构建产物名与
+  Dockerfile/脚本引用同步；镜像 tag 版本化 `bianque/server|web|probe:1.0.0`（compose `BQ_VERSION` 可配）
+- **版本可观测**：`/api/health` 返回 `version` 字段（部署校验依据）；登录页与侧栏显示
+  v 版本号（vite define 注入 package.json，单一来源）
+- **配置模板化**：新增 `deploy/.env.example`（版本/令牌/LLM/口令/端口全量注释），
+  compose 支持 `LLM_BASE_URL`/`LLM_API_KEY` 预置；仓库与镜像不含任何真实密钥的约束保持不变
+- **文档整理**：根 README 重写（能力总览 / 文档地图 / 三种快速开始 / 红线与边界，
+  S1–S7 迭代流水账归档至本文件）；deploy/README 新增「离线交付包部署」形态与 .env 流程；
+  新增使用指南 [`docs/USAGE.md`](docs/USAGE.md)（角色权限 / 十页导览 / 三个典型工作流 / AI 与 MCP 接入 / FAQ）
+- **发布交付**：`dist/bianque-images-1.0.0.tar.gz`（server/web/probe/mysql/redis 五镜像 docker save 导出，
+  内网离线 `docker load` 即用）+ `dist/bianque-1.0.0/`（compose 配置、.env.example、探针 jar/安装器、
+  部署与使用指南副本）；交付物不入库（.gitignore dist/）
+- 后端测试 33 项全绿
+
 ## 功能 · AI 问诊接入文档知识库（检索增强）
 
 - **文档中心 78 页官方文档成为 AI 知识库**：`DocsService` 新增 `searchKnowledge`——问题提取检索词

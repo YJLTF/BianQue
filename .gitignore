@@ -35,3 +35,6 @@ agents/bq-agent.id
 
 # arthas 本机批处理输出目录（运行时生成）
 arthas-output/
+
+# ---- 发布交付物（构建产物，不入库） ----
+dist/

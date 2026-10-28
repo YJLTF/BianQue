@@ -1,6 +1,6 @@
 # 扁鹊节点探针镜像（多阶段：Maven 构建 bq-agent → JDK 运行）
 # 必须以 pid=host + /tmp 挂载运行才能 attach 宿主 JVM（Linux 主机）：
-#   docker run -d --pid=host -v /tmp:/tmp -e SERVER_URL=http://平台:8080 bianque/probe:latest
+#   docker run -d --pid=host -v /tmp:/tmp -e SERVER_URL=http://平台:8080 bianque/probe:${BQ_VERSION:-1.0.0}
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 COPY server/pom.xml ./

@@ -23,7 +23,7 @@ if not exist agents mkdir agents
 copy /y server\bq-agent\target\bq-agent.jar agents\bq-agent.jar >nul
 
 echo [3/5] 启动后端（MySQL+Redis 模式，端口 8080）...
-start "bq-server" /min "%JAVA_HOME%\bin\java" -jar server\bq-server\target\bq-server-0.1.0-SNAPSHOT.jar ^
+start "bq-server" /min "%JAVA_HOME%\bin\java" -jar server\bq-server\target\bq-server-1.0.0.jar ^
   --spring.profiles.active=mysql --bianque.alerts.ingest-token=%INGEST_TOKEN% --bianque.agent.token=%AGENT_TOKEN%
 
 echo [4/5] 启动本机演示节点 bq-agent（注册到平台，心跳上报 JVM 进程）...
