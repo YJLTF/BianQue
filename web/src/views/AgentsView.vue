@@ -34,7 +34,8 @@
     </el-row>
 
     <el-card shadow="never" header="接入节点" style="margin-top: 12px">
-      <el-table :data="list?.nodes ?? []" size="small">
+      <el-table :data="list?.nodes ?? []" size="small" row-key="agentId"
+                :expand-row-keys="expandedAgents" @expand-change="onExpandChange">
         <el-table-column type="expand">
           <template #default="{ row }">
             <div class="procs">
@@ -124,7 +125,13 @@ const router = useRouter();
 const list = ref<AgentListVO | null>(null);
 const install = ref<AgentInstallVO | null>(null);
 const loading = ref(true);
+const expandedAgents = ref<string[]>([]);
 let timer: number | undefined;
+
+/** 5s 轮询会整体替换数据；用受控展开键保持行的展开状态不丢 */
+function onExpandChange(row: { agentId: string }, expanded: { agentId: string }[]) {
+  expandedAgents.value = expanded.filter((r) => r).map((r) => r.agentId);
+}
 
 const stepLabels = ["下载节点程序", "放置 arthas-boot.jar", "启动 Agent（注册即上线）"];
 

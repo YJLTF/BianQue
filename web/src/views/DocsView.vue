@@ -2,7 +2,6 @@
   <div>
     <div class="row">
       <el-tag type="primary" effect="plain">Arthas 4.3.5 官方文档</el-tag>
-      <el-tag type="info" effect="plain">共 {{ total }} 页 · 中/EN</el-tag>
       <el-input v-model="query" placeholder="搜索标题 / 命令 / 正文…" style="max-width: 380px; margin-left: auto"
                 clearable @input="onSearch" />
     </div>
@@ -52,7 +51,6 @@ import { riskMeta } from "@/config/risk";
 
 interface DocHit { slug: string; title: string; category: string; risk: string; path: string; snippet: string }
 
-const total = ref(0);
 const all = ref<DocHit[]>([]);
 const query = ref("");
 const hits = ref<DocHit[]>([]);
@@ -102,9 +100,8 @@ function onSearch() {
 
 onMounted(async () => {
   try {
-    const data = await http.get("/docs/catalog") as unknown as { total: number; pages: DocHit[] };
+    const data = await http.get("/docs/catalog") as unknown as { pages: DocHit[] };
     all.value = data.pages ?? [];
-    total.value = data.total ?? all.value.length;
     currentCat.value = categories.value[0]?.name ?? "入门";
   } catch (e) {
     ElMessage.error("文档目录加载失败：" + errMsg(e));

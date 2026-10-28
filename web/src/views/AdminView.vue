@@ -30,73 +30,6 @@
           <el-table-column prop="access" label="操作员" width="120" />
         </el-table>
       </el-card>
-      <el-card shadow="never" header="用户与角色" style="margin-top: 12px">
-        <template #header>
-          <div class="card-hd">
-            <span>用户与角色</span>
-            <el-button v-if="canManage" size="small" type="primary" plain @click="createOpen = true">新增用户</el-button>
-          </div>
-        </template>
-        <el-table :data="users" size="small" v-loading="usersLoading">
-          <el-table-column prop="username" label="账号" width="90" />
-          <el-table-column prop="displayName" label="姓名" width="130" />
-          <el-table-column label="状态" width="80">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
-                {{ row.enabled ? "启用" : "停用" }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="角色" width="130">
-            <template #default="{ row }">
-              <el-select v-if="canManage" :model-value="row.roles?.[0]" size="small" style="width: 100%"
-                         :disabled="row.username === 'admin'" @change="(v: string) => changeRole(row, v)">
-                <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
-              </el-select>
-              <el-tag v-else size="small" effect="plain">{{ row.roles?.[0] ?? "-" }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="权限点" min-width="170">
-            <template #default="{ row }">
-              <el-tag v-for="p in row.permissions ?? []" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">
-                {{ p }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="canManage" label="操作" width="150">
-            <template #default="{ row }">
-              <el-button size="small" text type="primary" @click="resetPwd(row)">重置密码</el-button>
-              <el-button size="small" text :type="row.enabled ? 'danger' : 'success'"
-                         :disabled="row.username === 'admin'" @click="toggleEnabled(row)">
-                {{ row.enabled ? "停用" : "启用" }}
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-
-      <el-dialog v-model="createOpen" title="新增用户" width="420px">
-        <el-form label-width="80px">
-          <el-form-item label="账号">
-            <el-input v-model="form.username" placeholder="字母/数字/_/-，2–32 位" />
-          </el-form-item>
-          <el-form-item label="姓名">
-            <el-input v-model="form.displayName" placeholder="显示名称（可选）" />
-          </el-form-item>
-          <el-form-item label="初始密码">
-            <el-input v-model="form.password" type="password" show-password placeholder="至少 6 位" />
-          </el-form-item>
-          <el-form-item label="角色">
-            <el-select v-model="form.role" style="width: 100%">
-              <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
-            </el-select>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="createOpen = false">取消</el-button>
-          <el-button type="primary" :loading="creating" @click="createUser">创建</el-button>
-        </template>
-      </el-dialog>
     </el-col>
     <el-col :span="12">
       <el-card shadow="never" header="Agent 安装（Linux · systemd）">
@@ -113,6 +46,74 @@
       </el-card>
     </el-col>
   </el-row>
+
+  <el-card shadow="never" style="margin-top: 12px">
+    <template #header>
+      <div class="card-hd">
+        <span>用户与角色</span>
+        <el-button v-if="canManage" size="small" type="primary" plain @click="createOpen = true">新增用户</el-button>
+      </div>
+    </template>
+    <el-table :data="users" size="small" v-loading="usersLoading">
+      <el-table-column prop="username" label="账号" width="110" />
+      <el-table-column prop="displayName" label="姓名" min-width="140" />
+      <el-table-column label="状态" width="80">
+        <template #default="{ row }">
+          <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
+            {{ row.enabled ? "启用" : "停用" }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="角色" width="130">
+        <template #default="{ row }">
+          <el-select v-if="canManage" :model-value="row.roles?.[0]" size="small" style="width: 100%"
+                     :disabled="row.username === 'admin'" @change="(v: string) => changeRole(row, v)">
+            <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
+          </el-select>
+          <el-tag v-else size="small" effect="plain">{{ row.roles?.[0] ?? "-" }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="权限点" min-width="200">
+        <template #default="{ row }">
+          <el-tag v-for="p in row.permissions ?? []" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">
+            {{ p }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="canManage" label="操作" width="160">
+        <template #default="{ row }">
+          <el-button size="small" text type="primary" @click="resetPwd(row)">重置密码</el-button>
+          <el-button size="small" text :type="row.enabled ? 'danger' : 'success'"
+                     :disabled="row.username === 'admin'" @click="toggleEnabled(row)">
+            {{ row.enabled ? "停用" : "启用" }}
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+  </el-card>
+
+  <el-dialog v-model="createOpen" title="新增用户" width="420px">
+    <el-form label-width="80px">
+      <el-form-item label="账号">
+        <el-input v-model="form.username" placeholder="字母/数字/_/-，2–32 位" />
+      </el-form-item>
+      <el-form-item label="姓名">
+        <el-input v-model="form.displayName" placeholder="显示名称（可选）" />
+      </el-form-item>
+      <el-form-item label="初始密码">
+        <el-input v-model="form.password" type="password" show-password placeholder="至少 6 位" />
+      </el-form-item>
+      <el-form-item label="角色">
+        <el-select v-model="form.role" style="width: 100%">
+          <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
+        </el-select>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="createOpen = false">取消</el-button>
+      <el-button type="primary" :loading="creating" @click="createUser">创建</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
