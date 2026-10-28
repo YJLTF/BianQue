@@ -60,13 +60,26 @@ public class AlertService {
         String id = alertId == null || alertId.isBlank()
                 ? "AL-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase() : alertId;
         AlertEventEntity e = new AlertEventEntity(id, appId, instanceId, message,
-                severity == null || severity.isBlank() ? "警告" : severity,
+                normalizeSeverity(severity),
                 source == null || source.isBlank() ? "external" : source, "待取证", Instant.now());
         events.save(e);
         Alert alert = toAlert(e);
         log.info("告警接入: {} {} {}/{} — {}", id, e.severity, appId, instanceId, message);
         notifier.onAlert(alert);
         return alert;
+    }
+
+    /** 外部系统级别值各异，归一化为平台三级：严重 / 警告 / 提示 */
+    static String normalizeSeverity(String s) {
+        if (s == null || s.isBlank()) {
+            return "警告";
+        }
+        return switch (s.trim().toLowerCase()) {
+            case "critical", "fatal", "error", "p0" -> "严重";
+            case "warning", "warn", "p1" -> "警告";
+            case "info", "informational", "notice", "p2" -> "提示";
+            default -> s.trim();
+        };
     }
 
     /** 全量告警 = 种子（演示靶场）+ 落库事件（真实接入） */

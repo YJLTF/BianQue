@@ -54,7 +54,7 @@
         v-model:current-page="page"
         v-model:page-size="size"
         class="pager"
-        :page-sizes="[20, 50, 100, 200]"
+        :page-sizes="[10, 20, 50, 100, 200]"
         :total="total"
         :disabled="loading"
         layout="total, sizes, prev, pager, next, jumper"
@@ -78,7 +78,7 @@ const operator = ref("");
 const stats = ref<Record<string, number>>({});
 const total = ref(0);
 const page = ref(1);
-const size = ref(20);
+const size = ref(10);
 const loading = ref(true);
 const verifying = ref(false);
 const verifyResult = ref<VerifyResult | null>(null);

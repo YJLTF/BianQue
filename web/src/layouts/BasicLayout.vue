@@ -37,15 +37,15 @@
           <span class="page-title">{{ route.meta.title }}</span>
           <span v-if="route.meta.clan" class="clan-chip">{{ route.meta.clan }}</span>
         </div>
-        <el-input
-          v-model="keyword"
-          placeholder="搜索实例 / 模板 / 命令 / 文档…（Ctrl+K）"
-          class="search"
-          prefix-icon="Search"
-        />
+        <div class="search" @click="searchOpen = true">
+          <el-icon class="s-ico"><Search /></el-icon>
+          <span class="s-text">搜索页面 / 实例 / 命令 / 文档</span>
+          <span class="s-kbd">Ctrl K</span>
+        </div>
         <el-tag type="success" effect="plain" round>生产环境 · 内网</el-tag>
         <el-tag type="info" effect="plain" round>Arthas 4.3.5</el-tag>
       </el-header>
+      <GlobalSearch v-model="searchOpen" />
       <el-main class="main">
         <RouterView />
       </el-main>
@@ -54,17 +54,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { navItems } from "@/config/nav";
 import { useAuthStore } from "@/stores/auth";
 import { http } from "@/api/http";
+import GlobalSearch from "@/components/GlobalSearch.vue";
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const keyword = ref("");
+const searchOpen = ref(false);
 const nav = navItems;
+
+function onGlobalKey(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    searchOpen.value = true;
+  }
+}
+onMounted(() => window.addEventListener("keydown", onGlobalKey));
+onUnmounted(() => window.removeEventListener("keydown", onGlobalKey));
 
 async function logout() {
   try {
@@ -162,6 +172,33 @@ async function logout() {
   border-radius: 999px;
   padding: 1px 8px;
 }
-.search { max-width: 380px; margin-right: auto; }
+.search {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 380px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #e4e7ed;
+  border-radius: 16px;
+  color: #a8abb2;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  user-select: none;
+}
+.search:hover { border-color: var(--el-color-primary-light-5); }
+.s-ico { font-size: 14px; }
+.s-text { flex: 1; white-space: nowrap; overflow: hidden; }
+.s-kbd {
+  font-size: 11px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 16px;
+  background: #f5f7fa;
+}
 .main { background: #f4f6fb; padding: 16px 20px; overflow-y: auto; }
 </style>

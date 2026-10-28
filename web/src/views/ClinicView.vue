@@ -202,11 +202,13 @@ function tick() {
 
 onMounted(async () => {
   instances.value = await getInstances();
-  // 支持从节点管理页「去诊断」跳转带入实例
+  // 支持从节点管理页「去诊断」跳转带入实例；从全局搜索带入命令
   const fromQuery = String(route.query.instanceId ?? "");
   instanceId.value = instances.value.some((i) => i.instanceId === fromQuery)
     ? fromQuery
     : instances.value.find((i) => i.online)?.instanceId ?? "";
+  const fromCmd = String(route.query.cmd ?? "");
+  if (fromCmd) command.value = fromCmd;
   loadLocal();
   try {
     const catalog = await http.get("/docs/catalog") as unknown as { pages: DocHit[] };
