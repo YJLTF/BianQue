@@ -18,6 +18,9 @@
   部署与使用指南副本）；交付物不入库（.gitignore dist/）
 - 后端测试 33 项全绿
 - 侧栏副标题精简为「线上诊断平台」（版本号与 Arthas 标识只在顶栏 tag 展示，消除横向滚动与重复）
+- **无效目录清理**：移除被服务端 `DocsService` 取代的 S0 文档管线（`docs-center/`、
+  `deploy/docs-site/` 入库产物）与 arthas 运行时残留空目录（`arthas-output/`、`agents/arthas-output/`，
+  忽略规则保留、运行时自动重建）；`data/`（开发 H2 库）与 `agents/`（探针下载分发）为有效目录保留
 
 ## 功能 · AI 问诊接入文档知识库（检索增强）
 

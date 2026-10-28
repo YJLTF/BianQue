@@ -49,9 +49,11 @@ bianque/
 ├── web/                         # 前端 Vue 3 + TS + Vite + Element Plus
 ├── deploy/                      # 部署：compose（prod/dev）、三份 Dockerfile、探针安装器、.env.example
 │   └── probe/install.sh         #   裸机 systemd 安装器
-├── docs-center/                 # 文档构建管线（S0 产物 search-index；现由服务端 DocsService 全文检索接管）
 └── scripts/                     # 开发脚本：start-all.bat / smoke.sh / dev-llm-mock.py
 ```
+
+> 历史说明：S0 时代的文档构建管线（docs-center/ → deploy/docs-site/）已随 v1.0.0 移除，
+> 全文检索由服务端 `DocsService` 运行时构建，无需预生成索引。
 
 ## 快速开始
 
