@@ -58,7 +58,17 @@
               <el-button size="small" text type="primary" :disabled="!isAdmin" @click="cfg.reasoningParams = ''">
                 清空（用内置映射）
               </el-button>
-              <span class="hint">内置：非 off → reasoning_effort + max_completion_tokens；off → temperature/top_p/max_tokens</span>
+              <el-tooltip placement="top" effect="light">
+                <template #content>
+                  内置映射：非 off → reasoning_effort + max_completion_tokens<br />
+                  （按推理模型约束自动省略 temperature / top_p）；<br />
+                  off → temperature / top_p / max_tokens（普通对话形态）
+                </template>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" class="hint" style="cursor: help">
+                  <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+                </svg>
+              </el-tooltip>
             </div>
           </el-form-item>
           <el-row :gutter="10">
