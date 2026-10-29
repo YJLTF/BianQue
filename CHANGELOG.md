@@ -51,7 +51,13 @@
 - 编译确定性：maven-compiler-plugin 显式 `-parameters`（Spring 反射参数名依赖，曾被 IDE 增量产物掩盖）
 - 实测：本地栈（1.1.0 jar + dev-llm-mock 增强 tools 回路）API 全链路 + 浏览器冒烟（参数区块/AI 分析/会诊/图表/火焰图/火山图/模板填参/限速 429），详见 ACCEPTANCE §0
 - 实测（黑名单闭环）：管理页追加 `jad` → 基线卡/管理卡即时出现追加项 → 诊断台执行 `jad com.demo.OrderService` 被拦截（提示含生效合集 7 条）→ 管理卡 × 移除（显示最近修改人/时间）→ 复测恢复放行
+- 交付构建：server/web/probe:1.1.0 三镜像容器化构建通过（探针 Java 11 基线修复见修复记录）；镜像冒烟——容器化 server 对真实 MySQL 8.4 + Redis 7.4 起服 `/api/health` 返回 1.1.0 UP，web(nginx) 反代 `/api` 与平台页全链路打通；交付包 `dist/bianque-1.1.0/`（config/guides/probe/交付清单/SHA256SUMS）+ 五镜像/探针独立两份 tar.gz
 - 已知边界：诊断台命令速查表与前端高危确认弹窗按内置静态字典展示，追加项拦截以后端为准（报错文案含生效合集）；调大命令超时上限须同步评估三处（参数上限/通道余量/前端预算）；火山图统计口径为参考性对比；旧探针忽略心跳下发字段
+
+### 修复 · 探针 Java 11 基线（v1.1.0 交付构建期发现）
+
+- 容器化构建实证：v1.1.0 动态心跳代码用了 `instanceof` 模式匹配（Java 16+），违反 bq-agent 的 `maven.compiler.release=11` 基线（目标主机 JDK 11/17/21 混部）；宿主此前未暴露——IDE（ECJ）增量产物写进 target/classes 掩盖了 Maven 增量编译，同 `-parameters` 被掩盖同款坑
+- 修复：改经典强转，代码内注释基线约束；清 target 后 release=11 真编译通过，字节码 major 55（Java 11）复核；交付包 probe/bq-agent.jar 同步更新
 
 - **修复 · 诊断执行「timeout of 15000ms exceeded」**：全局 axios 15s 超时 < 服务端命令超时 60s（Agent 通道等待上限 90s），长命令必被前端先行中断。`executeDiag` 单独 150s 预算（同批排查：本机纳管 attach 120s、急诊取证/档案扫描 300s 逐一覆盖；巡检/LLM 原本就有）。配套闭环：参数中心命令超时上限收为 120s（120+30 ≤ 150），杜绝"配置调大又复现"
 - **功能 · 参数中心（页面可配置）**：`sys_config` 表 + `SysConfigService`（注册表定义键/默认/范围/生效语义，启动播种、内存缓存写后失效、免重启生效）；首批 7 项——命令执行超时（替换 DiagService 硬编码 60s）、会话 TTL、**探针心跳间隔**（register/heartbeat 响应下发）、**心跳离线判定窗口**（AgentDirectory 动态读）、登录令牌 TTL（TokenStore 动态读）、巡检总时限/单实例时限；关联校验（在线窗口 ≥ 心跳×3、巡检总时限 ≥ 单实例时限）；红线项（端口绑定/强制认证/审计开关/高危黑名单）不进注册表天然不可配。管理设置新增「参数配置」区块（行内编辑/已改标记/恢复默认/最近修改人）。AuthInterceptor 收严：`/api/admin/**` 一律 admin:user（原仅 /users）
