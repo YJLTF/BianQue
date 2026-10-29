@@ -243,8 +243,9 @@ public final class AgentMain {
     /** 心跳节奏跟随服务端下发（参数中心 agent.heartbeat-interval-seconds），夹取 2~60s；缺省保持现值 */
     private static void applyInterval(Map<?, ?> resp, long[] intervalRef) {
         Object v = resp == null ? null : resp.get("heartbeatIntervalSeconds");
-        if (v instanceof Number n) {
-            long sec = Math.max(2, Math.min(60, n.longValue()));
+        if (v instanceof Number) {
+            // 探针按 Java 11 基线编译（maven.compiler.release=11），不用 instanceof 模式匹配
+            long sec = Math.max(2, Math.min(60, ((Number) v).longValue()));
             if (sec * 1000L != intervalRef[0]) {
                 intervalRef[0] = sec * 1000L;
                 log("心跳间隔调整为 " + sec + "s（服务端下发）");
