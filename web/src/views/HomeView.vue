@@ -35,7 +35,8 @@ import { computed, onMounted, ref } from "vue";
 import { http } from "@/api/http";
 
 interface AppSummary { appId: string; name: string; instanceCount: number; onlineCount: number; healthScore: number; status: string; lastEvent: string }
-interface Overview { appCount: number; instanceCount: number; onlineCount: number; avgHealth: number; auditCount: number; executionMode: string; apps: AppSummary[] }
+interface Channels { real: number; mock: number }
+interface Overview { appCount: number; instanceCount: number; onlineCount: number; avgHealth: number; auditCount: number; channels: Channels; apps: AppSummary[] }
 
 const ov = ref<Overview | null>(null);
 const loading = ref(true);
@@ -47,7 +48,8 @@ const cards = computed(() => {
     { label: "应用 / 实例", value: o ? `${o.appCount} / ${o.instanceCount}` : "-", desc: `${offline} 台离线`, icon: "Histogram", tone: "indigo" },
     { label: "平均健康分", value: o ? o.avgHealth.toFixed(1) : "-", desc: "来自最近一次巡检", icon: "Odometer", tone: "jade" },
     { label: "审计事件", value: String(o?.auditCount ?? "-"), desc: "操作留痕 · 防篡改", icon: "Memo", tone: "amber" },
-    { label: "执行通道", value: o?.executionMode === "local" ? "真实执行" : "演示模拟", desc: "按实例自动路由", icon: "Connection", tone: "violet" },
+    { label: "执行通道", value: o ? `真实 ${o.channels.real} · 拟真 ${o.channels.mock}` : "-",
+      desc: "按实例自动路由", icon: "Connection", tone: "violet" },
   ];
 });
 

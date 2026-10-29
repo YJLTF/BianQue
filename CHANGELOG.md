@@ -2,6 +2,12 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 优化 · 工作台执行通道卡改为真实路由分布（本次）
+
+- 原「执行通道」显示 yml 静态配置 `bianque.execution.mode`（默认 mock），与按实例真实路由脱节（生产挂真实探针仍显示「演示模拟」）
+- 改为按 `DiagService.route` 同口径统计：探针(agent-*)/本机纳管=真实、靶场种子=拟真，overview 返回 `channels:{real,mock}`
+- 移除失去消费者的 `bianque.execution.mode` 配置；实测容器栈显示「真实 3 · 拟真 0」
+
 ## 优化 · 推理参数映射内置说明收进 tooltip（本次）
 
 - 「清空（用内置映射）」旁的内置映射说明由内联长文本改为信息图标 tooltip（三行：非 off 形态 / 省略采样参数 / off 形态）

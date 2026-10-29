@@ -2,6 +2,7 @@ package com.bianque.server.web;
 
 import com.bianque.server.exec.LocalProcessScanner;
 import com.bianque.server.model.Types.AppSummary;
+import com.bianque.server.model.Types.Channels;
 import com.bianque.server.model.Types.Instance;
 import com.bianque.server.model.Types.Overview;
 import com.bianque.server.repo.AuditRepository;
@@ -28,16 +29,13 @@ public class FleetController {
     private final AuditRepository audit;
     private final LocalProcessScanner scanner;
     private final boolean localEnabled;
-    private final String executionMode;
 
     public FleetController(FleetRepository fleet, AuditRepository audit, LocalProcessScanner scanner,
-                           @Value("${bianque.execution.local-enabled:false}") boolean localEnabled,
-                           @Value("${bianque.execution.mode:mock}") String executionMode) {
+                           @Value("${bianque.execution.local-enabled:false}") boolean localEnabled) {
         this.fleet = fleet;
         this.audit = audit;
         this.scanner = scanner;
         this.localEnabled = localEnabled;
-        this.executionMode = executionMode;
     }
 
     @GetMapping("/overview")
@@ -52,10 +50,13 @@ public class FleetController {
                     list.stream().filter(Instance::online).count(), health, status,
                     appId.equals("order-app") ? "CPU 96% · 已自动取证" : "—");
         }).toList();
+        // 通道分布与 DiagService.route 一致：探针(agent-*)/本机纳管=真实，其余（靶场种子）=拟真
+        long real = all.stream()
+                .filter(i -> i.instanceId().startsWith("agent-") || i.localAgent()).count();
         return new Overview(apps.size(), all.size(),
                 all.stream().filter(Instance::online).count(),
                 apps.stream().mapToInt(AppSummary::healthScore).average().orElse(0),
-                audit.count(), executionMode, apps);
+                audit.count(), new Channels(real, all.size() - real), apps);
     }
 
     @GetMapping("/instances")

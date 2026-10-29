@@ -36,8 +36,7 @@ bianque:
     # 演示模式关闭时引导 admin 账号的初始口令（仅 admin 不存在时生效一次；env：BIANQUE_ADMIN_PASSWORD）
     password: ""
   execution:
-    # mock：拟真演示通道；local：本机 as.sh 真实执行（按实例路由）
-    mode: mock
+    # 通道按实例自动路由（DiagService.route）：探针/本机纳管=真实，靶场种子=拟真
     # 本机真实进程纳管开关（127.0.0.1 + 登录墙之内；生产环境建议 false）
     local-enabled: true
     # 真实通道：java -jar arthas-boot.jar（纯 Java，无 telnet 依赖，Windows/Linux 通用）

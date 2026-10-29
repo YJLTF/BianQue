@@ -114,6 +114,10 @@ public final class Types {
             boolean active) {
     }
 
+    /** 执行通道分布（按实例路由统计：探针/本机纳管=真实，靶场种子=拟真） */
+    public record Channels(long real, long mock) {
+    }
+
     /** 工作台总览 */
     public record Overview(
             long appCount,
@@ -121,7 +125,7 @@ public final class Types {
             long onlineCount,
             double avgHealth,
             long auditCount,
-            String executionMode,
+            Channels channels,
             List<AppSummary> apps) {
     }
 }
