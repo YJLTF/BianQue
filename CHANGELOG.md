@@ -2,6 +2,12 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 修复 · docker 工作台仍显示旧通道卡（本次）
+
+- 根因：工作台「执行通道」是前端改动，上一轮只重建了 server 镜像，web 镜像未重建，:80 仍是旧前端
+- web 镜像重建滚动更新后 :80 实测显示「真实 3 · 拟真 0」
+- 顺带加固 nginx 缓存策略：`/assets/*`（指纹资源）30 天长缓存，`index.html` no-cache——升级镜像后浏览器立即拿到新页面，不再出现残留旧界面
+
 ## 优化 · 探针裸机安装器参数化（本次）
 
 - `install.sh`：`--jar/--arthas` 缺省改为**脚本同目录**的 bq-agent.jar / arthas-boot.jar（对齐交付包 probe/ 布局，
