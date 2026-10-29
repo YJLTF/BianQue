@@ -2,6 +2,16 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 修复 · 文档中心正文 iframe 显示「localhost 拒绝连接」（本次）
+
+- 根因：此前安全加固在 nginx 加的全局 `X-Frame-Options: DENY` 连**同源 iframe** 一并拦截——文档中心正文
+  恰是同源 iframe（`/docs/4.3.5/**` 经 nginx 代理），被自己平台的防嵌出头挡住；Chrome 对被拒渲染的提示
+  即「xxx 拒绝连接」，与端口拒绝表象相同，易误判为服务不可用（实际 /api、静态页 200 全通）
+- 修复：X-Frame-Options 改为 **SAMEORIGIN**——本站可嵌（文档中心/深链正常），外站嵌入依旧被拒，
+  防点击劫持意图不变；CSP 未配置 frame-ancestors，不受影响
+- 实测：响应头已返回 SAMEORIGIN；浏览器实测文档中心正文 iframe 完整渲染（官方样式/代码高亮正常）
+- 交付：web 镜像重建滚动、镜像包重新导出（SHA256SUMS 同步更新）
+
 ## 修复 · root 探针无法 attach 非 root 用户的 Java 应用（本次）
 
 - 线上现象：应用以指定用户启动、探针以 root systemd 运行，attach 必然失败
