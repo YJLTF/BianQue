@@ -109,7 +109,7 @@ public final class AgentMain {
 
         log("扁鹊平台 Agent " + VERSION + " 启动，平台 " + server + "，主机 " + hostname + "(" + hostIp + ")");
 
-        // 注册：agentId 持久化（bq-agent.id），跨重启身份稳定
+        // 注册：agentId 持久化（bq-agent.id），跨重启身份稳定；服务端删除后重注册沿用同一身份
         String agentId = loadId();
         Map<String, Object> regBody = MiniJson.obj();
         regBody.put("agentVersion", VERSION);
@@ -117,22 +117,7 @@ public final class AgentMain {
         regBody.put("hostname", hostname);
         regBody.put("os", os);
         regBody.put("javaVersion", javaVersion);
-        if (agentId != null) {
-            regBody.put("agentId", agentId);
-        }
-        while (agentId == null) {
-            try {
-                String resp = post(http, server, token, "/api/agent/register", MiniJson.write(regBody));
-                Object id = ((Map<?, ?>) MiniJson.parse(resp)).get("agentId");
-                if (id != null) {
-                    agentId = String.valueOf(id);
-                    saveId(agentId);
-                }
-            } catch (Exception e) {
-                log("注册失败，5s 后重试: " + e.getMessage());
-                sleep(5000);
-            }
-        }
+        agentId = register(http, server, token, regBody, agentId);
         log("注册成功 agentId=" + agentId);
 
         long failures = 0;
@@ -144,6 +129,19 @@ public final class AgentMain {
                 Object cmd = ((Map<?, ?>) MiniJson.parse(resp)).get("command");
                 if (cmd instanceof Map) {
                     dispatch(worker, runner, http, server, token, (Map<?, ?>) cmd);
+                }
+            } catch (HttpFail e) {
+                if (e.code == 410) {
+                    // 节点在服务端被清理（离线删除）：重新登记恢复同一身份，心跳随之恢复
+                    log("节点已被服务端清理（410），重新注册…");
+                    agentId = register(http, server, token, regBody, agentId);
+                    log("重新注册成功 agentId=" + agentId);
+                    failures = 0;
+                } else {
+                    failures++;
+                    if (failures == 1 || failures % 12 == 0) {
+                        log("心跳失败（连续 " + failures + " 次）: " + e.getMessage());
+                    }
                 }
             } catch (Exception e) {
                 failures++;
@@ -216,6 +214,37 @@ public final class AgentMain {
         return body;
     }
 
+    /** 注册（带重试直至成功）：agentId 尽量沿用（服务端按 agentId 幂等登记）并持久化 */
+    private static String register(HttpClient http, String server, String token,
+                                   Map<String, Object> regBody, String agentId) {
+        while (true) {
+            try {
+                if (agentId != null) {
+                    regBody.put("agentId", agentId);
+                }
+                String resp = post(http, server, token, "/api/agent/register", MiniJson.write(regBody));
+                Object id = ((Map<?, ?>) MiniJson.parse(resp)).get("agentId");
+                if (id != null) {
+                    saveId(String.valueOf(id));
+                    return String.valueOf(id);
+                }
+            } catch (Exception e) {
+                log("注册失败，5s 后重试: " + e.getMessage());
+            }
+            sleep(5000);
+        }
+    }
+
+    /** 非 2xx 响应：携带状态码（410 = 节点已被服务端清理，需重新注册） */
+    private static class HttpFail extends RuntimeException {
+        final int code;
+
+        HttpFail(int code, String body) {
+            super("HTTP " + code + ": " + body);
+            this.code = code;
+        }
+    }
+
     private static String post(HttpClient http, String server, String token, String path, String json)
             throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder()
@@ -228,8 +257,8 @@ public final class AgentMain {
         }
         HttpResponse<String> resp = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            throw new IllegalStateException("HTTP " + resp.statusCode() + ": "
-                    + resp.body().substring(0, Math.min(resp.body().length(), 200)));
+            throw new HttpFail(resp.statusCode(),
+                    resp.body().substring(0, Math.min(resp.body().length(), 200)));
         }
         return resp.body();
     }

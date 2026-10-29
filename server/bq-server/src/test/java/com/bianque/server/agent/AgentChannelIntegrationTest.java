@@ -343,4 +343,34 @@ class AgentChannelIntegrationTest {
         assertTrue(nodes.stream().anyMatch(n -> "tmp-del-online".equals(n.get("agentId"))),
                 "在线节点应保留");
     }
+
+    @Test
+    @Order(7)
+    void 节点被删除后心跳410_重新注册恢复同一身份() throws Exception {
+        String admin = login("admin", "admin123");
+
+        // 注册 → 心跳在线 → 回拨离线 → 管理员删除
+        registerNode("rejoin-node");
+        rawPost("/api/agent/heartbeat",
+                "{\"agentId\":\"rejoin-node\",\"host\":\"127.0.0.1\",\"processes\":" + PROCS_JSON + "}", TOKEN);
+        backdate("rejoin-node");
+        assertEquals(HttpStatus.OK, delete("/api/agents/rejoin-node", admin).getStatusCode());
+
+        // 旧身份继续心跳 → 410（节点未注册或已被清理）
+        Raw gone = rawPost("/api/agent/heartbeat",
+                "{\"agentId\":\"rejoin-node\",\"host\":\"127.0.0.1\",\"processes\":" + PROCS_JSON + "}", TOKEN);
+        assertEquals(410, gone.status(), "被删除的节点心跳应收到 410 引导重注册: " + gone.body());
+
+        // agent 按 410 重新注册：沿用同一 agentId → 服务端重新登记，心跳恢复，节点重新在线
+        registerNode("rejoin-node"); // 内部断言 200：重注册幂等且沿用同一 agentId
+        assertEquals(200, rawPost("/api/agent/heartbeat",
+                "{\"agentId\":\"rejoin-node\",\"host\":\"127.0.0.1\",\"processes\":" + PROCS_JSON + "}", TOKEN).status());
+        ResponseEntity<Map> list = get("/api/agents", admin);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) list.getBody().get("nodes");
+        Map<String, Object> node = nodes.stream()
+                .filter(n -> "rejoin-node".equals(n.get("agentId"))).findFirst().orElse(null);
+        assertNotNull(node, "重注册后节点应重新出现在列表");
+        assertEquals(Boolean.TRUE, node.get("online"), "重注册后节点应在线");
+    }
 }
