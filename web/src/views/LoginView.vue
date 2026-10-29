@@ -28,19 +28,21 @@
           登 录
         </el-button>
       </el-form>
-      <el-divider>演示账号（点击填充）</el-divider>
-      <div class="demo-accounts">
-        <el-button v-for="a in demos" :key="a.u" size="small" plain round @click="fill(a.u, a.p)">
-          {{ a.label }}
-        </el-button>
-      </div>
+      <template v-if="demoMode">
+        <el-divider>演示账号（点击填充）</el-divider>
+        <div class="demo-accounts">
+          <el-button v-for="a in demos" :key="a.u" size="small" plain round @click="fill(a.u, a.p)">
+            {{ a.label }}
+          </el-button>
+        </div>
+      </template>
       <p class="tip">登录即同意审计：所有操作记录操作人，并纳入防篡改链。</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import axios from "axios";
@@ -53,6 +55,18 @@ const auth = useAuthStore();
 const username = ref("admin");
 const password = ref("");
 const loading = ref(false);
+
+/** 演示模式才显示演示账号快捷填充（/api/health 为公开端点）；默认展示，生产模式即刻隐藏 */
+const demoMode = ref(true);
+
+onMounted(async () => {
+  try {
+    const h = await fetch("/api/health").then(r => r.json());
+    demoMode.value = h.demo !== false;
+  } catch {
+    // 探活失败保持默认（演示语义）
+  }
+});
 
 const demos = [
   { label: "admin · 管理员", u: "admin", p: "admin123" },

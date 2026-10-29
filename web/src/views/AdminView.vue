@@ -25,9 +25,9 @@
         </el-descriptions>
       </el-card>
       <el-card shadow="never" header="权限矩阵（命令族 × 角色）" style="margin-top: 12px">
-        <el-table :data="rbac" size="small">
-          <el-table-column prop="family" label="命令族" min-width="220" />
-          <el-table-column prop="access" label="操作员" width="120" />
+        <el-table :data="rbac" size="small" class="perm-table">
+          <el-table-column prop="family" label="命令族" min-width="240" />
+          <el-table-column prop="access" label="操作员" width="150" />
         </el-table>
       </el-card>
     </el-col>
@@ -54,9 +54,9 @@
         <el-button v-if="canManage" size="small" type="primary" plain @click="createOpen = true">新增用户</el-button>
       </div>
     </template>
-    <el-table :data="users" size="small" v-loading="usersLoading">
-      <el-table-column prop="username" label="账号" width="110" />
-      <el-table-column prop="displayName" label="姓名" min-width="140" />
+    <el-table :data="users" size="small" v-loading="usersLoading" class="users-table">
+      <el-table-column prop="username" label="账号" width="120" />
+      <el-table-column prop="displayName" label="姓名" min-width="140" show-overflow-tooltip />
       <el-table-column label="状态" width="80">
         <template #default="{ row }">
           <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
@@ -64,7 +64,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="角色" width="130">
+      <el-table-column label="角色" width="140">
         <template #default="{ row }">
           <el-select v-if="canManage" :model-value="row.roles?.[0]" size="small" style="width: 100%"
                      :disabled="row.username === 'admin'" @change="(v: string) => changeRole(row, v)">
@@ -73,14 +73,14 @@
           <el-tag v-else size="small" effect="plain">{{ row.roles?.[0] ?? "-" }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="权限点" min-width="200">
+      <el-table-column label="权限点" min-width="220" class-name="wrap-cell">
         <template #default="{ row }">
           <el-tag v-for="p in row.permissions ?? []" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">
             {{ p }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column v-if="canManage" label="操作" width="240">
+      <el-table-column v-if="canManage" label="操作" width="310">
         <template #default="{ row }">
           <el-button size="small" text type="primary" @click="rename(row)">改名</el-button>
           <el-button size="small" text type="primary" @click="resetPwd(row)">重置密码</el-button>
@@ -276,4 +276,10 @@ onMounted(async () => {
 
 <style scoped>
 .card-hd { display: flex; align-items: center; justify-content: space-between; }
+/* 文本列不换行；权限点列（wrap-cell）保持标签流式换行 */
+.perm-table :deep(.el-table__cell .cell),
+.users-table :deep(.el-table__cell .cell) { white-space: nowrap; }
+.users-table :deep(.el-table__cell.wrap-cell .cell) { white-space: normal; }
+/* 安全基线标签列不换行（高危黑名单等 5 字标签） */
+:deep(.el-descriptions__label .cell) { white-space: nowrap; }
 </style>

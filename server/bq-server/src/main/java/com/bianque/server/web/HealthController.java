@@ -15,12 +15,17 @@ public class HealthController {
     @Value("${bianque.app.version:1.0.0}")
     private String version = "1.0.0";
 
+    /** 演示模式标志（登录页据此显隐演示账号快捷填充） */
+    @Value("${bianque.demo-enabled:true}")
+    private boolean demoEnabled;
+
     @GetMapping("/health")
     public Map<String, Object> health() {
         return Map.of(
                 "app", "bianque-server",
                 "version", version,
                 "status", "UP",
+                "demo", demoEnabled,
                 "time", Instant.now().toString());
     }
 }

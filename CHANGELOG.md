@@ -2,6 +2,15 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 优化 · 管理设置表格布局 / 登录页演示账号按模式显隐（本次）
+
+- **管理设置**：权限矩阵表（命令族 240 / 操作员 150）与用户与角色表（账号 120 / 角色 140 / 操作 310）
+  文本列全部不换行（`white-space: nowrap`），权限点列保持标签流式；安全基线「高危黑名单」等标签列同步不换行
+- **登录页**：`/api/health` 新增 `demo` 标志（公开端点）；生产模式（`BIANQUE_DEMO_ENABLED=false`）
+  自动隐藏「演示账号（点击填充）」区块，演示模式照常显示
+- 实测：demo-on 登录页显示三个演示账号、demo-off 登录页无演示区块；两表单行渲染截图确认；
+  容器栈滚动更新后 health 带 `"demo":false`、无令牌注册仍 401
+
 ## 安全 · 后台接口鉴权审计与加固（本次）
 
 - **审计范围**：全部 Controller × 守卫矩阵（登录墙 / diag:execute / admin:user / X-Agent-Token / X-Alert-Token）逐一核对并实测
