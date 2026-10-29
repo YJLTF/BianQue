@@ -2,6 +2,26 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 修复 · root 探针无法 attach 非 root 用户的 Java 应用（本次）
+
+- 线上现象：应用以指定用户启动、探针以 root systemd 运行，attach 必然失败
+  （`Agent JAR not found or no Agent-Class attribute`）
+- 根因（容器复现实证）：attach 握手 root 可通过（jcmd 可用），但 agent jar 由**目标 JVM 以其自身用户**打开——
+  arthas-boot 缺省把发行包解压到运行者家目录（root 时为 `/root`，0700），非 root 目标进程读不到。
+  权限方向与直觉相反：不是探针权限不够，而是目标进程读不到探针侧文件；重定向 HOME 无效（arthas 用 user.home）
+- 修复（探针侧）：检测到 arthas-boot.jar 同目录存在 arthas-core.jar（完整发行目录）时，attach 显式
+  `--arthas-home <发行目录>`——目录对目标用户可读即可跨用户 attach；同时离线内网免运行时下载
+  （arthas-boot 缺省首次 attach 需从外网下载约 17MB，内网直接失败）
+- 安装器：新增 `--user <应用用户>`（unit 写入 User= 并 chown 安装目录，同用户运行是最小权限的可靠口径）；
+  `--arthas` 支持发行目录（交付包新布局 `probe/arthas/`），安装时自动 `chmod -R a+rX`；兼容旧单 jar 布局
+- 探针镜像：内置完整发行目录 `/probe/arthas/`（entrypoint 指向其中 boot jar）；交付包 probe/ 同布局
+- 服务端本机纳管通道同步同口径（LocalAsShExecutor 同样显式 --arthas-home）
+- bq-agent 版本号 0.1.0 → 1.0.0（对齐"版本统一 1.0.0"，此前登记页显示旧版本号）
+- 实测：容器内 nobody 运行 math-game、root 运行新探针注册平台 → 平台下发 `thread -n 3` →
+  `success=true`、`channel=real`、真实线程栈回传；install.sh 六变体干跑（目录/单 jar/缺参/--user/无 arthas）
+- 文档：deploy/README 探针边界重写（attach 与用户机制 + 两条出路）、根 README 已知边界、USAGE FAQ、
+  交付清单与指南副本同步
+
 ## 整理 · 仓库清理与文档勘误（开源发布前，本次）
 
 - 清理无效文件：根目录散落的运行日志（server-bq/vite-dev/vite-5175/llm-mock.log）与 web/ 下错位运行产物

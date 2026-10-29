@@ -35,6 +35,27 @@ public class LocalAsShExecutor implements DiagExecutor {
         this.bootJarPath = bootJarPath;
         this.javaPath = javaPath;
         this.sessions = sessions;
+        String home = resolveArthasHome(bootJarPath);
+        if (home != null) {
+            log.info("arthas 发行目录: {}（attach 显式指定，离线可用；跨用户 attach 需该目录对目标用户可读）", home);
+        }
+    }
+
+    /**
+     * arthas-boot.jar 同目录存在 arthas-core.jar（完整发行包）时返回该目录，attach 显式 --arthas-home：
+     * agent jar 由目标 JVM 以其自身用户打开，发行目录对目标用户可读是跨用户 attach 的前提；
+     * 同时离线内网免运行时下载。与 bq-agent ArthasRunner 同口径。
+     */
+    static String resolveArthasHome(String bootJarPath) {
+        try {
+            java.nio.file.Path dir = java.nio.file.Paths.get(bootJarPath).toAbsolutePath().getParent();
+            if (dir != null && java.nio.file.Files.exists(dir.resolve("arthas-core.jar"))) {
+                return dir.toString();
+            }
+        } catch (Exception ignore) {
+            // 路径异常时退回 arthas-boot 缺省行为
+        }
+        return null;
     }
 
     @Override
@@ -57,10 +78,16 @@ public class LocalAsShExecutor implements DiagExecutor {
 
     private DiagResult oneShotBoot(DiagCommand command, long begin) {
         try {
-            ProcessBuilder pb = new ProcessBuilder(
+            java.util.List<String> cmd = new java.util.ArrayList<>(java.util.List.of(
                     javaPath, "-jar", bootJarPath,
                     "--select", command.appName(),
-                    "-c", command.commandText());
+                    "-c", command.commandText()));
+            String home = resolveArthasHome(bootJarPath);
+            if (home != null) {
+                cmd.add("--arthas-home");
+                cmd.add(home);
+            }
+            ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             // stdin 接空设备：目标出现同名多进程歧义时 boot 会退化交互选择，必须让其立即 EOF 失败而非挂起
             pb.redirectInput(new java.io.File(

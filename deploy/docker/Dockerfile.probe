@@ -15,7 +15,10 @@ RUN mvn -B -q -pl bq-agent -am package -DskipTests
 FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /probe
 COPY --from=build /src/bq-agent/target/bq-agent.jar ./
-COPY docs/research/arthas-inspect/arthas-boot.jar ./
+# 完整 arthas 发行目录（含 arthas-core/agent/spy.jar、as.sh、async-profiler）：
+# attach 显式 --arthas-home 使用——离线内网免运行时下载；目录对目标 JVM 用户可读时，
+# root 探针也能 attach 其它用户的应用（agent jar 由目标进程自行打开）
+COPY docs/research/arthas-inspect/ /probe/arthas/
 COPY deploy/docker/probe-entrypoint.sh ./
 RUN chmod +x probe-entrypoint.sh
 ENV SERVER_URL="" \

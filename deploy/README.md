@@ -80,7 +80,8 @@ curl http://<主机>/api/health                 # {"app":"bianque-server","versi
 
 ## ② 节点探针 · Docker（Linux 主机推荐）
 
-探针镜像内置 `bq-agent.jar` + `arthas-boot.jar`（JDK 17）。**必须** `--pid=host` 并挂载 `/tmp`
+探针镜像内置 `bq-agent.jar` + 完整 arthas 发行目录（`/probe/arthas/`，attach 显式 --arthas-home：
+离线免下载、对目标 JVM 用户可读，root 探针可 attach 其它用户的应用）。**必须** `--pid=host` 并挂载 `/tmp`
 （JVM attach 依赖宿主 `/tmp` 下的 hsperfdata/attach socket），探针以 root 运行可附加 root 启动的 JVM：
 
 ```bash
@@ -103,13 +104,26 @@ docker run -d --name bq-probe --restart unless-stopped \
 ## ③ 节点探针 · 裸机 systemd（已装 JDK 的 Linux 主机）
 
 ```bash
-# 仓库构建产物同机安装（也可把两个 jar 拷到目标主机后用 --jar/--arthas 指定路径）
-sudo ./deploy/probe/install.sh --server http://<平台IP>:8080 --token <令牌>
-# 可选: --jar /path/bq-agent.jar --arthas /path/arthas-boot.jar --name 节点名
+# 交付包 probe/ 布局安装（bq-agent.jar + arthas/ 完整发行目录随包分发）
+sudo ./install.sh --server http://<平台IP>:8080 --token <令牌>
+# 与目标 JVM 同用户运行（推荐，可靠 attach 且最小权限；每用户一个探针实例）
+sudo ./install.sh --server http://<平台IP>:8080 --token <令牌> --user <应用用户>
+# 可选: --jar /path/bq-agent.jar --arthas /path/发行目录或arthas-boot.jar --name 节点名
+#       --install-dir /opt/bq-probe --java /opt/jdk21 | /opt/jdk21/bin/java
 ```
 
-安装器行为：拷贝 jar 到 `/opt/bq-probe/` → 写入 `bq-probe.service`（自动重启）→ `enable --now`。
-日志：`journalctl -u bq-probe -f`；卸载：`systemctl disable --now bq-probe && rm -rf /opt/bq-probe`。
+安装器行为：拷贝 `bq-agent.jar` 与 `arthas/` 发行目录到安装目录（发行目录自动 `a+rX`，
+保证目标 JVM 用户可读）→ 写入 `bq-probe.service`（自动重启，`--user` 时写入运行账号）→ `enable --now`。
+日志：`journalctl -u bq-probe -f`；卸载：`systemctl disable --now bq-probe && rm -rf <安装目录>`。
+
+**attach 与用户（重要）**：agent jar 由目标 JVM 以其自身用户打开——跨用户 attach 失败的根因
+不是"探针权限不够"，而是目标进程读不到探针侧文件：arthas-boot 缺省把发行包解压到运行者家目录
+（root 时为 `/root`，0700），非 root 目标进程读不到，报 `Agent JAR not found`。两条出路：
+
+1. **同用户运行**（推荐）：`--user <应用用户>`，可靠 attach 且最小权限；多个应用用户各装一个探针；
+2. **发行目录对目标用户可读**：安装器/探针镜像已内置完整 arthas 发行目录（attach 显式
+   `--arthas-home`，不再解压到运行者家目录），root 探针也可 attach 其它用户的应用，
+   同时离线内网免运行时下载（arthas-boot 缺省首次 attach 需从外网下载约 17MB，内网会直接失败）。
 
 **Windows 目标主机**：无需服务化，直接
 
@@ -132,8 +146,8 @@ java -jar bq-agent.jar --server http://平台IP:8080 --token <令牌> --arthas a
 ## 探针工作原理与边界（务必阅读）
 
 - 心跳 5s 上报本机 JVM 进程清单（attach API，异常回落 jps）；平台命令单下发，节点串行执行后回传
-- **attach 权限**：探针进程用户必须与目标 JVM 用户一致（容器探针默认 root → 可附加 root 启动的 JVM；
-  非 root 目标进程需在对应用户下另行运行探针，或用裸机方式以同用户 systemd 运行）
+- **attach 与用户**：agent jar 由目标 JVM 以其自身用户打开，同用户或发行目录可读方可 attach（详见 ③ 节说明）；
+  容器探针默认 root，配合内置发行目录可附加其它用户启动的宿主 JVM；非 root 目标进程也可在对应用户下另行运行探针
 - **同一 JVM 只允许一个 arthas agent**：目标进程此前被手工 attach 过且未 stop 的，先停止旧 agent
 - 探针空闲 30 分钟自动回收 arthas 会话；平台侧会话关闭时下发 stop，防增强残留
 - `bianque.agent.token` 为空时探针接入开放（仅限内网演示）；生产必配且探针侧一致

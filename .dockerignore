@@ -20,6 +20,4 @@ docs/*
 !docs/research
 docs/research/*
 !docs/research/arthas-inspect
-docs/research/arthas-inspect/*
-!docs/research/arthas-inspect/arthas-boot.jar
 !docs/arthas-docs/

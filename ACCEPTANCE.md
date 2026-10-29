@@ -103,8 +103,8 @@
       产出 bianque/{web,server,probe}:1.0.0 三镜像（76/597/631MB），全栈起服 【手动】
 - [ ] 走 Nginx 端口：前端 200、/api/health UP、登录+机队可用、/api/docs/catalog 返回 262KB 【手动】
 - [ ] 探针容器（--profile probe）经 compose 网络注册，节点管理页可见、心跳刷新 【手动】
-- [ ] Linux 主机裸机探针：`sudo ./deploy/probe/install.sh --server ... --token ...`
-      → systemd 常驻、节点上线、可对宿主 JVM 执行真实诊断 【手动，Linux 环境】
+- [ ] Linux 主机裸机探针：`sudo ./deploy/probe/install.sh --server ... --token ... [--user <应用用户>]`
+      → systemd 常驻、节点上线、可对宿主 JVM 执行真实诊断（含非 root 应用：发行目录 a+rX 或同用户运行） 【手动，Linux 环境】
 - [ ] 容器化 server 本机纳管通道已关闭（bianque.execution.local-enabled=false） 【自动，compose command】
 
 ## 14. 已知边界（如实声明）

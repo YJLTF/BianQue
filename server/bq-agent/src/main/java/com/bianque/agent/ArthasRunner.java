@@ -7,7 +7,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +42,7 @@ public final class ArthasRunner {
     private static final long IDLE_STOP_MS = 30 * 60_000L;
 
     private final String bootJarPath;
+    private final String arthasHome;
     private final String javaPath;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final Map<Long, Session> sessions = new ConcurrentHashMap<>();
@@ -52,7 +58,15 @@ public final class ArthasRunner {
 
     public ArthasRunner(String bootJarPath, String javaPath) {
         this.bootJarPath = bootJarPath;
+        this.arthasHome = resolveArthasHome(bootJarPath);
         this.javaPath = javaPath;
+        if (arthasHome != null) {
+            AgentMain.log("arthas 发行目录: " + arthasHome
+                    + "（attach 显式指定，离线可用；跨用户 attach 需该目录对目标用户可读）");
+        } else {
+            AgentMain.log("未检测到完整 arthas 发行目录（arthas-core.jar 需与 arthas-boot.jar 同目录），"
+                    + "attach 时将由 arthas-boot 自行解析");
+        }
         Thread reaper = new Thread(() -> {
             while (true) {
                 try {
@@ -101,7 +115,7 @@ public final class ArthasRunner {
         int attached = attachOnly(pid, port);
         if (attached < 0) {
             return new ExecResult(null, null, "attach 失败：无法附加到目标进程 " + pid
-                    + "（进程是否存活、与节点同用户？）");
+                    + "（进程是否存活、与节点同用户，且 arthas 发行目录对目标用户可读？）");
         }
         ExecResult r = httpExec(attached, command);
         if (r.error != null) {
@@ -173,14 +187,20 @@ public final class ArthasRunner {
         return PORT_BASE + Math.abs(mainClass.hashCode() % 1000);
     }
 
-    /** java -jar arthas-boot.jar <pid> --attach-only --http-port P --telnet-port P+1（按.pid 免歧义） */
+    /** java -jar arthas-boot.jar <pid> --attach-only --http-port P --telnet-port P+1（按.pid 免歧义）；
+     *  检测到完整发行目录时追加 --arthas-home（见 resolveArthasHome） */
     private int attachOnly(long pid, int httpPort) {
         Process p = null;
         try {
-            ProcessBuilder pb = new ProcessBuilder(javaPath, "-jar", bootJarPath,
+            List<String> cmd = new ArrayList<>(List.of(javaPath, "-jar", bootJarPath,
                     String.valueOf(pid), "--attach-only",
                     "--http-port", String.valueOf(httpPort),
-                    "--telnet-port", String.valueOf(httpPort + 1));
+                    "--telnet-port", String.valueOf(httpPort + 1)));
+            if (arthasHome != null) {
+                cmd.add("--arthas-home");
+                cmd.add(arthasHome);
+            }
+            ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             p = pb.start();
             final Process fp = p;
@@ -228,5 +248,23 @@ public final class ArthasRunner {
             }
         }
         return -1;
+    }
+
+    /**
+     * arthas-boot.jar 同目录存在 arthas-core.jar（完整发行包）时返回该目录，attach 显式 --arthas-home：
+     * 1) agent jar 由目标 JVM 以其自身用户打开——发行目录对目标用户可读是跨用户 attach 的前提
+     *    （root 探针 attach 非 root 应用时，arthas-boot 缺省解压到 /root/.arthas，目标进程读不到必失败）；
+     * 2) 离线内网免运行时下载发行包。
+     */
+    static String resolveArthasHome(String bootJarPath) {
+        try {
+            Path dir = Paths.get(bootJarPath).toAbsolutePath().getParent();
+            if (dir != null && Files.exists(dir.resolve("arthas-core.jar"))) {
+                return dir.toString();
+            }
+        } catch (Exception ignore) {
+            // 路径异常时退回 arthas-boot 缺省行为
+        }
+        return null;
     }
 }

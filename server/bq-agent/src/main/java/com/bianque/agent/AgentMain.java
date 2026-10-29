@@ -28,7 +28,7 @@ import java.util.concurrent.Executors;
  */
 public final class AgentMain {
 
-    static final String VERSION = "0.1.0";
+    static final String VERSION = "1.0.0";
     private static final Path ID_FILE = Path.of("bq-agent.id");
 
     private AgentMain() {
@@ -300,7 +300,8 @@ public final class AgentMain {
         System.out.println("用法: java -jar bq-agent.jar --server http://平台:8080 [选项]");
         System.out.println("  --server <url>    平台地址（或环境变量 BIANQUE_SERVER）");
         System.out.println("  --token <token>   接入令牌 bianque.agent.token（或 BIANQUE_AGENT_TOKEN）");
-        System.out.println("  --arthas <path>   arthas-boot.jar 路径（默认当前目录）");
+        System.out.println("  --arthas <path>   arthas-boot.jar 路径（默认当前目录；同目录存在 arthas-core.jar");
+        System.out.println("                    即完整发行目录时自动 --arthas-home 使用，离线可用且支持跨用户 attach）");
         System.out.println("  --name <host>     节点显示名（默认取 hostname）");
         System.out.println("  --interval <sec>  心跳间隔秒数（默认 5）");
     }

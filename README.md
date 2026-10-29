@@ -118,8 +118,12 @@ cd web && npm install && npm run dev                              # http://local
 - **同一目标进程只应归属一个通道**：arthas 每 JVM 仅一个 agent——本机纳管与节点探针混用时
   后 attach 的端口不生效。生产建议：有探针覆盖的主机不再启用本机纳管（容器化部署自动关闭）
 - 节点探针为串行 worker（同一节点同时执行一条命令）；多节点天然并行
-- 探针 Docker 形态仅 Linux 主机可 attach 宿主 JVM（`--pid=host -v /tmp:/tmp` 且与目标 JVM 同用户）；
-  Windows 目标主机用裸机 `java -jar bq-agent.jar` 方式
+- 探针 Docker 形态仅 Linux 主机可 attach 宿主 JVM（`--pid=host -v /tmp:/tmp`）；Windows 目标主机用裸机
+  `java -jar bq-agent.jar` 方式
+- **attach 与用户**：agent jar 由目标 JVM 以其自身用户打开——root 探针 attach 非 root 应用失败不是
+  权限不够，而是目标进程读不到探针侧 arthas 文件（root 家目录 0700）。平台内置完整 arthas 发行目录
+  并对目标用户可读（attach 显式 `--arthas-home`，同时离线免下载），root 探针可 attach 其它用户的应用；
+  更稳妥的口径是 `install.sh --user <应用用户>` 同用户运行（每用户一个探针实例）
 - `AGENT_TOKEN` 为空时节点接入开放，**仅限演示模式**；生产模式（`BIANQUE_DEMO_ENABLED=false`）未配置令牌将拒绝启动；
   生产必配且与告警 `INGEST_TOKEN` 区分
 - 口令 BCrypt 存储；历史 sha256 行首次登录成功后自动透明升级（老库无需迁移）

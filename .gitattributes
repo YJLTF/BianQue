@@ -1,0 +1,4 @@
+# 行尾固化：Linux 交付的 shell 脚本强制 LF（Windows autocrlf 检出转 CRLF 后
+# 在容器/裸机 Linux 上会因 \r 报错），Windows 批处理强制 CRLF
+*.sh text eol=lf
+*.bat text eol=crlf
