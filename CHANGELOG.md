@@ -2,6 +2,22 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 整理 · 仓库清理与文档勘误（开源发布前，本次）
+
+- 清理无效文件：根目录散落的运行日志（server-bq/vite-dev/vite-5175/llm-mock.log）与 web/ 下错位运行产物
+  （`web/data/`、`web/llm-mock.log`、空的 `web/arthas-output/`）——均为 gitignore 运行时残留，不入库
+- 文档勘误（内容与现状对齐）：
+  - ACCEPTANCE.md：版本标记 V0.1.x → v1.0.0；手工启动示例的 jar 名 0.1.0-SNAPSHOT → 1.0.0；
+    §2/§3 注明按演示模式核对（生产模式仅 admin、无拟真通道）；§14 已知边界与「生产去演示化」对齐
+    （模拟靶场/演示账号仅存在于演示模式）
+  - docs/USAGE.md：修复工作流 ② 步骤 1/2 之间被误插入的「显示名」段落（挪到「角色与权限」节，
+    并补充生产模式账号种子说明）
+  - deploy/README.md：环境变量表 AGENT_TOKEN / BIANQUE_DEMO_ENABLED / BIANQUE_ADMIN_PASSWORD 三行
+    「默认/说明」两列错位修正；验证步骤注明演示/生产两种登录口径
+  - 根 README.md：MySQL 备份命令改为容器内变量 `MYSQL_PASSWORD`（原写法在宿主机侧展开会取空密码）；
+    目录树 design/plan 拆行
+  - scripts/README.md：注明 smoke.sh 面向演示模式栈
+
 ## 修复 · 节点被删除后重新上线不再被服务端识别（本次）
 
 - 根因：bq-agent 仅首次启动注册，此后心跳循环把一切失败（含服务端 410「节点未注册或已被清理」）当普通失败重试，

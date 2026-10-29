@@ -46,7 +46,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
 | `BQ_VERSION` | 1.0.0 | 平台镜像 tag（升级版本时同步修改；离线部署需先 load 对应镜像） |
-| `AGENT_TOKEN` | 节点接入令牌；**生产模式必配**（未配置服务端拒绝启动），需与探针侧一致 | 生产必配 |
+| `AGENT_TOKEN` | 空 | 节点接入令牌（`X-Agent-Token`）；**生产模式必配**（未配置服务端拒绝启动），需与探针侧一致 |
 | `INGEST_TOKEN` | 空（关闭） | 告警接入令牌（`X-Alert-Token`），配置后外部告警系统可推入 `POST /api/alerts/ingest` |
 | `LLM_BASE_URL` | 空 | AI 问诊端点预置（OpenAI 兼容，不含 `/chat/completions` 尾巴；也可部署后在「AI 问诊」页填写） |
 | `LLM_API_KEY` | 空 | AI 问诊 LLM 密钥预置（落库存储、只回传掩码） |
@@ -55,14 +55,15 @@ docker compose -f docker-compose.prod.yml up -d --build
 | `WEB_PORT` | 80 | 前端对外端口 |
 | `PROBE_NAME` | hostname | `--profile probe` 演示节点显示名 |
 | `PROBE_INTERVAL` | 5 | `--profile probe` 演示节点心跳间隔（秒） |
-| `BIANQUE_DEMO_ENABLED` | 服务端演示模式开关；prod 默认 `false`：无模拟靶场/种子告警/演示账号 | 否（生产建议 false） |
-| `BIANQUE_ADMIN_PASSWORD` | 生产模式引导 admin 初始口令（仅 admin 不存在时生效一次）；演示模式无需 | 生产模式必填 |
+| `BIANQUE_DEMO_ENABLED` | false | 服务端演示模式开关；true=模拟靶场/种子告警/演示账号，false（prod 默认，生产基线）=仅真实探针实例 |
+| `BIANQUE_ADMIN_PASSWORD` | 空 | 生产模式引导 admin 初始口令（仅 admin 不存在时生效一次）；演示模式无需。**生产模式必填** |
 
 **验证**：
 
 ```bash
 curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.0.0","status":"UP",...}
-# 浏览器打开 http://<主机>/ → admin/admin123 → 节点管理页
+# 浏览器打开 http://<主机>/ → 节点管理页
+# 登录：演示模式 admin/admin123；生产模式用 BIANQUE_ADMIN_PASSWORD 设置的口令
 ```
 
 **说明**：

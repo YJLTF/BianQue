@@ -41,7 +41,8 @@ bianque/
 │   ├── USAGE.md                 # 使用指南
 │   ├── research/                # 调研报告 + 发行包解包取证 + arthas-boot.jar/math-game.jar
 │   └── arthas-docs/4.3.5/       # 文档中心源（78 页，随 server 镜像分发）
-├── design/ plan/                # 设计与计划交付物（含 78 页文档清单 manifest）
+├── design/                      # 产品方案 / 界面原型（离线 HTML）/ 文档清单 manifest
+├── plan/                        # 技术选型 / 开发计划
 ├── server/                      # 后端 Spring Boot 3 多模块
 │   ├── bq-core/                 #   命令白名单 / as.sh 命令行构建
 │   ├── bq-server/               #   平台服务（API/审计/RBAC/巡检/AI/文档中心）
@@ -104,7 +105,7 @@ cd web && npm install && npm run dev                              # http://local
 
 - 数据落 MySQL volume（审计/巡检/取证/用户/LLM 配置），升级镜像不丢；DDL 自动增量
 - 升级：改 `.env` 的 `BQ_VERSION` → `docker compose -f docker-compose.prod.yml up -d`（重新 build 同理）
-- 备份：`docker exec bq-mysql mysqldump -ubianque -p$BIANQUE_DB_PASSWORD bianque > backup.sql`
+- 备份：`docker exec bq-mysql sh -c "mysqldump -ubianque -p\$MYSQL_PASSWORD bianque" > backup.sql`
 - 部署校验：`curl http://<主机>/api/health` 返回 `{"app":"bianque-server","version":"1.0.0","status":"UP"}`
 
 ## 红线（所有阶段生效）

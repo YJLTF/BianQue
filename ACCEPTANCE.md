@@ -1,6 +1,6 @@
-# 扁鹊 BianQue · 验收清单（V0.1.x，S1–S8）
+# 扁鹊 BianQue · 验收清单（v1.0.0，S1–S8）
 
-> 适用版本：git main 分支（df05ed3 → 17e372f 及之后）。
+> 适用版本：git main 分支（v1.0.0 及之后）。
 > 每项标注 【自动】= 已由 `scripts/smoke.sh` / 测试覆盖；【手动】= 浏览器人工确认。
 
 ## 1. 环境与启动
@@ -8,11 +8,14 @@
 | # | 步骤 | 预期 |
 |---|------|------|
 | 1.1 | `docker compose -f deploy/docker-compose.yml up -d mysql redis` | 两容器 Up，MySQL healthy（8.4.x），`redis-cli ping` → PONG |
-| 1.2 | `scripts\start-all.bat`（或手工：`mvn -B package` 后 `java -jar server/bq-server/target/bq-server-0.1.0-SNAPSHOT.jar --spring.profiles.active=mysql --bianque.alerts.ingest-token=<token>`） | 后端 8080 起服，日志含"登录态存储：Redis（重启不丢失）" |
+| 1.2 | `scripts\start-all.bat`（或手工：`mvn -B package` 后 `java -jar server/bq-server/target/bq-server-1.0.0.jar --spring.profiles.active=mysql --bianque.alerts.ingest-token=<token>`） | 后端 8080 起服，日志含"登录态存储：Redis（重启不丢失）" |
 | 1.3 | `cd web && npm run dev` | http://localhost:5173 可访问 |
 | 1.4 | `bash scripts/smoke.sh http://127.0.0.1:8080 <ingest-token>` | 全部 [PASS]，最后一行"冒烟验收全部通过" |
 
 ## 2. 认证与 RBAC 【自动】
+
+> 本节与 §3 拟真项按**演示模式**（`BIANQUE_DEMO_ENABLED=true`）核对；生产模式仅 admin 一个账号
+> （口令由 `BIANQUE_ADMIN_PASSWORD` 引导），无拟真通道，演示账号不存在。
 
 - [ ] 未登录访问业务 API → 401；错误口令 → 400
 - [ ] admin/admin123 登录成功（ADMIN），可见"管理设置-用户与角色"（3 账号 + 权限点）
@@ -97,7 +100,7 @@
 ## 13. 一键部署与节点探针（S8）
 
 - [ ] `cd deploy && AGENT_TOKEN=<令牌> docker compose -f docker-compose.prod.yml up -d --build`
-      产出 bianque/web:76MB / server:597MB / probe:631MB 三镜像，全栈起服 【手动】
+      产出 bianque/{web,server,probe}:1.0.0 三镜像（76/597/631MB），全栈起服 【手动】
 - [ ] 走 Nginx 端口：前端 200、/api/health UP、登录+机队可用、/api/docs/catalog 返回 262KB 【手动】
 - [ ] 探针容器（--profile probe）经 compose 网络注册，节点管理页可见、心跳刷新 【手动】
 - [ ] Linux 主机裸机探针：`sudo ./deploy/probe/install.sh --server ... --token ...`
@@ -106,7 +109,8 @@
 
 ## 14. 已知边界（如实声明）
 
-- 靶场应用/实例/种子告警为内存模拟数据；真实数据（审计/告警/取证/巡检/纳管/Agent 节点台账）已落库
+- 模拟靶场/种子告警/演示账号仅存在于演示模式（`BIANQUE_DEMO_ENABLED=true`）；生产模式实例只来自真实探针上报。
+  真实数据（审计/告警/取证/巡检/纳管/Agent 节点台账/用户）已落库
 - 同一目标进程只应归属一个通道（本机纳管 or 节点 Agent）：arthas 每 JVM 仅一个 agent，混用时后 attach 端口不生效
 - 节点 Agent 为串行 worker（单节点同时执行一条命令）；多节点天然并行
 - token 有效期 8h 滑动过期；Redis 不可用时自动回退内存（重启需重登）
