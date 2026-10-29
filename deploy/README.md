@@ -97,7 +97,7 @@ docker run -d --name bq-probe --restart unless-stopped \
 同机快速体验（平台本身用 compose 部署时）：`docker compose -f docker-compose.prod.yml --profile probe up -d probe`
 ——compose 内置 `probe` 服务已带 `pid=host` 与 `/tmp` 挂载，经网络别名 `server` 直连。
 
-只有探针要发给目标主机时，用独立镜像包（186MB，仅 `bianque/probe:1.0.0`）：
+只有探针要发给目标主机时，用独立镜像包（约 210MB，仅 `bianque/probe:1.0.0`）：
 `docker load -i bianque-probe-1.0.0.tar.gz`，运行命令同上；离线交付包内附
 `probe/README-探针镜像.md` 图文说明。
 
