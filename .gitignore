@@ -7,6 +7,7 @@ server/**/target/
 # ---- Node / 前端 ----
 web/node_modules/
 web/dist/
+web/.vite/
 *.local
 
 # ---- Python / 文档管线 ----
