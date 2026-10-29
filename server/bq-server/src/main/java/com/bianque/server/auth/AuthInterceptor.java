@@ -34,8 +34,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         AuthContext auth = tokens.get(token)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录或登录已过期"));
         String path = request.getRequestURI();
-        if (path.startsWith("/api/admin/users")) {
-            // 用户台账读写均仅管理员
+        if (path.startsWith("/api/admin/")) {
+            // 管理端（用户台账 / 参数中心）读写均仅管理员
             require(auth, PermissionCodes.ADMIN_USER);
         } else if (WRITE_METHODS.contains(request.getMethod().toUpperCase())
                 && !path.startsWith("/api/auth/")) {

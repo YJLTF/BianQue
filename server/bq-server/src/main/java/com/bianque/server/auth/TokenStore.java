@@ -1,5 +1,6 @@
 package com.bianque.server.auth;
 
+import com.bianque.server.service.SysConfigService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
@@ -10,7 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -25,16 +25,16 @@ public class TokenStore {
     private static final Logger log = LoggerFactory.getLogger(TokenStore.class);
     private static final String KEY_PREFIX = "bianque:token:";
 
-    private final Duration ttl;
+    private final SysConfigService config; // 参数中心：auth.token-ttl-hours
     private final StringRedisTemplate redis; // 可为 null（无 Redis 环境）
     private final ObjectMapper json; // Spring 容器的（含 JavaTimeModule，能序列化 Instant）
     private final Map<String, AuthContext> memory = new ConcurrentHashMap<>();
 
     public TokenStore(ObjectProvider<StringRedisTemplate> redis, ObjectMapper json,
-                      @Value("${bianque.auth.token-ttl-hours:8}") long ttlHours) {
+                      SysConfigService config) {
         this.redis = redis.getIfAvailable();
         this.json = json;
-        this.ttl = Duration.ofHours(ttlHours);
+        this.config = config;
         if (this.redis != null) {
             log.info("登录态存储：Redis（重启不丢失）");
         } else {
@@ -46,7 +46,7 @@ public class TokenStore {
                               Set<String> permissions) {
         String token = java.util.UUID.randomUUID().toString().replace("-", "");
         AuthContext ctx = new AuthContext(token, username, displayName, role, roleName,
-                Set.copyOf(permissions), Instant.now().plus(ttl));
+                Set.copyOf(permissions), Instant.now().plus(ttl()));
         put(token, ctx);
         return ctx;
     }
@@ -61,9 +61,14 @@ public class TokenStore {
             return Optional.empty();
         }
         AuthContext renewed = new AuthContext(ctx.token(), ctx.username(), ctx.displayName(),
-                ctx.role(), ctx.roleName(), ctx.permissions(), Instant.now().plus(ttl));
+                ctx.role(), ctx.roleName(), ctx.permissions(), Instant.now().plus(ttl()));
         put(token, renewed);
         return Optional.of(renewed);
+    }
+
+    /** 登录态时长（参数中心可配，改动对后续创建/续期生效） */
+    private Duration ttl() {
+        return Duration.ofHours(config.intValue("auth.token-ttl-hours"));
     }
 
     public void remove(String token) {
@@ -97,7 +102,7 @@ public class TokenStore {
     private void put(String token, AuthContext ctx) {
         if (redis != null) {
             try {
-                redis.opsForValue().set(KEY_PREFIX + token, json.writeValueAsString(ctx), ttl);
+                redis.opsForValue().set(KEY_PREFIX + token, json.writeValueAsString(ctx), ttl());
                 return;
             } catch (Exception e) {
                 log.warn("Redis 写入失败，回退内存: {}", e.getMessage());

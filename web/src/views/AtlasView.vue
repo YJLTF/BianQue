@@ -57,7 +57,8 @@ const rep = ref<AtlasReport | null>(null);
 async function scan() {
   scanning.value = true;
   try {
-    rep.value = await http.post("/atlas/scan", { targetClass: targetClass.value }) as unknown as AtlasReport;
+    // 批量 sc -d 分批串行扫描全部实例，耗时远超全局 15s
+    rep.value = await http.post("/atlas/scan", { targetClass: targetClass.value }, { timeout: 300000 }) as unknown as AtlasReport;
   } catch (e) {
     ElMessage.error(errMsg(e));
   } finally {

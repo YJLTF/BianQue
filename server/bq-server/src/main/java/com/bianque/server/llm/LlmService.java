@@ -74,6 +74,7 @@ public class LlmService {
 
     private final LlmConfigJpa jpa;
     private final DocsService docs;
+    private final EmbeddingService embeddings; // 向量检索（未配置时自动回落关键词）
     private final AuditTrail audit;
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
@@ -82,13 +83,15 @@ public class LlmService {
     private final String defModel;
     private final String defSystemPrompt;
 
-    public LlmService(LlmConfigJpa jpa, DocsService docs, ObjectProvider<AuditTrail> audit, ObjectMapper json,
+    public LlmService(LlmConfigJpa jpa, DocsService docs, EmbeddingService embeddings,
+                      ObjectProvider<AuditTrail> audit, ObjectMapper json,
                       @Value("${bianque.llm.base-url:}") String defBaseUrl,
                       @Value("${bianque.llm.api-key:}") String defApiKey,
                       @Value("${bianque.llm.model:}") String defModel,
                       @Value("${bianque.llm.system-prompt:}") String defSystemPrompt) {
         this.jpa = jpa;
         this.docs = docs;
+        this.embeddings = embeddings;
         this.audit = audit.getIfAvailable();
         this.json = json;
         this.defBaseUrl = defBaseUrl;
@@ -112,8 +115,21 @@ public class LlmService {
     /** 更新配置（null 字段保留原值）；apiKey 为空表示保留原值；reasoningParams 空串表示清空回内置映射 */
     public LlmConfigEntity update(String baseUrl, String apiKey, String model, Double temperature, Double topP,
                                   Integer maxTokens, String reasoningEffort, Integer timeoutSeconds,
-                                  String systemPrompt, String reasoningParams) {
+                                  String systemPrompt, String reasoningParams, String embedBaseUrl,
+                                  String embedApiKey, String embedModel, Integer embedDims) {
         LlmConfigEntity e = config();
+        if (embedBaseUrl != null) {
+            e.embedBaseUrl = embedBaseUrl.trim();
+        }
+        if (embedApiKey != null && !embedApiKey.isBlank()) {
+            e.embedApiKey = embedApiKey.trim();
+        }
+        if (embedModel != null) {
+            e.embedModel = embedModel.trim();
+        }
+        if (embedDims != null) {
+            e.embedDims = embedDims > 0 ? Math.min(embedDims, 65536) : e.embedDims;
+        }
         if (baseUrl != null) {
             e.baseUrl = baseUrl.trim();
         }
@@ -174,6 +190,11 @@ public class LlmService {
         m.put("timeoutSeconds", e.timeoutSeconds);
         m.put("systemPrompt", nullToEmpty(e.systemPrompt));
         m.put("reasoningParams", nullToEmpty(e.reasoningParams));
+        m.put("embedBaseUrl", nullToEmpty(e.embedBaseUrl));
+        m.put("hasEmbedApiKey", e.embedApiKey != null && !e.embedApiKey.isBlank());
+        m.put("embedApiKeyMasked", mask(e.embedApiKey));
+        m.put("embedModel", nullToEmpty(e.embedModel));
+        m.put("embedDims", e.embedDims);
         m.put("updatedAt", e.updatedAt);
         m.put("configured", isConfigured(e));
         return m;
@@ -195,7 +216,7 @@ public class LlmService {
         }
         String q = cap(question, 8000);
         // 知识库检索：问题 + 诊断上下文共同作为检索源；无命中则不注入（寒暄/闲聊零干扰）
-        List<DocsService.DocHit> kb = docs.searchKnowledge(q + "\n" + (context == null ? "" : context), MAX_KB_DOCS);
+        List<DocsService.DocHit> kb = hybridKnowledge(q + "\n" + (context == null ? "" : context));
         List<Map<String, Object>> messages = prepareMessages(c, q, kb, history, context);
         String eff = resolveEffort(c.reasoningEffort, reasoningLevel);
         Map<String, Object> body = buildRequestBody(c, messages, eff, mapping(c));
@@ -255,7 +276,7 @@ public class LlmService {
             return;
         }
         String q = cap(question, 8000);
-        List<DocsService.DocHit> kb = docs.searchKnowledge(q + "\n" + (context == null ? "" : context), MAX_KB_DOCS);
+        List<DocsService.DocHit> kb = hybridKnowledge(q + "\n" + (context == null ? "" : context));
         List<DocRef> refs = kb.stream().map(h -> new DocRef(h.slug(), h.title(), h.path())).toList();
         List<Map<String, Object>> messages = prepareMessages(c, q, kb, history, context);
         String eff = resolveEffort(c.reasoningEffort, reasoningLevel);
@@ -443,6 +464,49 @@ public class LlmService {
     }
 
     /** 知识库片段：每页标题 + 正文摘录（单页截断），整体再按 MAX_TEXT 兜底 */
+    /** 混合检索对外形态（AI 会诊工具 search_docs 用）：Top-K 命中页（含片段） */
+    public List<DocsService.DocHit> searchHybrid(String question, int k) {
+        List<DocsService.DocHit> hits = hybridKnowledge(question);
+        return hits.subList(0, Math.min(Math.max(k, 1), hits.size()));
+    }
+
+    /**
+     * 混合知识检索：向量 Top-K + 关键词 Top-K → RRF 融合（1/(60+rank)）取 Top-N。
+     * 向量未配置/端点故障时自动回落纯关键词（EmbeddingService.search 内部兜底空列表）。
+     */
+    private List<DocsService.DocHit> hybridKnowledge(String question) {
+        List<DocsService.DocHit> keyword = docs.searchKnowledge(question, MAX_KB_DOCS);
+        List<EmbeddingService.VecHit> vec = List.of();
+        try {
+            vec = embeddings.search(question, MAX_KB_DOCS);
+        } catch (Exception ignore) {
+            // 向量链路故障不影响对话
+        }
+        if (vec.isEmpty()) {
+            return keyword;
+        }
+        Map<String, Double> rrf = new java.util.TreeMap<>();
+        Map<String, DocsService.DocHit> bySlug = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < keyword.size(); i++) {
+            DocsService.DocHit h = keyword.get(i);
+            rrf.merge(h.slug(), 1.0 / (60 + i + 1), Double::sum);
+            bySlug.putIfAbsent(h.slug(), h);
+        }
+        for (int i = 0; i < vec.size(); i++) {
+            EmbeddingService.VecHit v = vec.get(i);
+            rrf.merge(v.slug(), 1.0 / (60 + i + 1), Double::sum);
+            bySlug.putIfAbsent(v.slug(), new DocsService.DocHit(v.slug(), v.title(),
+                    "知识库", "low", v.path(), v.content()));
+        }
+        List<Map.Entry<String, Double>> ranked = new ArrayList<>(rrf.entrySet());
+        ranked.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        List<DocsService.DocHit> out = new ArrayList<>();
+        for (int i = 0; i < Math.min(MAX_KB_DOCS, ranked.size()); i++) {
+            out.add(bySlug.get(ranked.get(i).getKey()));
+        }
+        return out;
+    }
+
     private static String knowledgeBlock(List<DocsService.DocHit> kb) {
         StringBuilder sb = new StringBuilder("【Arthas 知识库参考（来自平台文档中心，讲解命令用法时优先遵循以下内容）】");
         for (DocsService.DocHit h : kb) {
@@ -464,7 +528,8 @@ public class LlmService {
         }
     }
 
-    private static boolean isConfigured(LlmConfigEntity e) {
+    /** 端点+模型已配置（会诊/测试共用判定） */
+    public static boolean isConfigured(LlmConfigEntity e) {
         return e.baseUrl != null && !e.baseUrl.isBlank()
                 && e.apiKey != null && !e.apiKey.isBlank()
                 && e.model != null && !e.model.isBlank();

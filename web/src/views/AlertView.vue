@@ -91,7 +91,8 @@ function hhmm(t: string) {
 async function rescue(alertId: string) {
   busy.value = alertId;
   try {
-    report.value = await http.post(`/alerts/${alertId}/rescue`) as unknown as RescueReport;
+    // 取证按模板串行执行多条命令（thread→memory→jvm），耗时远超全局 15s
+    report.value = await http.post(`/alerts/${alertId}/rescue`, null, { timeout: 300000 }) as unknown as RescueReport;
     alerts.value = await http.get("/alerts") as unknown as Alert[];
     ElMessage.success("现场报告已生成");
   } catch (e) {

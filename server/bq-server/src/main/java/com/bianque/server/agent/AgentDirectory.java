@@ -2,6 +2,7 @@ package com.bianque.server.agent;
 
 import com.bianque.server.model.Types.Instance;
 import com.bianque.server.repo.FleetRepository;
+import com.bianque.server.service.SysConfigService;
 import com.bianque.server.store.AgentNodeEntity;
 import com.bianque.server.store.AgentNodeJpa;
 import java.time.Duration;
@@ -17,13 +18,10 @@ import org.springframework.stereotype.Service;
 /**
  * 平台 Agent 节点目录：节点注册/心跳时刷新台账，并把上报的 JVM 进程同步为机队实例
  * （instanceId=agent-<agentId>-<pid>，执行走 Agent 通道）。进程列表内存态即可——
- * 节点 5s 一报，掉线实例自动从机队摘除。
+ * 节点按参数中心配置的节奏上报，超窗未收到心跳即判定离线并从机队摘除。
  */
 @Service
 public class AgentDirectory {
-
-    /** 心跳超过此时长视为离线 */
-    public static final Duration ONLINE_WINDOW = Duration.ofSeconds(20);
 
     public record NodeView(String agentId, String host, String hostname, String os, String javaVersion,
                            String agentVersion, Instant firstSeen, Instant lastHeartbeat, boolean online,
@@ -35,11 +33,13 @@ public class AgentDirectory {
 
     private final AgentNodeJpa nodes;
     private final FleetRepository fleet;
+    private final SysConfigService config;
     private final Map<String, Map<Long, String>> processes = new ConcurrentHashMap<>(); // agentId -> pid -> mainClass
 
-    public AgentDirectory(AgentNodeJpa nodes, FleetRepository fleet) {
+    public AgentDirectory(AgentNodeJpa nodes, FleetRepository fleet, SysConfigService config) {
         this.nodes = nodes;
         this.fleet = fleet;
+        this.config = config;
     }
 
     /** 注册（幂等）：已存在的 agentId 刷新台账，新节点生成 id = <hostname>-<rand4> */
@@ -98,7 +98,8 @@ public class AgentDirectory {
     public boolean online(String agentId) {
         return nodes.findById(agentId)
                 .map(e -> e.lastHeartbeat != null
-                        && e.lastHeartbeat.isAfter(Instant.now().minus(ONLINE_WINDOW)))
+                        && e.lastHeartbeat.isAfter(Instant.now()
+                                .minus(Duration.ofSeconds(config.intValue("agent.online-window-seconds")))))
                 .orElse(false);
     }
 

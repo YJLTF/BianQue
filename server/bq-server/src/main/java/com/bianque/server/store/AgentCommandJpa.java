@@ -20,4 +20,6 @@ public interface AgentCommandJpa extends JpaRepository<AgentCommandEntity, Long>
     @Modifying(clearAutomatically = true)
     @Query("update AgentCommandEntity c set c.status = 'RUNNING' where c.id = :id and c.status = 'PENDING'")
     int claim(@Param("id") Long id);
+
+    long deleteByStatusInAndCreatedAtBefore(List<String> statuses, Instant cutoff);
 }

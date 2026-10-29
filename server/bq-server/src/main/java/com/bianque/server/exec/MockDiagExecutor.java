@@ -74,6 +74,14 @@ public class MockDiagExecutor implements DiagExecutor {
                     GC: young %d/s full %d""".formatted(
                     60 + seed % 30, 50 + seed % 20, 300 + seed % 200, 120 + seed % 80, 20 + seed % 70,
                     seed % 5, seed % 2);
+            case "profiler" -> c.commandText().contains("stop")
+                    ? "profiler output file: /tmp/arthas-output/demo-flame-%d.html%n[html] demo flame graph"
+                            .formatted(seed % 10000)
+                    : "profiler started (event=cpu)\n[demo] sampling...";
+            case "cat" -> (c.commandText().contains(".html")
+                    ? "<html><head><meta charset=\"utf-8\"></head><body><h1>demo flame graph</h1>"
+                            + "<canvas id=\"flame\" width=\"800\" height=\"200\"></canvas></body></html>"
+                    : "ok\ncommand= " + c.commandText() + "\ninstance= " + c.instanceId());
             default -> """
                     ok
                     command= %s

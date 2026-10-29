@@ -46,6 +46,12 @@ public class LlmConfigEntity {
      */
     @Lob
     public String reasoningParams;
+
+    /** 文档向量化（RAG）：OpenAI 兼容 /embeddings 端点（不带 /embeddings 尾巴）；留空 = 关闭向量检索走关键词 */
+    public String embedBaseUrl;
+    public String embedApiKey;
+    public String embedModel;
+    public Integer embedDims;
     public Instant updatedAt;
 
     public LlmConfigEntity() {

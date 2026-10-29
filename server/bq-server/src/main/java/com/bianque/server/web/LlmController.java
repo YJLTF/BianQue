@@ -32,7 +32,8 @@ public class LlmController {
 
     public record ConfigReq(String baseUrl, String apiKey, String model, Double temperature, Double topP,
                             Integer maxTokens, String reasoningEffort, Integer timeoutSeconds, String systemPrompt,
-                            String reasoningParams) {
+                            String reasoningParams, String embedBaseUrl, String embedApiKey, String embedModel,
+                            Integer embedDims) {
     }
 
     /** reasoningLevel：请求级思考强度（default/空=跟随接入配置；off/low/medium/high=ZCode 式会话覆盖） */
@@ -40,10 +41,18 @@ public class LlmController {
                           String reasoningLevel) {
     }
 
-    private final LlmService llm;
+    public record ConsultReq(String instanceId, String question, List<ChatTurn> history) {
+    }
 
-    public LlmController(LlmService llm) {
+    private final LlmService llm;
+    private final com.bianque.server.llm.EmbeddingService embeddings;
+    private final com.bianque.server.llm.ConsultService consult;
+
+    public LlmController(LlmService llm, com.bianque.server.llm.EmbeddingService embeddings,
+                         com.bianque.server.llm.ConsultService consult) {
         this.llm = llm;
+        this.embeddings = embeddings;
+        this.consult = consult;
     }
 
     @GetMapping("/config")
@@ -56,7 +65,7 @@ public class LlmController {
         requireAdmin(request, "修改 LLM 接入配置");
         llm.update(req.baseUrl(), req.apiKey(), req.model(), req.temperature(), req.topP(),
                 req.maxTokens(), req.reasoningEffort(), req.timeoutSeconds(), req.systemPrompt(),
-                req.reasoningParams());
+                req.reasoningParams(), req.embedBaseUrl(), req.embedApiKey(), req.embedModel(), req.embedDims());
         return llm.maskedConfig();
     }
 
@@ -68,6 +77,87 @@ public class LlmController {
                 ? req.question() : "用一句话回答：你是谁？具备什么能力？";
         String level = req == null ? null : req.reasoningLevel();
         return llm.chat(operator(request), null, q, List.of(), null, level);
+    }
+
+    /** 文档向量索引重建（仅 admin；同步执行，78 页约数秒到数十秒） */
+    @PostMapping("/embeddings/reindex")
+    public Map<String, Object> reindex(HttpServletRequest request) {
+        requireAdmin(request, "重建文档向量索引");
+        return embeddings.reindex();
+    }
+
+    /** 向量索引状态（已配置/块数/模型） */
+    @GetMapping("/embeddings/status")
+    public Map<String, Object> embeddingStatus() {
+        return embeddings.status();
+    }
+
+    /**
+     * AI 会诊（SSE 流式）：选中实例 + 自然语言 → 模型经 function calling 调平台工具执行分析。
+     * 事件：start{consultId} → tool{步骤} / tool_result 已并入 tool / confirm_required{待审批命令}
+     * → reasoning / content → done{content, steps} → error。写操作门槛 diag:execute 由拦截器统一保证。
+     */
+    @PostMapping(value = "/consult/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter consultStream(@RequestBody ConsultReq req, HttpServletRequest request,
+                                    HttpServletResponse response) {
+        if (req.question() == null || req.question().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "问题不能为空");
+        }
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        String operator = operator(request);
+        SseEmitter emitter = new SseEmitter(300_000L);
+        java.util.concurrent.atomic.AtomicInteger steps = new java.util.concurrent.atomic.AtomicInteger();
+        com.bianque.server.llm.ConsultService.ConsultListener listener =
+                new com.bianque.server.llm.ConsultService.ConsultListener() {
+                    @Override
+                    public void onTool(com.bianque.server.llm.ConsultService.ToolStep step) {
+                        steps.set(step.step());
+                        send(emitter, "tool", step);
+                    }
+
+                    @Override
+                    public void onConfirmRequired(int step, String tool, String argsJson, String command) {
+                        send(emitter, "confirm_required", Map.of("step", step, "tool", tool,
+                                "argsJson", argsJson, "command", command));
+                    }
+
+                    @Override
+                    public void onReasoning(String delta) {
+                        send(emitter, "reasoning", Map.of("text", delta));
+                    }
+
+                    @Override
+                    public void onContent(String delta) {
+                        send(emitter, "content", Map.of("text", delta));
+                    }
+
+                    @Override
+                    public void onDone(String content, java.util.List<com.bianque.server.llm.ConsultService.ToolStep> stepList) {
+                        send(emitter, "done", Map.of("content", content == null ? "" : content,
+                                "steps", stepList));
+                        emitter.complete();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        send(emitter, "error", Map.of("message", message));
+                        emitter.complete();
+                    }
+                };
+        String consultId = consult.start(operator, req.instanceId(), req.question(), req.history(), listener);
+        send(emitter, "start", Map.of("consultId", consultId));
+        return emitter;
+    }
+
+    /** 会诊审批决策（增强命令审批卡点「允许/拒绝」后调用） */
+    @PostMapping("/consult/decision")
+    public Map<String, Object> consultDecision(@RequestBody Map<String, Object> body) {
+        String consultId = String.valueOf(body.getOrDefault("consultId", ""));
+        int step = Integer.parseInt(String.valueOf(body.getOrDefault("step", "0")));
+        boolean approved = Boolean.parseBoolean(String.valueOf(body.get("approved")));
+        boolean ok = consult.decide(consultId, step, approved);
+        return Map.of("ok", ok);
     }
 
     @PostMapping("/chat")

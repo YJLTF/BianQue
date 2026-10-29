@@ -1,5 +1,6 @@
 package com.bianque.server.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,8 +58,11 @@ class DiagServiceTest {
     }
 
     private final MemAuditTrail audit = new MemAuditTrail();
-    private final DiagService service = new DiagService(providerOf(new MockDiagExecutor()),
-            emptyLocalProvider(), stubAgentExecutor(), audit, new com.bianque.server.repo.FleetRepository(null, true), 30);
+    private final SysConfigService config = SysConfigService.inMemory(audit);
+    private final DiagService service = new DiagService(new BlacklistService(config),
+            providerOf(new MockDiagExecutor()),
+            emptyLocalProvider(), stubAgentExecutor(), audit, new com.bianque.server.repo.FleetRepository(null, true),
+            config);
 
     /** 测试装配：拟真通道恒可用（演示模式语义） */
     private static <T> org.springframework.beans.factory.ObjectProvider<T> providerOf(T value) {
@@ -140,5 +144,21 @@ class DiagServiceTest {
     void 登录操作人写入审计() {
         service.execute("pod-3", "thread -n 3", "人工", "admin(管理员)");
         assertTrue(audit.query("人工", "admin", 10).get(0).operator().equals("admin(管理员)"));
+    }
+
+    @Test
+    void 追加黑名单即时生效_内置基线不受影响_清空后恢复() {
+        // 管理员追加 jad（反编译类命令加严）：下一条命令即拦截并留审计
+        config.update(BlacklistService.EXTRA_KEY, "jad", "tester");
+        DiagResult r = service.execute("pod-3", "jad com.demo.OrderService", "人工");
+        assertFalse(r.success());
+        assertTrue(r.error().contains("已拦截"));
+        assertTrue(r.error().contains("jad"));
+        assertEquals("blocked", audit.query("人工", null, 10).get(0).result());
+        // 内置基线恒拦截，不受追加项增减影响（不可经追加通道削减）
+        assertFalse(service.execute("pod-3", "ognl '@System@exit(0)'", "人工").success());
+        // 清空追加项后该命令恢复放行（拟真通道 default 分支）
+        config.update(BlacklistService.EXTRA_KEY, "", "tester");
+        assertTrue(service.execute("pod-3", "jad com.demo.OrderService", "人工").success());
     }
 }

@@ -33,12 +33,15 @@ public class RescueService {
     private final RescueReportJpa reports;
     private final AlertService alerts;
     private final ObjectMapper json;
+    private final TemplateService templates; // 模板中心：急诊取证序列
 
-    public RescueService(DiagService diag, RescueReportJpa reports, AlertService alerts, ObjectMapper json) {
+    public RescueService(DiagService diag, RescueReportJpa reports, AlertService alerts, ObjectMapper json,
+                         TemplateService templates) {
         this.diag = diag;
         this.reports = reports;
         this.alerts = alerts;
         this.json = json;
+        this.templates = templates;
     }
 
     public List<Alert> listAlerts() {
@@ -56,9 +59,29 @@ public class RescueService {
         }
         long begin = System.currentTimeMillis();
         List<RescueStep> steps = new ArrayList<>();
-        String threadOut = run(steps, 1, "最忙线程 + 死锁检测", "thread -n 5", alert.instanceId(), operator);
-        String memoryOut = run(steps, 2, "内存水位", "memory", alert.instanceId(), operator);
-        String jvmOut = run(steps, 3, "JVM / GC 统计", "jvm", alert.instanceId(), operator);
+        // 取证序列：模板中心首个启用的急诊模板（默认与 v1.0 行为一致：thread→memory→jvm）
+        List<TemplateService.TemplateItem> seq = templates.resolveRescueSteps();
+        String threadOut = null;
+        String memoryOut = null;
+        String jvmOut = null;
+        for (int i = 0; i < seq.size(); i++) {
+            TemplateService.TemplateItem step = seq.get(i);
+            String out = run(steps, i + 1, step.name(), step.command(), alert.instanceId(), operator);
+            if (i == 0) {
+                threadOut = out;
+            } else if (i == 1) {
+                memoryOut = out;
+            } else if (i == 2) {
+                jvmOut = out;
+            }
+        }
+        // 结论依赖前三步的既有解析口径（序号超出部分仅取证不做结论解析）
+        if (threadOut == null) {
+            threadOut = "";
+        }
+        if (memoryOut == null) {
+            memoryOut = "";
+        }
 
         int threadTotal = findInt(THREAD_TOTAL, threadOut, 0);
         int oldGen = findInt(OLD_GEN, memoryOut, 0);

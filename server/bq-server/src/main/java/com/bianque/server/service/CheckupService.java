@@ -24,19 +24,28 @@ import org.springframework.stereotype.Service;
 public class CheckupService {
 
     private static final Logger log = LoggerFactory.getLogger(CheckupService.class);
-    private static final List<String> TEMPLATE = List.of("jvm", "memory", "thread");
 
     private final DiagService diag;
     private final FleetRepository fleet;
     private final CheckupRunJpa runs;
     private final ObjectMapper json;
+    private final SysConfigService config; // 参数中心：巡检总时限/单实例时限
+    private final TemplateService templates; // 模板中心：体检命令集（默认 jvm/memory/thread）
     private final Map<String, List<CheckupRow>> latest = new ConcurrentHashMap<>();
 
-    public CheckupService(DiagService diag, FleetRepository fleet, CheckupRunJpa runs, ObjectMapper json) {
+    public CheckupService(DiagService diag, FleetRepository fleet, CheckupRunJpa runs, ObjectMapper json,
+                          SysConfigService config, TemplateService templates) {
         this.diag = diag;
         this.fleet = fleet;
         this.runs = runs;
         this.json = json;
+        this.config = config;
+        this.templates = templates;
+    }
+
+    /** 体检命令集：模板中心首个启用的体检模板（缺省/停用回落 jvm/memory/thread） */
+    private List<String> checkupCommands() {
+        return templates.resolveCheckupCommands();
     }
 
     public List<CheckupRow> runAll() {
@@ -52,13 +61,15 @@ public class CheckupService {
             List<java.util.concurrent.Future<CheckupRow>> futures = targets.stream()
                     .map(i -> executor.submit(() -> checkOne(i, operator)))
                     .toList();
-            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(150);
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(config.intValue("checkup.deadline-seconds"));
+            long instanceMs = 1000L * config.intValue("checkup.instance-timeout-seconds");
             List<CheckupRow> rows = new ArrayList<>();
             for (int i = 0; i < futures.size(); i++) {
                 long remainMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
                         Math.max(1, deadline - System.nanoTime()));
                 try {
-                    rows.add(futures.get(i).get(Math.min(remainMs, 90_000),
+                    rows.add(futures.get(i).get(Math.min(remainMs, instanceMs),
                             java.util.concurrent.TimeUnit.MILLISECONDS));
                 } catch (java.util.concurrent.TimeoutException te) {
                     futures.get(i).cancel(true);
@@ -122,10 +133,17 @@ public class CheckupService {
         return Math.round(v * 100) / 100.0;
     }
 
+    /** 单实例体检（AI 会诊工具 run_checkup 用）：实例不存在/执行失败抛出原语义 */
+    public CheckupRow checkupOne(String instanceId, String operator) {
+        Instance ins = fleet.find(instanceId)
+                .orElseThrow(() -> new IllegalArgumentException("实例不存在或已下线: " + instanceId));
+        return checkOne(ins, operator);
+    }
+
     CheckupRow checkOne(Instance ins, String operator) {
         int score = ins.baseHealth();
         List<String> deductions = new ArrayList<>();
-        for (String cmd : TEMPLATE) {
+        for (String cmd : checkupCommands()) {
             try {
                 var r = diag.execute(ins.instanceId(), cmd, "系统", operator);
                 if (!r.success()) {

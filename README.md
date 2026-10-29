@@ -1,20 +1,28 @@
-# 扁鹊 · BianQue v1.0.0 — 基于 Arthas 4.3.5 的线上诊断平台
+# 扁鹊 · BianQue v1.1.0 — 基于 Arthas 4.3.5 的线上诊断平台
 
 > 望闻问切，线上无障。把"SSH → arthas-boot → 敲命令"变成"浏览器选应用 → 选场景 → 看结论"，
 > 并用安全壳管住 Arthas 进程内任意代码执行能力。
 
-**版本**：v1.0.0（2026-10）· 引擎 Arthas 4.3.5 · 运行时 JRE 21 · 目标 JVM JDK 11+
+**版本**：v1.1.0（2026-10）· 引擎 Arthas 4.3.5 · 运行时 JRE 21 · 目标 JVM JDK 11+
 
 ## 核心能力
 
 - **真实诊断**：节点探针（纯 JDK 零依赖，出站 HTTP 心跳）纳管目标主机 JVM，命令单下发 →
   arthas attach 执行 → 结果回传；本机纳管通道（免 telnet）覆盖单机场景；高危命令黑名单、
-  增强命令限次限频、会话 30 分钟自动回收（reset+stop 防增强残留）
-- **AI 问诊**：任何 OpenAI Chat Completions 兼容端点（含推理模型思考强度）；自动检索文档中心
-  78 页官方文档作知识库（Top-4 命中注入，引用可溯源）；密钥集中管理、每次对话审计留痕
+  增强命令限次限频、会话自动回收（reset+stop 防增强残留）；thread/memory/jvm/dashboard/monitor
+  结果自动结构化出图（线程状态分布/内存水位/接口趋势），**火焰图剖析**（profiler 全通道）与
+  **双实例火山图对比**（Welch t 检验）；登录失败限速（60s 内失败 ≥5 次锁 5 分钟）
+- **AI 问诊**：任何 OpenAI Chat Completions 兼容端点（含推理模型思考强度）；文档中心 78 页官方
+  文档作知识库（可选 embedding 向量化 + 关键词混合检索，引用可溯源）；**AI 会诊**——选中实例用
+  自然语言描述需求，AI 经 function calling 就地执行只读诊断命令分析（增强命令审批卡、黑名单不可
+  放行、全步留痕）；诊断台执行结果一键「AI 分析」；回答 Markdown 渲染 + 代码高亮复制
 - **急诊取证**：外部告警 Webhook 接入（级别归一化）→ 一键生成现场报告
 - **巡检体检**：虚拟线程并行体检机队，健康分 + 扣分项，单实例失败弹性降级
 - **资产档案**：应用/实例/进程台账，批量 `sc -d` 扫描
+- **模板中心**：诊断场景/巡检体检/急诊取证模板统一资产化（内置播种、{{占位符}}填参、诊断台
+  执行一键「存为模板」、管理设置增改停用）；**参数中心**：命令超时/会话回收/探针心跳间隔/在线
+  判定窗口/登录令牌有效期/巡检时限/数据保留天数页面可改、免重启生效、审计留痕；**高危黑名单
+  页面化**：内置基线恒拦截不可削减，管理员可追加加严（对人工诊断/AI 会诊/模板保存统一生效）
 - **文档中心**：官方 78 页离线托管 + 全文搜索 + 深链
 - **安全底座**：登录认证 + RBAC 三角色、审计哈希链防篡改、探针/告警双令牌接入、密钥不出平台
 
@@ -24,7 +32,7 @@
 |---|---|---|
 | **部署指南** | 一键部署 / 离线交付包 / 节点探针（Docker・systemd・Windows） | [deploy/README.md](deploy/README.md) |
 | **使用指南** | 角色权限、十页导览、典型工作流、AI/MCP 接入、FAQ | [docs/USAGE.md](docs/USAGE.md) |
-| 变更记录 | S0→S8 迭代与 v1.0.0 发布记录（每项含实测数据） | [CHANGELOG.md](CHANGELOG.md) |
+| 变更记录 | S0→S8 迭代与 v1.1.0 发布记录（每项含实测数据） | [CHANGELOG.md](CHANGELOG.md) |
 | 验收清单 | S1–S7 【自动】/【手动】逐项核对 | [ACCEPTANCE.md](ACCEPTANCE.md) |
 | 产品设计 | 产品方案 / 界面原型 / 技术选型 / 开发计划 | [design/](design/)、[plan/](plan/) |
 | 调研报告 | Arthas 4.3.5 运维产品调研评估 | [docs/research/](docs/research/) |
@@ -70,7 +78,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 **② 离线部署（已有交付包，目标机无需构建）**：
 
 ```bash
-docker load -i bianque-images-1.0.0.tar.gz   # 含 server/web/probe/mysql/redis 五镜像
+docker load -i bianque-images-1.1.0.tar.gz   # 含 server/web/probe/mysql/redis 五镜像
 cd deploy && cp .env.example .env && docker compose -f docker-compose.prod.yml up -d
 ```
 
@@ -81,7 +89,7 @@ cd deploy && cp .env.example .env && docker compose -f docker-compose.prod.yml u
 # 或分步：
 docker compose -f deploy/docker-compose.yml up -d mysql redis     # 基础设施
 cd server && mvn -B package && cd ..
-java -jar server/bq-server/target/bq-server-1.0.0.jar --spring.profiles.active=mysql
+java -jar server/bq-server/target/bq-server-1.1.0.jar --spring.profiles.active=mysql
 java -jar docs/research/arthas-inspect/math-game.jar              # 演示靶场进程
 cp server/bq-agent/target/bq-agent.jar agents/                    # 本机演示节点（可选）
 cd web && npm install && npm run dev                              # http://localhost:5173
@@ -106,11 +114,12 @@ cd web && npm install && npm run dev                              # http://local
 - 数据落 MySQL volume（审计/巡检/取证/用户/LLM 配置），升级镜像不丢；DDL 自动增量
 - 升级：改 `.env` 的 `BQ_VERSION` → `docker compose -f docker-compose.prod.yml up -d`（重新 build 同理）
 - 备份：`docker exec bq-mysql sh -c "mysqldump -ubianque -p\$MYSQL_PASSWORD bianque" > backup.sql`
-- 部署校验：`curl http://<主机>/api/health` 返回 `{"app":"bianque-server","version":"1.0.0","status":"UP"}`
+- 部署校验：`curl http://<主机>/api/health` 返回 `{"app":"bianque-server","version":"1.1.0","status":"UP"}`
 
 ## 红线（所有阶段生效）
 
-默认绑定 `127.0.0.1`、强制认证、`disabledCommands` 黑名单、全操作审计、会话超时自动回收。
+默认绑定 `127.0.0.1`、强制认证、`disabledCommands` 黑名单（内置基线不可削减；追加项仅可加严、
+页面管理）、全操作审计、会话超时自动回收。
 发布门禁见产品设计方案 6.3；仓库与镜像不含任何真实密钥，默认口令仅限内网演示。
 
 ## 已知边界
@@ -126,5 +135,8 @@ cd web && npm install && npm run dev                              # http://local
   更稳妥的口径是 `install.sh --user <应用用户>` 同用户运行（每用户一个探针实例）
 - `AGENT_TOKEN` 为空时节点接入开放，**仅限演示模式**；生产模式（`BIANQUE_DEMO_ENABLED=false`）未配置令牌将拒绝启动；
   生产必配且与告警 `INGEST_TOKEN` 区分
-- 口令 BCrypt 存储；历史 sha256 行首次登录成功后自动透明升级（老库无需迁移）
-- AI 问诊文档知识库为检索注入（Top-4 命中片段），非向量库全量语义检索；冷门表述可能零命中
+- 口令 BCrypt 存储；历史 sha256 行首次登录成功后自动透明升级（老库无需迁移）；登录失败速率
+  限制（同账号+IP 60s 内失败 ≥5 次锁 5 分钟）
+- AI 问诊知识库默认关键词检索（Top-4 命中片段）；配置 embedding 端点后升级为向量+关键词混合
+  检索，端点故障自动回退关键词
+- 探针心跳间隔与在线判定窗口由参数中心下发（v1.1.0+ 探针动态跟随；旧探针按启动参数运行）

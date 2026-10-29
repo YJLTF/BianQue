@@ -1,4 +1,33 @@
-# 扁鹊 BianQue · 验收清单（v1.0.0，S1–S8）
+# 扁鹊 BianQue · 验收清单（v1.0.0，S1–S8 · v1.1.0 增补）
+
+> 适用版本：git main 分支（v1.0.0 及之后）。
+
+## 0. v1.1.0 增补验收（R1–R4）
+
+> 服务端 `mvn -B test`（86 用例）+ 前端 `npm run build` 全绿为本节前置。
+
+- [x] 【自动】结果结构化解析：ResultParsers 12 用例（官方 thread 表格/top 块、memory 表格、jvm 键值、monitor 周期行、拟真格式、Welch t、不可识别输出回退文本）
+- [x] 【自动】模板中心：TemplateCenterIntegrationTest 4 用例（内置播种、CRUD 全流程、内置不可删可停用、viewer 403、体检/急诊消费）+ CheckupService/RescueService 模板化迁移
+- [x] 【自动】参数中心：SysConfigServiceTest 7 用例（默认值/即时生效、范围与非法值、心跳×3 与巡检时限联动、恢复默认、黑名单追加项归一去重/非法输入拒绝）+ API 实测 viewer 403 / 越界 400 / 审计操作人
+- [x] 【自动】高危黑名单页面化：BlacklistServiceTest 2 用例（生效=基线∪追加并集、追加加严且基线恒拦截）+ BlacklistIntegrationTest 2 用例（追加→基线三份口径→诊断执行拦截→模板保存 400→清空恢复放行；内置基线不可重复登记、非法 token 拒绝不落值）+ DiagService 追加黑名单即时生效用例
+- [x] 【自动】AI 会诊：ConsultIntegrationTest 4 用例（只读自动执行、黑名单拒绝、增强命令审批批准/拒绝、步数上限 8、ai_tool_run 留痕）
+- [x] 【自动】文档向量化：EmbeddingIntegrationTest 4 用例（假 /embeddings 端点 → 78 页索引 >100 块、向量检索命中 thread 页、增量重建跳过、admin 门禁、余弦语义）
+- [ ] 【手动】诊断台：执行 thread/memory/dashboard/monitor → 「文本/图表」切换出图（状态分布环形/内存水位条形/接口趋势折线）
+- [ ] 【手动】性能剖析：开始 CPU 采样 → 停止并出图 → 同源 iframe 渲染火焰图（拟真通道演示形态可用）
+- [ ] 【手动】火山图对比：选两实例采样 ≥3 轮 → 散点（log₂FC × −log₁₀p）+ 结论表（样本不足降级）
+- [ ] 【手动】AI 会诊：选会诊对象 → 自然语言提问 → 工具步骤时间线 → 最终结论引用命令输出；mock 端点演示工具回路
+- [ ] 【手动】模板：管理设置新建带 {{占位符}} 模板 → 诊断台出现 → 点击填参 → 命令填入执行；执行「存为模板」沉淀
+- [ ] 【手动】参数配置：改命令超时 → 下一条命令按新值；改心跳间隔 → 探针日志出现新节奏（v1.1.0+ 探针）
+- [ ] 【手动】高危黑名单管理卡：管理设置追加 `jad` → 基线卡/管理卡即时出现追加项 → 诊断台执行 `jad com.demo.OrderService` 被拦截（提示含生效合集）→ `ognl` 仍恒拦截 → 管理卡 × 移除 → 复测恢复放行；模板编辑器保存含 `jad` 的命令 → 400；审计中心留痕
+- [ ] 【手动】登录限速：同账号+IP 连续 5 次错误口令 → 第 6 次 429，5 分钟后恢复；审计「安全」来源留痕
+- [ ] 【手动】诊断台「导出报告」下载 .md（实例/时间/命令/输出/指标）；AI 回答 Markdown 渲染 + 代码复制
+- [ ] 【手动】诊断台「AI 分析」就地流式分析 → 「转问诊台追问」上下文带入
+- [x] 【自动】登录限速（AuthFlow 扩展）：（随集成测试口径覆盖 403/401，429 手动核对）
+- [x] 【自动】全版本号 1.1.0：pom ×4 / bq-agent VERSION / web package.json / .env.example BQ_VERSION
+
+---
+
+> 以下为 v1.0.0 原始清单（S1–S8）。
 
 > 适用版本：git main 分支（v1.0.0 及之后）。
 > 每项标注 【自动】= 已由 `scripts/smoke.sh` / 测试覆盖；【手动】= 浏览器人工确认。
@@ -8,7 +37,7 @@
 | # | 步骤 | 预期 |
 |---|------|------|
 | 1.1 | `docker compose -f deploy/docker-compose.yml up -d mysql redis` | 两容器 Up，MySQL healthy（8.4.x），`redis-cli ping` → PONG |
-| 1.2 | `scripts\start-all.bat`（或手工：`mvn -B package` 后 `java -jar server/bq-server/target/bq-server-1.0.0.jar --spring.profiles.active=mysql --bianque.alerts.ingest-token=<token>`） | 后端 8080 起服，日志含"登录态存储：Redis（重启不丢失）" |
+| 1.2 | `scripts\start-all.bat`（或手工：`mvn -B package` 后 `java -jar server/bq-server/target/bq-server-1.1.0.jar --spring.profiles.active=mysql --bianque.alerts.ingest-token=<token>`） | 后端 8080 起服，日志含"登录态存储：Redis（重启不丢失）" |
 | 1.3 | `cd web && npm run dev` | http://localhost:5173 可访问 |
 | 1.4 | `bash scripts/smoke.sh http://127.0.0.1:8080 <ingest-token>` | 全部 [PASS]，最后一行"冒烟验收全部通过" |
 

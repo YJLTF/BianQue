@@ -40,9 +40,12 @@
     <el-col :span="10">
       <el-card shadow="never" header="场景模板">
         <el-space wrap>
-          <el-tag v-for="t in templates" :key="t.label" class="tpl" type="info" effect="plain"
-                  style="cursor: pointer" @click="applyTemplate(t)">{{ t.label }}</el-tag>
+          <el-tag v-for="t in tpls" :key="t.id" class="tpl" type="info" effect="plain"
+                  style="cursor: pointer" @click="applyTemplate(t)">
+            {{ t.name }}<span v-if="t.placeholders.length" class="tpl-ph">{{ t.placeholders.length }}参</span>
+          </el-tag>
         </el-space>
+        <div class="sub" style="margin-top: 6px">模板由模板中心统一管理（管理设置可增改）；带「N参」的模板点击后填参</div>
       </el-card>
       <el-card shadow="never" header="命令构建" style="margin-top: 12px">
         <el-input v-model="command" type="textarea" :rows="3" placeholder="watch 类名 方法名 '{params,returnObj}' -n 100" />
@@ -52,17 +55,57 @@
                      :disabled="!instanceId || !command.trim()" @click="onExecute">
             执行诊断
           </el-button>
+          <el-button size="small" :disabled="!command.trim()" @click="saveAsTemplate">存为模板</el-button>
           <el-tag v-if="result && !blocked" size="small" :type="result.channel === 'real' ? 'success' : 'info'" effect="plain">
             {{ result.channel === "real" ? "真实执行" : "演示模拟" }} · {{ result.costMs }}ms
           </el-tag>
           <span class="sub">高危命令将被平台黑名单拦截并审计</span>
         </div>
       </el-card>
-      <el-card shadow="never" :header="resultHeader" style="margin-top: 12px">
+      <el-card shadow="never" style="margin-top: 12px">
+        <template #header>
+          <div class="card-hd">
+            <span>{{ resultHeader }}</span>
+            <span class="row">
+              <el-button v-if="result && !blocked" size="small" text @click="exportReport">导出报告</el-button>
+              <el-radio-group v-if="result?.metrics" v-model="viewMode" size="small">
+                <el-radio-button value="chart">图表</el-radio-button>
+                <el-radio-button value="text">文本</el-radio-button>
+              </el-radio-group>
+            </span>
+          </div>
+        </template>
         <div v-loading="running" element-loading-text="命令执行中，请稍候…" class="result-body">
           <el-alert v-if="blocked" type="error" :closable="false" :title="result?.error" show-icon />
+          <DiagCharts v-else-if="result && viewMode === 'chart' && result.metrics" :metrics="result.metrics" />
           <pre v-else-if="result" class="out">{{ result.output }}</pre>
-          <el-empty v-else description="选择实例与命令，执行后在此查看输出" :image-size="60" />
+          <el-empty v-else description="选择实例与命令，执行后在此查看输出（thread/memory/jvm/dashboard/monitor 自动出图）" :image-size="60" />
+        </div>
+        <div v-if="result && !blocked" class="ai-row">
+          <el-button size="small" type="primary" plain :loading="aiRunning"
+                     :disabled="!result.output?.trim() || aiRunning" @click="runAi">AI 分析</el-button>
+          <el-button v-if="aiRunning" size="small" @click="stopAi">停止</el-button>
+          <el-button v-if="aiDone && !aiRunning" size="small" text type="primary" @click="goAsk">转问诊台追问</el-button>
+          <span class="sub">结合本次输出就地生成分析（结论 / 根因方向 / 下一步建议），不消耗会话</span>
+        </div>
+        <div v-if="aiOpen" class="ai-panel">
+          <div v-if="aiReasoning" class="think" :class="{ open: aiThinkOpen }">
+            <div class="think-hd" @click="aiThinkOpen = !aiThinkOpen">
+              <svg class="chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+              <span>思考过程</span>
+            </div>
+            <div v-show="aiThinkOpen" class="reason">{{ aiReasoning }}</div>
+          </div>
+          <MdView v-if="aiContent || !aiRunning" :content="aiContent" :streaming="aiRunning" />
+          <div v-else class="sub">分析中…</div>
+          <div v-if="aiRefs?.length" class="refs">
+            <span class="sub">参考文档：</span>
+            <el-tag v-for="r in aiRefs" :key="r.slug" size="small" effect="plain" class="ref"
+                    :title="r.path" @click="goDoc(r.path)">{{ r.title }}</el-tag>
+          </div>
         </div>
       </el-card>
     </el-col>
@@ -86,6 +129,68 @@
     </el-col>
   </el-row>
 
+  <el-row :gutter="12" style="margin-top: 12px">
+    <el-col :span="12">
+      <el-card shadow="never" header="性能剖析（火焰图）">
+        <div class="row">
+          <el-button size="small" type="primary" plain :loading="profiling"
+                     :disabled="!instanceId || profiling" @click="startProfile">开始 CPU 采样</el-button>
+          <el-button size="small" type="warning" plain :loading="stopping"
+                     :disabled="!profiling || stopping" @click="stopProfile">停止并出图</el-button>
+          <span class="sub">profiler 经命令通道（本机/探针/拟真一致）；产物 ≤20MB，同源 iframe 渲染</span>
+        </div>
+        <el-alert v-if="profileTip" :title="profileTip" type="info" :closable="false" style="margin-top: 8px" />
+        <div v-if="flameUrl" class="flame-box">
+          <iframe :src="flameUrl" class="flame-frame" title="火焰图" />
+        </div>
+      </el-card>
+    </el-col>
+    <el-col :span="12">
+      <el-card shadow="never" header="双实例对比诊断（火山图）">
+        <div class="row" style="flex-wrap: wrap">
+          <el-select v-model="cmpTarget" filterable size="small" placeholder="目标实例（如故障机）" style="width: 190px">
+            <el-option v-for="i in instances.filter(i => i.online)" :key="i.instanceId" :value="i.instanceId"
+                       :label="`${i.appId} / ${i.instanceId}`" />
+          </el-select>
+          <span class="sub">vs</span>
+          <el-select v-model="cmpBase" filterable size="small" placeholder="基线实例（如正常机）" style="width: 190px">
+            <el-option v-for="i in instances.filter(i => i.online)" :key="i.instanceId" :value="i.instanceId"
+                       :label="`${i.appId} / ${i.instanceId}`" />
+          </el-select>
+          <el-select v-model="cmpRounds" size="small" style="width: 100px">
+            <el-option :value="3" label="采样 3 轮" />
+            <el-option :value="5" label="采样 5 轮" />
+            <el-option :value="8" label="采样 8 轮" />
+          </el-select>
+          <el-button size="small" type="primary" :loading="cmpRunning"
+                     :disabled="!cmpTarget || !cmpBase || cmpTarget === cmpBase" @click="runCompare">开始对比</el-button>
+        </div>
+        <el-alert v-if="cmpRunning" title="采样进行中：两实例各执行 memory/dashboard/jvm ×N 轮，请稍候…"
+                  type="info" :closable="false" style="margin-top: 8px" />
+        <template v-if="cmpResult">
+          <VolcanoChart v-if="cmpHasSufficient" :metrics="cmpResult.metrics" :rounds="cmpResult.rounds" />
+          <el-table :data="cmpResult.metrics" size="small" style="margin-top: 8px" max-height="220">
+            <el-table-column prop="key" label="指标" min-width="150" />
+            <el-table-column prop="targetMean" label="目标均值" width="90" />
+            <el-table-column prop="baseMean" label="基线均值" width="90" />
+            <el-table-column prop="foldChangeLog2" label="log₂FC" width="80" />
+            <el-table-column prop="pValue" label="p 值" width="90" />
+            <el-table-column label="结论" min-width="110">
+              <template #default="{ row }">
+                <el-tag v-if="row.significant" size="small" effect="plain"
+                        :type="row.foldChangeLog2 > 0 ? 'danger' : 'primary'">
+                  {{ row.foldChangeLog2 > 0 ? "目标显著升高" : "目标显著降低" }}
+                </el-tag>
+                <span v-else class="sub">{{ row.sufficient ? "不显著" : "样本不足" }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </template>
+        <el-empty v-else-if="!cmpRunning" description="同一应用两台机器一台慢——差异在哪？选好两个实例开跑" :image-size="50" />
+      </el-card>
+    </el-col>
+  </el-row>
+
   <el-dialog v-model="confirmVisible" title="高危命令确认" width="440px">
     <p>该命令等价于在目标进程内执行任意代码：</p>
     <pre class="out">{{ command }}</pre>
@@ -95,16 +200,39 @@
       <el-button type="danger" @click="confirmVisible = false">知道了</el-button>
     </template>
   </el-dialog>
+
+  <el-dialog v-model="phVisible" title="填入模板参数" width="480px">
+    <el-form label-width="110px" size="small">
+      <el-form-item v-for="p in phKeys" :key="p" :label="p">
+        <el-input v-model="phValues[p]" :placeholder="phHint(p)" />
+      </el-form-item>
+    </el-form>
+    <div class="sub">参数将替换命令中的 <code v-pre>{{占位符}}</code>；上次填值已自动带入</div>
+    <template #footer>
+      <el-button @click="phVisible = false">取消</el-button>
+      <el-button type="primary" :disabled="phKeys.some(k => !(phValues[k] || '').trim())"
+                 @click="confirmPh">填入命令</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { executeDiag, getInstances, getSession, closeSession, getLocalProcesses, attachLocalProcess,
-         type DiagResultVO, type InstanceVO, type LocalProcessVO } from "@/api/diag";
+         profileStart, profileStop, compareDiag,
+         type DiagResultVO, type InstanceVO, type LocalProcessVO, type CompareResultVO } from "@/api/diag";
 import { http, errMsg } from "@/api/http";
+import { llmChatStream, type LlmDocRef } from "@/api/llm";
+import { getTemplates, createTemplate, type TplVO } from "@/api/templates";
+import MdView from "@/components/MdView.vue";
+import DiagCharts from "@/components/DiagCharts.vue";
+import VolcanoChart from "@/components/VolcanoChart.vue";
 import { riskMeta, riskOfCommand, highRiskFamilies } from "@/config/risk";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 interface DocHit { slug: string; title: string; category: string; risk: string; path: string }
 const router = useRouter();
@@ -208,14 +336,91 @@ async function attach(pid: number) {
   }
 }
 
-const templates = [
-  { label: "慢接口排查", cmd: "trace com.bianque.order.OrderService placeOrder '#cost>100'" },
-  { label: "CPU 飙高", cmd: "thread -n 5" },
-  { label: "内存水位", cmd: "memory" },
-  { label: "JVM 概览", cmd: "jvm" },
-  { label: "实时面板", cmd: "dashboard -n 1" },
-  { label: "接口观测", cmd: "watch com.bianque.order.OrderService placeOrder '{params,returnObj}' -n 100" },
+const tplFallback: Partial<TplVO>[] = [
+  { id: -1, name: "慢接口排查", kind: "diag", scene: "接口", enabled: true, builtIn: true, bindAppId: null,
+    items: [{ name: "慢接口排查", command: "trace {{类名}} {{方法名}} '#cost>100'" }], placeholders: ["类名", "方法名"] },
+  { id: -2, name: "CPU 飙高", kind: "diag", scene: "CPU", enabled: true, builtIn: true, bindAppId: null,
+    items: [{ name: "CPU 飙高", command: "thread -n 5" }], placeholders: [] },
+  { id: -3, name: "内存水位", kind: "diag", scene: "内存", enabled: true, builtIn: true, bindAppId: null,
+    items: [{ name: "内存水位", command: "memory" }], placeholders: [] },
+  { id: -4, name: "JVM 概览", kind: "diag", scene: "通用", enabled: true, builtIn: true, bindAppId: null,
+    items: [{ name: "JVM 概览", command: "jvm" }], placeholders: [] },
+  { id: -5, name: "实时面板", kind: "diag", scene: "通用", enabled: true, builtIn: true, bindAppId: null,
+    items: [{ name: "实时面板", command: "dashboard -n 1" }], placeholders: [] },
+  { id: -6, name: "接口观测", kind: "diag", scene: "接口", enabled: true, builtIn: true, bindAppId: null,
+    items: [{ name: "接口观测", command: "watch {{类名}} {{方法名}} '{params,returnObj}' -n 100" }],
+    placeholders: ["类名", "方法名"] },
 ];
+const tpls = ref<TplVO[]>(tplFallback as TplVO[]);
+
+async function loadTpls() {
+  try {
+    const list = await getTemplates("diag");
+    if (list.length) tpls.value = list;
+  } catch {
+    // 模板中心不可用（旧版服务端）时保留内置兜底
+  }
+}
+
+// ---- 模板应用（占位符填参）----
+const phVisible = ref(false);
+const phKeys = ref<string[]>([]);
+const phValues = reactive<Record<string, string>>({});
+let phTemplate: TplVO | null = null;
+
+function applyTemplate(t: TplVO) {
+  const cmd = t.items[0]?.command ?? "";
+  if (!cmd) return;
+  const keys = [...new Set((cmd.match(/\{\{([^{}]+)}}/g) ?? []).map(s => s.slice(2, -2).trim()))];
+  if (!keys.length) {
+    command.value = cmd;
+    return;
+  }
+  phTemplate = t;
+  phKeys.value = keys;
+  const saved = JSON.parse(localStorage.getItem(`bianque.tplVals.${t.id}`) ?? "{}") as Record<string, string>;
+  Object.assign(phValues, saved);
+  keys.forEach(k => { if (!(k in phValues)) phValues[k] = ""; });
+  phVisible.value = true;
+}
+
+function phHint(k: string) {
+  return /类名|class/i.test(k) ? "如 com.bianque.order.OrderService"
+    : /方法|method/i.test(k) ? "如 placeOrder" : `填入 ${k}`;
+}
+
+function confirmPh() {
+  if (!phTemplate) return;
+  let cmd = phTemplate.items[0].command;
+  for (const k of phKeys.value) {
+    const v = (phValues[k] ?? "").trim();
+    if (v) cmd = cmd.split(`{{${k}}}`).join(v);
+  }
+  command.value = cmd;
+  localStorage.setItem(`bianque.tplVals.${phTemplate.id}`,
+    JSON.stringify(Object.fromEntries(phKeys.value.map(k => [k, (phValues[k] ?? "").trim()]))));
+  phVisible.value = false;
+  phTemplate = null;
+}
+
+async function saveAsTemplate() {
+  const cmd = command.value.trim();
+  if (!cmd) return;
+  try {
+    const { value } = await ElMessageBox.prompt("为这条命令起个模板名（诊断台与管理设置可复用）", "存为模板", {
+      inputValue: "",
+      inputPattern: /^\S.{0,31}$/,
+      inputErrorMessage: "模板名需 1–32 个字符",
+      confirmButtonText: "保存",
+      cancelButtonText: "取消",
+    });
+    await createTemplate({ name: value.trim(), kind: "diag", scene: "自定义", items: [{ name: value.trim(), command: cmd }] });
+    ElMessage.success(`已沉淀为模板「${value.trim()}」`);
+    await loadTpls();
+  } catch (e) {
+    if (e !== "cancel" && e !== "close") ElMessage.error(errMsg(e));
+  }
+}
 
 async function onExecute() {
   if (highRiskFamilies.has(command.value.trim().split(/\s+/)[0].toLowerCase())) {
@@ -223,16 +428,190 @@ async function onExecute() {
     return;
   }
   running.value = true;
+  aiOpen.value = false;
+  aiContent.value = "";
+  aiReasoning.value = "";
+  aiRefs.value = undefined;
+  aiDone.value = false;
   try {
     result.value = await executeDiag(instanceId.value, command.value, "人工");
     blocked.value = !result.value.success;
     if (!blocked.value) ElMessage.success(`执行完成（${result.value.costMs}ms）`);
+    viewMode.value = result.value?.metrics ? "chart" : "text";
   } catch (e) {
     ElMessage.error(errMsg(e));
   } finally {
     running.value = false;
   }
   await refreshSession();
+}
+
+// ---- 性能剖析（火焰图）----
+const viewMode = ref<"text" | "chart">("text");
+
+/** 诊断报告导出（Markdown）：实例/时间/命令/输出/指标摘要 */
+function exportReport() {
+  const r = result.value;
+  if (!r) return;
+  const i = currentInstance.value;
+  const lines = [
+    "# 扁鹊诊断报告",
+    "",
+    `- 实例：${fullLabel.value || instanceId.value}`,
+    `- 时间：${new Date().toLocaleString()}`,
+    `- 通道：${r.channel === "real" ? "真实执行" : "演示模拟"} · 耗时 ${r.costMs}ms`,
+    `- 操作人：${auth.user?.displayName ?? auth.user?.username ?? "-"}（导出本机生成）`,
+    "",
+    "## 命令",
+    "",
+    "```",
+    command.value,
+    "```",
+    "",
+    "## 输出",
+    "",
+    "```",
+    r.output,
+    "```",
+  ];
+  if (r.metrics) {
+    lines.push("", "## 结构化指标", "", "```json", JSON.stringify(r.metrics, null, 2), "```");
+  }
+  lines.push("", "---", "由扁鹊（BianQue）诊断台导出；火焰图等图表请于平台内查看。");
+  const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `bianque-report-${instanceId.value}-${Date.now()}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  ElMessage.success("报告已导出（Markdown）");
+}
+
+const profiling = ref(false);
+const stopping = ref(false);
+const profileTip = ref("");
+const flameUrl = ref("");
+let flameBlobUrl = "";
+
+async function startProfile() {
+  profiling.value = true;
+  profileTip.value = "";
+  try {
+    await profileStart(instanceId.value);
+    profiling.value = true;
+    profileTip.value = "CPU 采样中（event=cpu）……复现问题现象后点「停止并出图」";
+    ElMessage.success("剖析已开始");
+  } catch (e) {
+    profileTip.value = "";
+    ElMessage.error(errMsg(e));
+  } finally {
+    if (!profileTip.value) profiling.value = false;
+  }
+}
+
+async function stopProfile() {
+  stopping.value = true;
+  try {
+    const r = await profileStop(instanceId.value);
+    profiling.value = false;
+    profileTip.value = `产物 ${r.path}（${Math.round(r.sizeBytes / 1024)}KB）`;
+    // iframe 无法携带 Bearer 头：带头 fetch 为 blob 再灌 iframe（blob 同源，可渲染）
+    const resp = await fetch(r.url, { headers: { Authorization: `Bearer ${auth.user?.token ?? ""}` } });
+    if (!resp.ok) throw new Error(`工件加载失败 HTTP ${resp.status}`);
+    if (flameBlobUrl) URL.revokeObjectURL(flameBlobUrl);
+    flameBlobUrl = URL.createObjectURL(await resp.blob());
+    flameUrl.value = flameBlobUrl;
+    ElMessage.success("火焰图已生成");
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  } finally {
+    stopping.value = false;
+  }
+}
+
+// ---- 双实例对比诊断（火山图）----
+const cmpTarget = ref("");
+const cmpBase = ref("");
+const cmpRounds = ref(5);
+const cmpRunning = ref(false);
+const cmpResult = ref<CompareResultVO | null>(null);
+const cmpHasSufficient = computed(() => (cmpResult.value?.metrics ?? []).some(m => m.sufficient));
+
+async function runCompare() {
+  cmpRunning.value = true;
+  cmpResult.value = null;
+  try {
+    cmpResult.value = await compareDiag(cmpTarget.value, cmpBase.value, cmpRounds.value);
+    ElMessage.success(`对比完成：${cmpResult.value.metrics.length} 项指标`);
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  } finally {
+    cmpRunning.value = false;
+  }
+}
+
+// ---- 执行结果就地 AI 分析（v1.1：AI 贯穿诊断台）----
+const aiOpen = ref(false);
+const aiRunning = ref(false);
+const aiDone = ref(false);
+const aiContent = ref("");
+const aiReasoning = ref("");
+const aiThinkOpen = ref(true);
+const aiRefs = ref<LlmDocRef[] | undefined>(undefined);
+let aiAbort: AbortController | undefined;
+
+function runAi() {
+  const output = result.value?.output?.trim();
+  if (!output) return;
+  aiOpen.value = true;
+  aiRunning.value = true;
+  aiDone.value = false;
+  aiContent.value = "";
+  aiReasoning.value = "";
+  aiRefs.value = undefined;
+  aiThinkOpen.value = true;
+  const q = `线上实例「${fullLabel.value || instanceId.value}」执行诊断命令「${command.value}」得到如下输出，请分析：`
+    + "①输出反映的关键状态与异常点；②可能的根因方向；③下一步排查建议（给出具体只读 Arthas 命令）。简体中文分点作答。";
+  aiAbort = new AbortController();
+  llmChatStream(
+    { question: q, history: [], context: output.slice(0, 12000), instanceId: instanceId.value },
+    {
+      onReasoning: t => (aiReasoning.value += t),
+      onContent: t => (aiContent.value += t),
+      onDone: out => {
+        aiContent.value = out.content || aiContent.value;
+        aiRefs.value = out.refs?.length ? out.refs : undefined;
+        aiDone.value = true;
+      },
+      onError: msg => {
+        aiContent.value += (aiContent.value ? "\n\n" : "") + "调用失败：" + msg;
+        aiDone.value = true;
+      },
+    },
+    { signal: aiAbort.signal },
+  )
+    .catch(e => {
+      if ((e as Error).name !== "AbortError") {
+        aiContent.value += (aiContent.value ? "\n\n" : "") + "调用失败：" + errMsg(e);
+      }
+    })
+    .finally(() => {
+      aiRunning.value = false;
+      aiThinkOpen.value = false;
+    });
+}
+
+function stopAi() {
+  aiAbort?.abort();
+}
+
+/** 把本次输出带到 AI 问诊台作为上下文继续追问 */
+function goAsk() {
+  sessionStorage.setItem("bianque.aiHandoff", JSON.stringify({
+    context: result.value?.output ?? "",
+    origin: `诊断台（${command.value}）`,
+  }));
+  router.push("/ai");
 }
 
 async function refreshSession() {
@@ -245,12 +624,9 @@ async function closeSessionNow() {
   await refreshSession();
 }
 
-function applyTemplate(t: { cmd: string }) {
-  command.value = t.cmd;
-}
-
-function goDoc(row: DocHit) {
-  router.push({ path: "/docs", query: { page: row.path } });
+function goDoc(row: DocHit | string) {
+  const path = typeof row === "string" ? row : row.path;
+  router.push({ path: "/docs", query: { page: path } });
 }
 
 function tick() {
@@ -263,6 +639,7 @@ function tick() {
 
 onMounted(async () => {
   instances.value = await getInstances();
+  loadTpls();
   // 支持从节点管理页「去诊断」跳转带入实例；从全局搜索带入命令
   const fromQuery = String(route.query.instanceId ?? "");
   instanceId.value = instances.value.some((i) => i.instanceId === fromQuery)
@@ -289,6 +666,7 @@ onUnmounted(() => window.clearInterval(timer));
 .row { display: flex; align-items: center; gap: 10px; }
 .result-body { min-height: 160px; }
 .tpl { cursor: pointer; }
+.tpl-ph { margin-left: 4px; font-size: 10px; color: var(--el-color-primary); }
 .lproc { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .ellip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 窄栏下拉：小字号容纳「应用 · 节点」紧凑标识 */
@@ -296,6 +674,24 @@ onUnmounted(() => window.clearInterval(timer));
 .instance-select :deep(.el-input__inner) { font-size: 12px; }
 .lproc .cmd { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lproc .el-button { margin-left: auto; }
+/* 就地 AI 分析 */
+.ai-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.ai-panel {
+  margin-top: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.6;
+  background: #f8fafc; border: 1px solid #eef1f6; border-radius: 8px;
+}
+.think { margin: -2px 0 8px; border: 1px dashed #e2e8f2; border-radius: 8px; background: #fbfcfe; }
+.think-hd { display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 12px; color: var(--el-text-color-secondary); cursor: pointer; user-select: none; }
+.think-hd:hover { color: var(--el-color-primary); }
+.think.open .chev { transform: rotate(180deg); }
+.chev { flex: none; transition: transform 0.2s; }
+.reason { padding: 4px 12px 9px; font-size: 12px; color: var(--el-text-color-secondary); white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
+.refs { margin-top: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ref { cursor: pointer; }
+.ref:hover { color: var(--el-color-primary); border-color: var(--el-color-primary-light-5); }
+.card-hd { display: flex; align-items: center; justify-content: space-between; }
+.flame-box { margin-top: 10px; border: 1px solid #eef1f6; border-radius: 8px; overflow: hidden; }
+.flame-frame { width: 100%; height: 320px; border: 0; display: block; background: #fff; }
 </style>
 
 <style>

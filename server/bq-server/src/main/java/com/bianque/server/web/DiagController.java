@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
 
 /**
  * 诊断执行 API（唯一执行入口）：高危拦截、会话托管、审计留痕。
@@ -26,10 +27,19 @@ public class DiagController {
 
     private final DiagService diag;
     private final com.bianque.server.repo.FleetRepository fleet;
+    private final com.bianque.server.service.ProfileService profile;
+    private final com.bianque.server.service.CompareService compare;
+    private final com.bianque.server.store.DiagArtifactJpa artifacts;
 
-    public DiagController(DiagService diag, com.bianque.server.repo.FleetRepository fleet) {
+    public DiagController(DiagService diag, com.bianque.server.repo.FleetRepository fleet,
+                          com.bianque.server.service.ProfileService profile,
+                          com.bianque.server.service.CompareService compare,
+                          com.bianque.server.store.DiagArtifactJpa artifacts) {
         this.diag = diag;
         this.fleet = fleet;
+        this.profile = profile;
+        this.compare = compare;
+        this.artifacts = artifacts;
     }
 
     @PostMapping("/execute")
@@ -44,7 +54,45 @@ public class DiagController {
         resp.put("error", out.error() == null ? "" : out.error());
         resp.put("costMs", out.costMs());
         resp.put("channel", channel);
+        // 结构化指标（thread/memory/jvm/dashboard/monitor 可解析时附带；不可解析为 null，前端回退文本视图）
+        resp.put("metrics", com.bianque.core.diag.ResultParsers.parse(req.command(), out.output()));
         return resp;
+    }
+
+    // ---- 性能剖析（火焰图）：profiler 经命令通道，产物 cat 回传落库后同源 iframe 渲染 ----
+
+    @PostMapping("/profile/start")
+    public Map<String, Object> profileStart(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        return profile.start(body.get("instanceId"), operator(request));
+    }
+
+    @PostMapping("/profile/stop")
+    public Map<String, Object> profileStop(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        return profile.stop(body.get("instanceId"), operator(request));
+    }
+
+    /** 工件内容（text/html，登录态门禁，同源 iframe 可嵌） */
+    @GetMapping("/artifact/{id}")
+    public ResponseEntity<String> artifact(@PathVariable long id) {
+        var a = artifacts.findById(id)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "工件不存在或已过期清理"));
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/html; charset=utf-8")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(a.content == null ? "" : a.content);
+    }
+
+    // ---- 双实例基线对比（火山图）----
+
+    public record CompareReq(String targetInstanceId, String baseInstanceId, Integer rounds, Integer intervalMs) {
+    }
+
+    @PostMapping("/compare")
+    public Map<String, Object> compare(@RequestBody CompareReq req, HttpServletRequest request) {
+        return compare.compare(new com.bianque.server.service.CompareService.CompareReq(
+                req.targetInstanceId(), req.baseInstanceId(), req.rounds(), req.intervalMs()),
+                operator(request));
     }
 
     @GetMapping("/session/{instanceId}")

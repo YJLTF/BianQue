@@ -20,10 +20,15 @@ public class AuthController {
 
     private final UserService users;
     private final TokenStore tokens;
+    private final LoginRateLimiter rateLimiter;
+    private final com.bianque.server.repo.AuditTrail audit;
 
-    public AuthController(UserService users, TokenStore tokens) {
+    public AuthController(UserService users, TokenStore tokens, LoginRateLimiter rateLimiter,
+                          com.bianque.server.repo.AuditTrail audit) {
         this.users = users;
         this.tokens = tokens;
+        this.rateLimiter = rateLimiter;
+        this.audit = audit;
     }
 
     public record LoginRequest(String username, String password) {
@@ -32,9 +37,26 @@ public class AuthController {
     public record ProfileReq(String displayName) {
     }
 
+    /** 登录（失败速率限制：同账号+IP 60s 内失败 ≥5 次锁 5 分钟，429；审计留痕触发记录） */
     @PostMapping("/login")
-    public Map<String, Object> login(@RequestBody LoginRequest req) {
-        UserService.LoginOutcome o = users.login(req.username(), req.password());
+    public Map<String, Object> login(@RequestBody LoginRequest req, jakarta.servlet.http.HttpServletRequest request) {
+        String key = (req.username() == null ? "" : req.username().trim()) + "@" + request.getRemoteAddr();
+        try {
+            rateLimiter.check(key);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            audit.append("安全", key, "-", "登录限速触发（429，锁定 5 分钟）", 0, "blocked");
+            throw e;
+        }
+        UserService.LoginOutcome o;
+        try {
+            o = users.login(req.username(), req.password());
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.BAD_REQUEST || e.getStatusCode() == HttpStatus.FORBIDDEN) {
+                rateLimiter.onFailure(key);
+            }
+            throw e;
+        }
+        rateLimiter.onSuccess(key);
         AuthContext ctx = tokens.create(o.username(), o.displayName(), o.role(), o.roleName(), o.permissions());
         return Map.of(
                 "token", ctx.token(),

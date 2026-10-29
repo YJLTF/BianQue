@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.bianque</groupId>
   <artifactId>bq-parent</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <packaging>pom</packaging>
   <name>BianQue Parent</name>
   <description>扁鹊 BianQue 线上诊断平台 - 后端多模块父 POM</description>
@@ -55,6 +55,10 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
           <version>3.13.0</version>
+          <!-- Spring 反射取 @PathVariable/@RequestParam 参数名依赖 -parameters，显式固化不靠属性传递 -->
+          <configuration>
+            <parameters>true</parameters>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>

@@ -1,10 +1,10 @@
-# deploy（部署）· v1.0.0
+# deploy（部署）· v1.1.0
 
 扁鹊平台部署形态：
 
 | 形态 | 适用 | 入口 |
 |---|---|---|
-| ⓪ 离线交付包部署 | 目标机无构建条件（内网常用） | `dist/bianque-images-1.0.0.tar.gz` + 本目录 |
+| ⓪ 离线交付包部署 | 目标机无构建条件（内网常用） | `dist/bianque-images-1.1.0.tar.gz` + 本目录 |
 | ① 平台全容器一键部署 | 生产/演示服务器（只需 Docker） | [`docker-compose.prod.yml`](docker-compose.prod.yml) + [`.env.example`](.env.example) |
 | ② 节点探针 · Docker | Linux 目标主机（推荐，与平台镜像同源） | [`Dockerfile.probe`](docker/Dockerfile.probe) |
 | ③ 节点探针 · 裸机 systemd | 已装 JDK 11+ 的 Linux 主机 | [`probe/install.sh`](probe/install.sh) |
@@ -19,9 +19,9 @@
 交付包随版本发布（构建机执行 `docker save` 导出，见根 README「发布交付」）：
 
 ```bash
-docker load -i bianque-images-1.0.0.tar.gz    # 导入 bianque/server|web|probe:1.0.0 + mysql:8.4 + redis:7.4
+docker load -i bianque-images-1.1.0.tar.gz    # 导入 bianque/server|web|probe:1.1.0 + mysql:8.4 + redis:7.4
 cd deploy
-cp .env.example .env                          # 按需修改（BQ_VERSION 保持 1.0.0；生产必改令牌/口令）
+cp .env.example .env                          # 按需修改（BQ_VERSION 保持 1.1.0；生产必改令牌/口令）
 docker compose -f docker-compose.prod.yml up -d   # 镜像已就位，无需 --build
 ```
 
@@ -45,7 +45,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
-| `BQ_VERSION` | 1.0.0 | 平台镜像 tag（升级版本时同步修改；离线部署需先 load 对应镜像） |
+| `BQ_VERSION` | 1.1.0 | 平台镜像 tag（升级版本时同步修改；离线部署需先 load 对应镜像） |
 | `AGENT_TOKEN` | 空 | 节点接入令牌（`X-Agent-Token`）；**生产模式必配**（未配置服务端拒绝启动），需与探针侧一致 |
 | `INGEST_TOKEN` | 空（关闭） | 告警接入令牌（`X-Alert-Token`），配置后外部告警系统可推入 `POST /api/alerts/ingest` |
 | `LLM_BASE_URL` | 空 | AI 问诊端点预置（OpenAI 兼容，不含 `/chat/completions` 尾巴；也可部署后在「AI 问诊」页填写） |
@@ -61,7 +61,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 **验证**：
 
 ```bash
-curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.0.0","status":"UP",...}
+curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.1.0","status":"UP",...}
 # 浏览器打开 http://<主机>/ → 节点管理页
 # 登录：演示模式 admin/admin123；生产模式用 BIANQUE_ADMIN_PASSWORD 设置的口令
 ```
@@ -85,20 +85,20 @@ curl http://<主机>/api/health                 # {"app":"bianque-server","versi
 （JVM attach 依赖宿主 `/tmp` 下的 hsperfdata/attach socket），探针以 root 运行可附加 root 启动的 JVM：
 
 ```bash
-docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:1.0.0 .   # 或由 compose 构建
+docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:1.1.0 .   # 或由 compose 构建
 docker run -d --name bq-probe --restart unless-stopped \
   --pid=host -v /tmp:/tmp \
   -e SERVER_URL=http://<平台IP>:8080 \
   -e AGENT_TOKEN=<与平台一致的令牌> \
   -e PROBE_NAME=<节点显示名，默认取 hostname> \
-  bianque/probe:1.0.0
+  bianque/probe:1.1.0
 ```
 
 同机快速体验（平台本身用 compose 部署时）：`docker compose -f docker-compose.prod.yml --profile probe up -d probe`
 ——compose 内置 `probe` 服务已带 `pid=host` 与 `/tmp` 挂载，经网络别名 `server` 直连。
 
-只有探针要发给目标主机时，用独立镜像包（约 210MB，仅 `bianque/probe:1.0.0`）：
-`docker load -i bianque-probe-1.0.0.tar.gz`，运行命令同上；离线交付包内附
+只有探针要发给目标主机时，用独立镜像包（约 210MB，仅 `bianque/probe:1.1.0`）：
+`docker load -i bianque-probe-1.1.0.tar.gz`，运行命令同上；离线交付包内附
 `probe/README-探针镜像.md` 图文说明。
 
 ## ③ 节点探针 · 裸机 systemd（已装 JDK 的 Linux 主机）

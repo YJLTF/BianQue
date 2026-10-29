@@ -28,7 +28,7 @@ import java.util.concurrent.Executors;
  */
 public final class AgentMain {
 
-    static final String VERSION = "1.0.0";
+    static final String VERSION = "1.1.0";
     private static final Path ID_FILE = Path.of("bq-agent.id");
 
     private AgentMain() {
@@ -117,7 +117,8 @@ public final class AgentMain {
         regBody.put("hostname", hostname);
         regBody.put("os", os);
         regBody.put("javaVersion", javaVersion);
-        agentId = register(http, server, token, regBody, agentId);
+        long[] intervalRef = {intervalMs};
+        agentId = register(http, server, token, regBody, agentId, intervalRef);
         log("注册成功 agentId=" + agentId);
 
         long failures = 0;
@@ -126,7 +127,9 @@ public final class AgentMain {
                 String resp = post(http, server, token, "/api/agent/heartbeat",
                         MiniJson.write(heartbeatBody(agentId, hostIp)));
                 failures = 0;
-                Object cmd = ((Map<?, ?>) MiniJson.parse(resp)).get("command");
+                Map<?, ?> hb = (Map<?, ?>) MiniJson.parse(resp);
+                applyInterval(hb, intervalRef);
+                Object cmd = hb.get("command");
                 if (cmd instanceof Map) {
                     dispatch(worker, runner, http, server, token, (Map<?, ?>) cmd);
                 }
@@ -134,7 +137,7 @@ public final class AgentMain {
                 if (e.code == 410) {
                     // 节点在服务端被清理（离线删除）：重新登记恢复同一身份，心跳随之恢复
                     log("节点已被服务端清理（410），重新注册…");
-                    agentId = register(http, server, token, regBody, agentId);
+                    agentId = register(http, server, token, regBody, agentId, intervalRef);
                     log("重新注册成功 agentId=" + agentId);
                     failures = 0;
                 } else {
@@ -149,7 +152,7 @@ public final class AgentMain {
                     log("心跳失败（连续 " + failures + " 次）: " + e.getMessage());
                 }
             }
-            sleep(intervalMs);
+            sleep(intervalRef[0]);
         }
     }
 
@@ -216,14 +219,16 @@ public final class AgentMain {
 
     /** 注册（带重试直至成功）：agentId 尽量沿用（服务端按 agentId 幂等登记）并持久化 */
     private static String register(HttpClient http, String server, String token,
-                                   Map<String, Object> regBody, String agentId) {
+                                   Map<String, Object> regBody, String agentId, long[] intervalRef) {
         while (true) {
             try {
                 if (agentId != null) {
                     regBody.put("agentId", agentId);
                 }
                 String resp = post(http, server, token, "/api/agent/register", MiniJson.write(regBody));
-                Object id = ((Map<?, ?>) MiniJson.parse(resp)).get("agentId");
+                Map<?, ?> body = (Map<?, ?>) MiniJson.parse(resp);
+                applyInterval(body, intervalRef);
+                Object id = body.get("agentId");
                 if (id != null) {
                     saveId(String.valueOf(id));
                     return String.valueOf(id);
@@ -232,6 +237,18 @@ public final class AgentMain {
                 log("注册失败，5s 后重试: " + e.getMessage());
             }
             sleep(5000);
+        }
+    }
+
+    /** 心跳节奏跟随服务端下发（参数中心 agent.heartbeat-interval-seconds），夹取 2~60s；缺省保持现值 */
+    private static void applyInterval(Map<?, ?> resp, long[] intervalRef) {
+        Object v = resp == null ? null : resp.get("heartbeatIntervalSeconds");
+        if (v instanceof Number n) {
+            long sec = Math.max(2, Math.min(60, n.longValue()));
+            if (sec * 1000L != intervalRef[0]) {
+                intervalRef[0] = sec * 1000L;
+                log("心跳间隔调整为 " + sec + "s（服务端下发）");
+            }
         }
     }
 

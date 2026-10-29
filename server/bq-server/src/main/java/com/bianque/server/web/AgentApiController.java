@@ -2,6 +2,7 @@ package com.bianque.server.web;
 
 import com.bianque.server.agent.AgentCommandService;
 import com.bianque.server.agent.AgentDirectory;
+import com.bianque.server.service.SysConfigService;
 import com.bianque.server.store.AgentCommandEntity;
 import com.bianque.server.store.AgentNodeEntity;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,14 +35,17 @@ public class AgentApiController {
 
     private final AgentDirectory directory;
     private final AgentCommandService commands;
+    private final SysConfigService config;
     private final String token;
     private final String jarPath;
 
     public AgentApiController(AgentDirectory directory, AgentCommandService commands,
+                              SysConfigService config,
                               @Value("${bianque.agent.token:}") String token,
                               @Value("${bianque.agent.jar-path:agents/bq-agent.jar}") String jarPath) {
         this.directory = directory;
         this.commands = commands;
+        this.config = config;
         this.token = token;
         this.jarPath = jarPath;
     }
@@ -58,11 +62,11 @@ public class AgentApiController {
                 req.os(), req.javaVersion(), req.agentVersion());
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("agentId", e.agentId);
-        resp.put("heartbeatIntervalSeconds", 5);
+        resp.put("heartbeatIntervalSeconds", config.intValue("agent.heartbeat-interval-seconds"));
         return resp;
     }
 
-    /** 心跳：上报进程清单，服务端同步机队并派发下一单 */
+    /** 心跳：上报进程清单，服务端同步机队并派发下一单；响应携带心跳节奏（探针动态跟随） */
     @PostMapping("/heartbeat")
     public Map<String, Object> heartbeat(@RequestBody JsonNode body, HttpServletRequest request) {
         requireToken(request);
@@ -72,6 +76,7 @@ public class AgentApiController {
         }
         directory.heartbeat(agentId, body.path("host").asText(null), pids(body), mainClasses(body));
         Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("heartbeatIntervalSeconds", config.intValue("agent.heartbeat-interval-seconds"));
         AgentCommandEntity next = commands.claimNext(agentId);
         if (next != null) {
             resp.put("command", Map.of(

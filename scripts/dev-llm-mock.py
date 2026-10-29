@@ -7,6 +7,7 @@
 """
 import json
 import sys
+import re
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -31,10 +32,42 @@ REASONING = "先看内存各分区水位 → 发现 old gen 超阈值；再看�
 SSE_TAIL = "\n\n"
 
 
+TOOL_CALLS_SENT = {"n": 0}  # 会诊演示：tools 请求第一次回工具调用、第二次回结论
+
+
 class Handler(BaseHTTPRequestHandler):
+    def do_tools(self, body):
+        """AI 会诊演示：第一轮回 run_diag_command(thread -n 5)，第二轮回最终结论"""
+        user = ""
+        for m in reversed(body.get("messages", [])):
+            if m.get("role") == "user":
+                user = m.get("content", "")
+                break
+        m = re.search(r"实例：([\w\-]+)", user)
+        inst = m.group(1) if m else "pod-3"
+        TOOL_CALLS_SENT["n"] += 1
+        if TOOL_CALLS_SENT["n"] % 2 == 1:
+            out = {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "call_1", "type": "function", "function": {
+                    "name": "run_diag_command",
+                    "arguments": json.dumps({"instanceId": inst, "command": "thread -n 5"})}}]}}]}
+        else:
+            out = {"choices": [{"message": {"role": "assistant", "content":
+                "**结论**：已通过工具执行 `thread -n 5` 完成取样，目标实例线程状态正常（演示数据）。\n\n"
+                "**证据**：工具 run_diag_command 返回的线程栈未见高 CPU 忙等线程；建议继续 memory / jvm 复核。\n\n"
+                "**处置建议**：保持观察；如复发优先扩容连接池并开启 dashboard 实时面板。"}}]}
+        data = json.dumps(out).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(n) or b"{}")
+        if body.get("tools") and not body.get("stream"):
+            return self.do_tools(body)
         if body.get("stream"):
             return self.do_stream(body)
         out = {

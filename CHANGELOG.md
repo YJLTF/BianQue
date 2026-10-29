@@ -2,7 +2,67 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
-## 修复 · 文档中心正文 iframe 显示「localhost 拒绝连接」（本次）
+## v1.1.0 发布（本次）：模板中心 / 参数中心 / AI 会诊 / 向量检索 / 火焰图 / 火山图 / 可视化 / 安全加固
+
+> 规划与阶段验收见 [plan/BianQue-开发计划-v1.1.md](plan/BianQue-开发计划-v1.1.md)；本节为 v1.1.0 全量交付记录。
+
+### R1 · 底座
+
+- **修复 · 诊断执行「timeout of 15000ms exceeded」**：全局 axios 15s < 服务端命令超时 60s（Agent 通道等待上限 90s），长命令被前端先行中断。`executeDiag` 单独 150s 预算；同批排查：本机纳管 attach 120s、急诊取证/档案扫描 300s。配套闭环：参数中心命令超时上限收为 120s（120+30 ≤ 150）
+- **结构化解析**：bq-core `ResultParsers`（thread 官方表格/top 块/拟真、memory 三形态、jvm 键值、monitor 周期行、Welch t 检验）；`/api/diag/execute` 响应附带 `metrics`，不可解析回退文本视图
+- **AI 回答 Markdown 渲染**：`MdView` 共享组件（markdown-it + highlight.js + DOMPurify，代码高亮+复制条，外链 noopener）；问诊台与诊断台 AI 面板接入；按路由分包
+
+### R2 · 模板中心
+
+- `diag_template` 实体 + `/api/templates` CRUD（写操作 diag:execute 门禁、审计留痕）；内置 8 模板播种（诊断台 6 场景 + 默认体检 + 默认急诊），可停用/复制不可删除
+- **占位符参数化**：命令支持 `{{类名}}`/`{{方法名}}` 等，诊断台应用模板弹表单填参（上次填值记忆）
+- **存量迁移**：体检命令集（CheckupService）与急诊取证序列（RescueService，含步骤名）改读模板中心，缺省回落 v1.0 行为；诊断台模板后端加载（旧服务端兜底内置）；管理设置「诊断模板」管理区块；执行结果一键「存为模板」沉淀
+
+### R3 · AI 问诊进化
+
+- **文档向量化**：`llm_config` 扩展 embedding 端点/密钥/模型/维度（页面配置、掩码口径一致）；`doc_embedding` 分块索引（内容 hash 增量、启动后台建索引、`/api/llm/embeddings/{reindex,status}` 仅 admin）；**混合检索**：向量 Top-K + 关键词 Top-K RRF 融合注入，端点未配置/故障自动回退关键词（内网离线零负担）
+- **AI 会诊**（选中实例 + 自然语言 → AI 执行分析）：`ConsultService` function calling 循环（步数 ≤8 服务端强制）；工具 list_instances/describe_instance/run_diag_command/run_checkup/search_docs；安全边界——命令全量过白名单，黑名单 AI 发起直接拒绝**不可放行**，增强命令（watch/trace/tt/monitor/stack/profiler/jfr）审批卡（60s 超时默认拒绝）；每步落 `ai_tool_run` + 审计哈希链（来源「AI会诊」）；SSE 事件 start/tool/confirm_required/reasoning/content/done/error；前端会诊对象选择器 + 步骤时间线 + 审批卡；端点不支持 tools 明确降级提示
+- 诊断台执行结果一键「AI 分析」就地流式分析 + 「转问诊台追问」上下文交接（sessionStorage）
+
+### R4 · 专业场景可视化 + 加固
+
+- **可视化**：ECharts 按需引入（诊断台路由分包）；诊断台「文本/图表」双视图——线程状态分布环形图、CPU TOP 条形图、内存池水位条形（≥85% 红/≥70% 黄阈值着色）、monitor 接口趋势双轴折线
+- **火焰图**：profiler start/stop 经命令通道（本机/探针/拟真一致），产物 `cat` 回传落 `diag_artifact`（≤20MB），`/api/diag/artifact/{id}` 同源 iframe 渲染（登录门禁 + nosniff）；拟真通道内置演示形态
+- **火山图（双实例对比诊断）**：`/api/diag/compare` 目标 vs 基线实例同命令集采样 N 轮（memory/dashboard/jvm），逐指标 log₂ 倍数变化 × Welch t 显著性；ECharts 散点（红=目标显著升高/蓝=显著降低/灰=不显著）+ 结论表；样本 <2 窗口自动降级"仅倍数变化"
+- **登录限速**：同账号+IP 60s 内失败 ≥5 次锁 5 分钟（429），成功清零；触发入审计（来源「安全」）
+- **数据保留**：诊断工件默认 7 天 / 命令单默认 14 天（参数中心可配），每 6 小时清理；审计哈希链合规留痕不自动清理
+- **报告导出**：诊断台一键导出 Markdown 报告（实例/时间/通道/命令/输出/指标摘要）
+
+### 参数中心（页面可配置）
+
+`sys_config` + `SysConfigService`（注册表定义键/默认/范围/生效语义，启动播种、缓存写后失效、免重启生效）；首批 10 项：命令执行超时、会话自动回收、探针心跳间隔、在线判定窗口、登录令牌有效期、巡检总时限/单实例时限、工件保留天数、命令单保留天数、**高危黑名单追加命令**（首个 list 型参数，唯一下放页面管理的安全项，仅可加严）；关联校验（在线窗口 ≥ 心跳×3、巡检总时限 ≥ 单实例时限）；管理设置「参数配置」区块（行内编辑/已改标记/恢复默认/最近修改人）；红线项（端口绑定/强制认证/审计开关/高危黑名单**内置基线**）不进注册表天然不可配；AuthInterceptor 收严 `/api/admin/**` 一律 admin:user
+- **探针动态心跳**：bq-agent 解析 register/heartbeat 响应 `heartbeatIntervalSeconds`（夹取 2~60s）实时跟随；旧探针向后兼容
+
+### 高危黑名单页面化管理（仅可加严）
+
+- **`BlacklistService` 唯一裁决点**：生效黑名单 = 内置基线（ognl/redefine/retransform/mc/groovy/heapdump，恒拦截、不可削减、不可放行）∪ 参数中心追加项 `diag.blocked-extra-commands`；人工诊断（诊断台/体检/急诊/剖析）与 AI 会诊（run_diag_command）统一经此判定，两链路口径一致
+- **管理设置「高危命令黑名单」卡**：内置基线标签（深色、不可移除）+ 追加项标签（× 移除即恢复放行）+ 批量添加（逗号/空格/全角分隔、大小写归一、去重、命中内置基线拒绝重复登记、非法 token 拒绝、至多 50 条）+ 恢复默认（清空追加项）；所有改动入审计哈希链；安全基线卡与 `/api/baseline` 暴露三份口径（内置基线 / 追加项 / 生效合集）
+- **拦截面全覆盖**：诊断台人工执行、AI 会诊（黑名单不可审批放行不变）、模板保存 fail-fast 校验（含追加项命中即 400）；`/api/diag/execute` 拦截信息展示生效合集
+- 典型用途：按组织策略把 `jad`/`sc` 等反编译/类信息探测类只读命令加严为禁用
+
+### 质量与实测
+
+- 服务端测试 45 → **86**（ResultParsers 12、TemplateCenter 4、SysConfigService 7、Embedding 4、Consult 4、BlacklistService 2、BlacklistIntegration 2、DiagService 追加黑名单用例 + 存量）；`mvn -B test` 全绿
+- 编译确定性：maven-compiler-plugin 显式 `-parameters`（Spring 反射参数名依赖，曾被 IDE 增量产物掩盖）
+- 实测：本地栈（1.1.0 jar + dev-llm-mock 增强 tools 回路）API 全链路 + 浏览器冒烟（参数区块/AI 分析/会诊/图表/火焰图/火山图/模板填参/限速 429），详见 ACCEPTANCE §0
+- 实测（黑名单闭环）：管理页追加 `jad` → 基线卡/管理卡即时出现追加项 → 诊断台执行 `jad com.demo.OrderService` 被拦截（提示含生效合集 7 条）→ 管理卡 × 移除（显示最近修改人/时间）→ 复测恢复放行
+- 已知边界：诊断台命令速查表与前端高危确认弹窗按内置静态字典展示，追加项拦截以后端为准（报错文案含生效合集）；调大命令超时上限须同步评估三处（参数上限/通道余量/前端预算）；火山图统计口径为参考性对比；旧探针忽略心跳下发字段
+
+- **修复 · 诊断执行「timeout of 15000ms exceeded」**：全局 axios 15s 超时 < 服务端命令超时 60s（Agent 通道等待上限 90s），长命令必被前端先行中断。`executeDiag` 单独 150s 预算（同批排查：本机纳管 attach 120s、急诊取证/档案扫描 300s 逐一覆盖；巡检/LLM 原本就有）。配套闭环：参数中心命令超时上限收为 120s（120+30 ≤ 150），杜绝"配置调大又复现"
+- **功能 · 参数中心（页面可配置）**：`sys_config` 表 + `SysConfigService`（注册表定义键/默认/范围/生效语义，启动播种、内存缓存写后失效、免重启生效）；首批 7 项——命令执行超时（替换 DiagService 硬编码 60s）、会话 TTL、**探针心跳间隔**（register/heartbeat 响应下发）、**心跳离线判定窗口**（AgentDirectory 动态读）、登录令牌 TTL（TokenStore 动态读）、巡检总时限/单实例时限；关联校验（在线窗口 ≥ 心跳×3、巡检总时限 ≥ 单实例时限）；红线项（端口绑定/强制认证/审计开关/高危黑名单）不进注册表天然不可配。管理设置新增「参数配置」区块（行内编辑/已改标记/恢复默认/最近修改人）。AuthInterceptor 收严：`/api/admin/**` 一律 admin:user（原仅 /users）
+- **功能 · 探针动态心跳**：bq-agent 解析服务端下发 `heartbeatIntervalSeconds`（夹取 2~60s）实时调整心跳节奏；旧探针忽略该字段向后兼容
+- **功能 · 诊断台一键「AI 分析」**（AI 贯穿核心区域第一步）：执行结果就地流式分析——自动构造问题（实例/命令/分析维度）+ 输出作 context 走 `/api/llm/chat/stream`；思考过程可折叠、参考文档可跳转、可停止（AbortController）；完成后「转问诊台追问」经 sessionStorage 交接带上下文跳转 `/ai`（自动展开上下文框）
+- **功能 · AI 回答 Markdown 渲染**：新增 `MdView` 共享组件（markdown-it + highlight.js + DOMPurify 消毒，`html:false`，外链 `_blank+noopener`，代码块高亮+复制条）；问诊台助手消息与诊断台 AI 面板接入；按路由分包不进主包
+- 测试 45 → **50**（SysConfigServiceTest ×5：默认值/即时生效、范围与非整数拒绝、心跳-窗口联动、巡检时限联动、恢复默认）；`DiagService` 构造器接入参数中心（测试改内存模式）
+- 实测：本地栈（新 jar 8090 + dev-llm-mock 8901）API 全链路——config 增删改查/越界 400/关联约束拒绝/viewer 403/审计操作人落库；拟真 inv-2 执行 `thread -n 5` → AI 分析流式出结论（浏览器截图确认 Markdown 渲染）→ 转问诊台上下文带入 → 追问成功；管理页参数区块编辑/恢复默认实测
+- 已知边界：前端 executeDiag 预算 150s 为常量，若未来调大命令超时上限须同步评估三处（服务端参数上限/通道余量/前端预算）
+
+## 修复 · 文档中心正文 iframe 显示「localhost 拒绝连接」（上次）
 
 - 根因：此前安全加固在 nginx 加的全局 `X-Frame-Options: DENY` 连**同源 iframe** 一并拦截——文档中心正文
   恰是同源 iframe（`/docs/4.3.5/**` 经 nginx 代理），被自己平台的防嵌出头挡住；Chrome 对被拒渲染的提示

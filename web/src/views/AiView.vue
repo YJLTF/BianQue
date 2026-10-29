@@ -71,6 +71,25 @@
               </el-tooltip>
             </div>
           </el-form-item>
+          <el-form-item label="文档向量化（知识库语义检索 · 可选）">
+            <div style="width: 100%">
+              <el-input v-model="cfg.embedBaseUrl" :disabled="!isAdmin" placeholder="OpenAI 兼容 /embeddings 端点，如 https://api.xx.com/v1（留空走关键词检索）"
+                        style="margin-bottom: 6px" />
+              <el-input v-model="cfg.embedApiKeyDraft" :disabled="!isAdmin" type="password" show-password
+                        :placeholder="cfg.hasEmbedApiKey ? `已保存（${cfg.embedApiKeyMasked}），留空则保留` : 'embedding 端点的 API Key'"
+                        style="margin-bottom: 6px" />
+              <div class="row">
+                <el-input v-model="cfg.embedModel" :disabled="!isAdmin" placeholder="如 text-embedding-3-small / bge-m3" />
+                <el-input-number v-model="cfg.embedDims" :min="64" :max="65536" :disabled="!isAdmin"
+                                 placeholder="维度" controls-position="right" style="width: 130px" />
+              </div>
+              <div class="row" style="margin-top: 6px" v-if="isAdmin">
+                <el-button size="small" :loading="reindexing" :disabled="!cfg.embedBaseUrl || !cfg.embedModel"
+                           @click="runReindex">重建索引</el-button>
+                <span class="hint">{{ embedStat }}</span>
+              </div>
+            </div>
+          </el-form-item>
           <el-row :gutter="10">
             <el-col :span="12">
               <el-form-item label="温度 temperature">
@@ -138,7 +157,35 @@
                 </div>
                 <div v-show="m.showThink" class="reason">{{ m.reasoning }}</div>
               </div>
-              <div class="content" v-show="m.content || !m.streaming">{{ m.content }}<span v-if="m.streaming && m.content" class="cursor">▍</span></div>
+              <!-- 会诊工具步骤时间线 -->
+              <div v-if="m.steps?.length" class="steps">
+                <div v-for="s in m.steps" :key="s.step" class="step">
+                  <el-tag size="small" effect="plain"
+                          :type="s.status === 'ok' ? 'success' : s.status === 'blocked' ? 'danger' : 'warning'">
+                    第{{ s.step }}步 · {{ s.tool }}
+                  </el-tag>
+                  <code class="step-cmd">{{ s.command || s.argsJson }}</code>
+                  <span class="sub">{{ s.decision }} · {{ s.costMs }}ms</span>
+                </div>
+              </div>
+              <!-- 增强命令审批卡 -->
+              <div v-if="m.confirm" class="confirm-card">
+                <template v-if="m.confirm.state === 'pending'">
+                  <div class="confirm-t">AI 请求执行增强命令（需审批）：</div>
+                  <pre class="confirm-cmd">{{ m.confirm.command }}</pre>
+                  <div class="row">
+                    <el-button size="small" type="danger" plain @click="decide(m, false)">拒绝</el-button>
+                    <el-button size="small" type="primary" @click="decide(m, true)">允许执行</el-button>
+                    <span class="sub">60 秒未决策将默认拒绝；黑名单命令不可放行</span>
+                  </div>
+                </template>
+                <el-tag v-else size="small" effect="plain"
+                        :type="m.confirm.state === 'approved' ? 'success' : 'info'">
+                  {{ m.confirm.state === "approved" ? "已允许执行" : m.confirm.state === "denied" ? "已拒绝" : "审批超时未决策" }}：
+                  {{ m.confirm.command }}
+                </el-tag>
+              </div>
+              <MdView v-show="m.content || !m.streaming" :content="m.content" :streaming="m.streaming" />
               <div class="refs" v-if="m.refs?.length">
                 <span class="hint">参考文档：</span>
                 <el-tag v-for="r in m.refs" :key="r.slug" size="small" effect="plain" class="ref"
@@ -153,11 +200,20 @@
                     description="粘贴线程栈 / 内存水位 / 告警信息，或直接描述现象" />
         </div>
 
-        <el-collapse style="margin-top:8px">
+        <el-collapse v-model="ctxOpen" style="margin-top:8px">
           <el-collapse-item title="附加诊断上下文（可粘贴诊断命令输出）" name="ctx">
             <el-input v-model="context" type="textarea" :rows="5" placeholder="把诊断台的真实命令输出粘贴到这里，助手将结合它分析" />
           </el-collapse-item>
         </el-collapse>
+        <div class="consult-row">
+          <span class="lbl">会诊对象</span>
+          <el-select v-model="consultTarget" clearable filterable size="small" style="flex: 1"
+                     popper-class="opt-popper"
+                     placeholder="选择实例后 AI 可就地执行诊断命令分析（可空 = 纯问答）">
+            <el-option v-for="i in consultInstances" :key="i.instanceId" :value="i.instanceId"
+                       :label="`${i.appId} / ${i.instanceId}${i.online ? '' : ' · 离线'}`" :disabled="!i.online" />
+          </el-select>
+        </div>
         <div class="quick">
           <el-tag v-for="q in quicks" :key="q" size="small" effect="plain" class="q" @click="ask(q)">{{ q }}</el-tag>
         </div>
@@ -185,10 +241,13 @@ import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { errMsg } from "@/api/http";
 import {
-  getLlmConfig, llmChatStream, testLlm, updateLlmConfig,
+  getLlmConfig, llmChatStream, testLlm, updateLlmConfig, embeddingStatus, reindexEmbeddings,
+  consultStream, consultDecision, type ConsultStepVO,
   type LlmChatVO, type LlmConfigVO, type LlmDocRef, type LlmTurn,
 } from "@/api/llm";
+import { getInstances, type InstanceVO } from "@/api/diag";
 import { useAuthStore } from "@/stores/auth";
+import MdView from "@/components/MdView.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -205,6 +264,10 @@ interface Msg extends LlmTurn {
   streaming?: boolean;
   /** 思考过程面板展开态（流式期间自动展开，正文开始后自动收起） */
   showThink?: boolean;
+  /** AI 会诊：工具步骤时间线 + 待审批增强命令 */
+  steps?: ConsultStepVO[];
+  confirm?: { step: number; tool: string; command: string; state: "pending" | "approved" | "denied" | "timeout" };
+  consultId?: string;
 }
 
 const DEFAULT_PROMPT = `你是扁鹊（BianQue）平台的线上 JVM 诊断助手，面向运维与研发。回答要求：
@@ -250,12 +313,39 @@ function levelParam() {
   return effort.value === "default" ? undefined : effort.value;
 }
 
-const cfg = ref<LlmConfigVO & { apiKeyDraft: string }>({
+const cfg = ref<LlmConfigVO & { apiKeyDraft: string; embedApiKeyDraft: string }>({
   baseUrl: "", hasApiKey: false, apiKeyMasked: "", model: "",
   temperature: 0.7, topP: 1, maxTokens: 2048, reasoningEffort: "OFF",
   timeoutSeconds: 60, systemPrompt: DEFAULT_PROMPT, reasoningParams: "",
-  updatedAt: "", configured: false, apiKeyDraft: "",
+  embedBaseUrl: "", hasEmbedApiKey: false, embedApiKeyMasked: "", embedModel: "", embedDims: null,
+  updatedAt: "", configured: false, apiKeyDraft: "", embedApiKeyDraft: "",
 });
+const reindexing = ref(false);
+const embedStat = ref("");
+
+async function refreshEmbedStat() {
+  try {
+    const s = await embeddingStatus();
+    embedStat.value = s.configured
+      ? `索引 ${s.chunks} 块 · ${s.model ?? "-"}${s.indexing ? " · 重建中" : ""}`
+      : "未启用（关键词检索兜底）";
+  } catch {
+    embedStat.value = "";
+  }
+}
+
+async function runReindex() {
+  reindexing.value = true;
+  try {
+    const r = await reindexEmbeddings();
+    ElMessage.success(`索引完成：${r.pages} 页 / 新增 ${r.indexed} 块（未变 ${r.unchangedChunks} 块跳过）`);
+    await refreshEmbedStat();
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  } finally {
+    reindexing.value = false;
+  }
+}
 const saving = ref(false);
 const testing = ref(false);
 const testOut = ref<LlmChatVO | null>(null);
@@ -278,6 +368,7 @@ function toggleCfg() {
 const msgs = ref<Msg[]>([]);
 const draft = ref("");
 const context = ref("");
+const ctxOpen = ref<string[]>([]);
 const pending = ref(false);
 const elapsed = ref(0);
 let timer: number | undefined;
@@ -291,10 +382,19 @@ const quicks = [
 async function load() {
   try {
     const c = await getLlmConfig();
-    cfg.value = { ...c, apiKeyDraft: "", reasoningParams: c.reasoningParams || "" };
+    cfg.value = {
+      ...c,
+      apiKeyDraft: "",
+      embedApiKeyDraft: "",
+      reasoningParams: c.reasoningParams || "",
+      embedBaseUrl: c.embedBaseUrl ?? "",
+      embedModel: c.embedModel ?? "",
+      embedDims: c.embedDims ?? null,
+    };
     if (!c.systemPrompt) cfg.value.systemPrompt = DEFAULT_PROMPT;
     // 首次访问（无本地记忆）时：尚未配置默认展开引导设置，已配置默认折叠
     if (savedOpen === null) configOpen.value = !c.configured;
+    refreshEmbedStat();
   } catch (e) {
     ElMessage.error(errMsg(e));
   }
@@ -314,8 +414,20 @@ async function save() {
       timeoutSeconds: cfg.value.timeoutSeconds,
       systemPrompt: cfg.value.systemPrompt,
       reasoningParams: cfg.value.reasoningParams, // 空串=清空回内置映射
+      embedBaseUrl: cfg.value.embedBaseUrl,
+      embedApiKey: cfg.value.embedApiKeyDraft, // 空串=保留原 key
+      embedModel: cfg.value.embedModel,
+      embedDims: cfg.value.embedDims ?? undefined,
     });
-    cfg.value = { ...c, apiKeyDraft: "", reasoningParams: c.reasoningParams || "" };
+    cfg.value = {
+      ...c,
+      apiKeyDraft: "",
+      embedApiKeyDraft: "",
+      reasoningParams: c.reasoningParams || "",
+      embedBaseUrl: c.embedBaseUrl ?? "",
+      embedModel: c.embedModel ?? "",
+      embedDims: c.embedDims ?? null,
+    };
     ElMessage.success("配置已保存");
   } catch (e) {
     ElMessage.error(errMsg(e));
@@ -339,6 +451,11 @@ async function runTest() {
 function ask(preset?: string) {
   const q = (preset ?? draft.value).trim();
   if (!q || pending.value) return;
+  if (consultTarget.value) {
+    draft.value = "";
+    sendConsult(q);
+    return;
+  }
   draft.value = "";
   const history: LlmTurn[] = msgs.value.slice(-10).map(m => ({ role: m.role, content: m.content }));
   msgs.value.push({ role: "user", content: q });
@@ -390,6 +507,78 @@ function goDoc(path: string) {
   router.push({ path: "/docs", query: { page: path } });
 }
 
+// ---- AI 会诊（选中实例 → AI 经工具调用就地执行诊断并给出结论）----
+const consultTarget = ref("");
+const consultInstances = ref<InstanceVO[]>([]);
+let consultAbort: AbortController | undefined;
+
+function loadConsultInstances() {
+  getInstances()
+    .then(list => (consultInstances.value = list))
+    .catch(() => (consultInstances.value = []));
+}
+
+function sendConsult(q: string) {
+  const history: LlmTurn[] = msgs.value.slice(-6).map(m => ({ role: m.role, content: m.content }));
+  msgs.value.push({ role: "user", content: q });
+  const m = reactive<Msg>({ role: "assistant", content: "", streaming: true, showThink: false, steps: [] });
+  msgs.value.push(m);
+  pending.value = true;
+  scrollBottom();
+  consultAbort = new AbortController();
+  consultStream(
+    { instanceId: consultTarget.value, question: q, history },
+    {
+      onStart: id => (m.consultId = id),
+      onTool: s => {
+        m.steps?.push(s);
+        scrollBottom();
+      },
+      onConfirmRequired: (step, tool, command) => {
+        m.confirm = { step, tool, command, state: "pending" };
+        scrollBottom();
+      },
+      onReasoning: t => {
+        m.reasoning = (m.reasoning || "") + t;
+        scrollBottom();
+      },
+      onContent: t => {
+        m.content += t;
+        scrollBottom();
+      },
+      onDone: (content, steps) => {
+        m.content = content || m.content;
+        if (steps.length) m.steps = steps;
+        if (m.confirm?.state === "pending") m.confirm.state = "timeout";
+      },
+      onError: msg => {
+        m.content += (m.content ? "\n\n" : "") + "会诊失败：" + msg;
+      },
+    },
+    { signal: consultAbort.signal },
+  )
+    .catch(e => {
+      if ((e as Error).name !== "AbortError") {
+        m.content += (m.content ? "\n\n" : "") + "会诊失败：" + errMsg(e);
+      }
+    })
+    .finally(() => {
+      m.streaming = false;
+      pending.value = false;
+      scrollBottom();
+    });
+}
+
+async function decide(m: Msg, approved: boolean) {
+  if (!m.consultId || !m.confirm || m.confirm.state !== "pending") return;
+  try {
+    await consultDecision(m.consultId, m.confirm.step, approved);
+    m.confirm.state = approved ? "approved" : "denied";
+  } catch (e) {
+    ElMessage.error(errMsg(e));
+  }
+}
+
 function scrollBottom() {
   nextTick(() => {
     const box = chatBox.value;
@@ -399,7 +588,28 @@ function scrollBottom() {
 
 const chatBox = ref<HTMLElement | undefined>();
 
-onMounted(load);
+/** 诊断台「转问诊台追问」交接：带入命令输出作为附加上下文并展开上下文框 */
+function takeHandoff() {
+  const raw = sessionStorage.getItem("bianque.aiHandoff");
+  if (!raw) return;
+  sessionStorage.removeItem("bianque.aiHandoff");
+  try {
+    const h = JSON.parse(raw) as { context?: string; origin?: string };
+    if (h.context) {
+      context.value = h.context;
+      ctxOpen.value = ["ctx"];
+      ElMessage.success(`已带入${h.origin ?? "诊断台"}的输出作为附加上下文，可直接追问`);
+    }
+  } catch {
+    // 交接数据损坏则忽略
+  }
+}
+
+onMounted(() => {
+  load();
+  loadConsultInstances();
+  takeHandoff();
+});
 </script>
 
 <style scoped>
@@ -426,7 +636,7 @@ onMounted(load);
 }
 .msg { max-width: min(88%, 780px); border-radius: 10px; padding: 9px 12px; font-size: 13px; line-height: 1.6; }
 .msg.u { align-self: flex-end; background: var(--el-color-primary); color: #fff; border-bottom-right-radius: 3px; white-space: pre-wrap; }
-.msg.a { align-self: flex-start; background: #f8fafc; border: 1px solid #eef1f6; border-bottom-left-radius: 3px; white-space: pre-wrap; }
+.msg.a { align-self: flex-start; background: #f8fafc; border: 1px solid #eef1f6; border-bottom-left-radius: 3px; }
 .think { margin: -4px 0 6px; border: 1px dashed #e2e8f2; border-radius: 8px; background: #fbfcfe; }
 .think-hd { display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 12px; color: var(--el-text-color-secondary); cursor: pointer; user-select: none; }
 .think-hd:hover { color: var(--el-color-primary); }
@@ -441,6 +651,23 @@ onMounted(load);
 .ref { cursor: pointer; }
 .ref:hover { color: var(--el-color-primary); border-color: var(--el-color-primary-light-5); }
 .quick { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.consult-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.steps { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 8px; }
+.step { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.step-cmd {
+  flex: 1; min-width: 0; font-size: 11.5px; color: var(--el-text-color-regular);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #f1f5f9; border-radius: 4px; padding: 2px 6px;
+}
+.confirm-card {
+  margin: 4px 0 8px; padding: 8px 10px; border: 1px solid var(--el-color-warning-light-5);
+  background: var(--el-color-warning-light-9); border-radius: 8px;
+}
+.confirm-t { font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
+.confirm-cmd {
+  margin: 0 0 6px; font-size: 12px; background: #fff; border: 1px solid #eef1f6;
+  border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; word-break: break-all;
+}
 .q { cursor: pointer; }
 .q:hover { color: var(--el-color-primary); border-color: var(--el-color-primary-light-5); }
 .composer { margin-top: 8px; }
