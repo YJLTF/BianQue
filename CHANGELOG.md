@@ -2,6 +2,14 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
+## 优化 · 探针裸机安装器参数化（本次）
+
+- `install.sh`：`--jar/--arthas` 缺省改为**脚本同目录**的 bq-agent.jar / arthas-boot.jar（对齐交付包 probe/ 布局，
+  不再依赖仓库相对路径）；新增 `--install-dir`（默认 /opt/bq-probe，完成提示动态取实际目录）；
+  新增 `--java`（可给 JDK 根目录自动拼 bin/java，或 java 可执行文件绝对路径，缺省取 PATH，
+  systemd ExecStart 使用解析后的绝对路径）
+- 六种参数组合干跑验证（默认/目录型 JDK/文件型 JDK/缺 jar/缺 server/JDK 路径不存在）
+
 ## 优化 · 工作台执行通道卡改为真实路由分布（本次）
 
 - 原「执行通道」显示 yml 静态配置 `bianque.execution.mode`（默认 mock），与按实例真实路由脱节（生产挂真实探针仍显示「演示模拟」）
