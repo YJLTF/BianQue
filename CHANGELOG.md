@@ -7,8 +7,11 @@
 - **诊断台**：「本机进程纳管」并入「应用 / 实例」卡（折叠小节，标题带进程数）；右栏「命令速查」常驻列撤销，与第二行火焰图/火山图合并为底部「高级工具」通栏页签卡（命令速查 / 性能剖析 / 双实例对比）；主体列 10→18 加宽，两行 8 卡收为一屏 5 块；watch/trace 限次限频提示并入命令构建卡说明行
 - **管理设置**：8 张平铺卡改「安全 / 参数 / 模板 / 用户 / 接入」五页签——安全页 = 安全基线 + 权限矩阵（并排）+ 高危命令黑名单（通栏），管理动作首屏直达，参考型内容（Agent 安装/MCP）归档「接入」；联动文案同步（参数页提示黑名单移至「安全」页、基线追加项 tag 悬停说明）
 - **镜像构建改「宿主产物装载」快路径**：三个 Dockerfile 从容器内多阶段构建（mvn/npm 在容器内联网冷爬依赖，版本变更即缓存失效，实测 20+ 分钟）改为宿主 `mvn clean package` / `npm run build` → 运行时基础镜像 COPY 装载（实测三镜像合计约 20 秒）；定位对齐「Docker 只为内网快速移植运行，构建依赖开发机」；交付前以探针字节码 major 55 复核防宿主 IDE 增量产物混入（v1.1.0 曾因此漏出 Java 11 基线违规，靠容器全量编译才拦截）；.dockerignore 相应只放行 jar 与前端 dist，中间产物不进上下文
+- **镜像退化为纯运行环境承载（tag latest，产物挂载）**：三个镜像只含运行时（server=JRE21+离线文档+入口脚本 481MB；web=nginx+反代配置 74MB；probe=JDK17+arthas 发行目录 668MB），代码产物一律 `deploy/artifacts/`（bq-server.jar / bq-agent.jar / web/）目录挂载进容器——**升级 = 替换产物 + `compose restart`（前端免重启），镜像环境不变不重建**；探针包下载路径指向挂载目录（替换产物即吐新包）；服务端/探针入口脚本缺失产物时明确报错并给出操作指引
+- **修复 · /api/health 版本号恒报旧值**：版本串曾硬编码在 HealthController 默认值（发布漏改导致 1.1.1 仍回显 1.1.0，镜像冒烟时暴露）；改为 spring-boot-maven-plugin build-info 注入构建版本，IDE 直跑无 build-info 时回落配置项（默认 dev）
+- **修复 · 镜像构建链路两处坑**：① 新增入口脚本须同步 .dockerignore 白名单（白名单式裁剪漏放行导致 COPY 失败、构建假成功）；② 本机 JAVA_HOME 漂移到 JDK 8 时 mvn 直接编译失败（record 语法报"需要class"），构建命令显式固定 JDK 21
 - 文档：USAGE 页面地图与火焰图/火山图操作入口同步；版本号 1.1.1 全量对齐（pom ×4 / AgentMain VERSION / web package.json / .env.example / compose 默认）
-- 实测：`npm run build`（vue-tsc）全绿；本地栈（1.1.0 后端 + dev 前端）浏览器冒烟——诊断台两栏 + 三页签切换内容正确，管理设置五页签逐一渲染、安全页基线/RBAC/黑名单卡数据齐全；镜像装载实测 server 599MB / web 77MB / probe 669MB，web 新 bundle 与 1.1.1 版本串入包，探针 jar 版本串与字节码基线复核通过
+- 实测：`npm run build`（vue-tsc）全绿；本地栈浏览器冒烟两页新布局与页签切换；镜像实测 server 481MB / web 74MB / probe 668MB，**全新环境（删镜像容器后）compose 起栈全链路验证**——health 回显 1.1.1、探针（挂载 jar）注册成功、admin 播种口令登录 200、/api/agent/download 吐挂载包 27028B
 
 ## v1.1.0 发布：模板中心 / 参数中心 / AI 会诊 / 向量检索 / 火焰图 / 火山图 / 可视化 / 安全加固
 

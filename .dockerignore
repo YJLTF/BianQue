@@ -18,6 +18,7 @@ deploy/docker/*
 !deploy/docker/Dockerfile.web
 !deploy/docker/Dockerfile.probe
 !deploy/docker/probe-entrypoint.sh
+!deploy/docker/server-entrypoint.sh
 !docs
 docs/*
 !docs/research

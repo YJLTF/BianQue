@@ -4,7 +4,7 @@
 
 | 形态 | 适用 | 入口 |
 |---|---|---|
-| ⓪ 离线交付包部署 | 目标机无构建条件（内网常用） | `dist/bianque-images-1.1.1.tar.gz` + 本目录 |
+| ⓪ 离线交付包部署 | 目标机无构建条件（内网常用） | `dist/bianque-images-runtime-latest.tar.gz` + `deploy/artifacts/` 产物 + 本目录 |
 | ① 平台全容器一键部署 | 生产/演示服务器（只需 Docker） | [`docker-compose.prod.yml`](docker-compose.prod.yml) + [`.env.example`](.env.example) |
 | ② 节点探针 · Docker | Linux 目标主机（推荐，与平台镜像同源） | [`Dockerfile.probe`](docker/Dockerfile.probe) |
 | ③ 节点探针 · 裸机 systemd | 已装 JDK 11+ 的 Linux 主机 | [`probe/install.sh`](probe/install.sh) |
@@ -16,13 +16,13 @@
 
 ## ⓪ 离线交付包部署（无需构建）
 
-交付包随版本发布（构建机执行 `docker save` 导出，见根 README「发布交付」）：
+交付包 = **运行环境镜像包**（`docker save` 导出，见 ⓪.1 ⑥）+ **代码产物目录** `deploy/artifacts/`（bq-server.jar / bq-agent.jar / web/）。镜像只是运行环境承载（tag `latest`），代码版本随 artifacts 走：
 
 ```bash
-docker load -i bianque-images-1.1.1.tar.gz    # 导入 bianque/server|web|probe:1.1.1 + mysql:8.4 + redis:7.4
+docker load -i bianque-images-runtime-latest.tar.gz   # bianque/server|web|probe:latest（纯运行环境）+ mysql:8.4 + redis:7.4
 cd deploy
-cp .env.example .env                          # 按需修改（BQ_VERSION 保持 1.1.1；生产必改令牌/口令）
-docker compose -f docker-compose.prod.yml up -d   # 镜像已就位，无需 --build
+cp .env.example .env                          # 生产必配：AGENT_TOKEN、BIANQUE_ADMIN_PASSWORD（首次播种 admin 口令）
+docker compose -f docker-compose.prod.yml up -d   # 镜像与产物就位，无需 --build
 ```
 
 ## ① 平台一键部署（全容器）
@@ -34,8 +34,8 @@ docker compose -f docker-compose.prod.yml up -d   # 镜像已就位，无需 --b
 目标主机探针 bq-agent ──出站 HTTP(5s 心跳)──> http://<平台>:8080/api/agent/**
 ```
 
-**前置**：Docker 20+ 与 Docker Compose v2。镜像为**宿主构建产物装载**（v1.1.1 起，内网快速移植定位，不在容器内编译）：
-用 `--build` 部署的机器需先完成下方「构建发布」①② 出包，装载秒级；仅部署已有镜像（⓪ 交付包）则只需 Docker。
+**前置**：Docker 20+ 与 Docker Compose v2。镜像为**纯运行环境承载**（v1.1.1 起，产物经 `deploy/artifacts/`
+挂载，不在镜像里）：`--build` 部署需先按 ⓪.1 出包归位 artifacts；仅部署已有镜像（⓪ 交付包）则只需 Docker。
 
 ```bash
 cd deploy
@@ -43,24 +43,33 @@ cp .env.example .env                # 修改 AGENT_TOKEN 等配置（compose 自
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+**日常升级（镜像不动）**：替换 `deploy/artifacts/` 产物即可——
+前端免重启（目录即时生效）；后端/探针 `docker compose -f docker-compose.prod.yml restart server probe`
+（目录挂载对文件替换路径级生效）。版本以产物与 `/api/health` 回显为准（build-info 注入，无硬编码）。
+改 compose 配置 / 环境变量 / 运行环境（JRE、arthas 版本）时才需 `up -d --build`。
+
 ## ⓪.1 构建发布（开发机出镜像）
 
-宿主全量构建（清 target 规避 IDE 增量产物混入）→ 三镜像秒级装载 → `docker save` 导出离线包：
+宿主全量构建（清 target 规避 IDE 增量产物混入）→ 产物归位 artifacts → 环境镜像装载（仅首次）→ 导出离线包：
 
 ```bash
 # ① 服务端 + 探针出包（清 target 全量编译；JDK 21 环境，本地镜像源下约 12s）
 cd server && mvn -B -pl bq-server,bq-agent -am clean package -DskipTests && cd ..
 # ② 前端 dist
 cd web && npm ci && npm run build && cd ..
-# ③ 装载（构建上下文 = 仓库根）
-docker build -f deploy/docker/Dockerfile.server -t bianque/server:${BQ_VERSION:-1.1.1} .
-docker build -f deploy/docker/Dockerfile.web    -t bianque/web:${BQ_VERSION:-1.1.1} .
-docker build -f deploy/docker/Dockerfile.probe  -t bianque/probe:${BQ_VERSION:-1.1.1} .
-# ④ 交付前复核探针字节码基线（major 55 = Java 11；防宿主 IDE 产物混入高版本字节码）
-unzip -p server/bq-agent/target/bq-agent.jar com/bianque/agent/AgentMain.class | od -A d -t x1 | head -1
-# ⑤ 导出离线包（五镜像，交付清单/SHA256 见根 README「发布交付」）
-docker save bianque/server:1.1.1 bianque/web:1.1.1 bianque/probe:1.1.1 mysql:8.4 redis:7.4 \
-  | gzip > dist/bianque-images-1.1.1.tar.gz
+# ③ 产物归位（规范化命名，compose 按此挂载；artifacts 目录不入库）
+cp server/bq-server/target/bq-server-*.jar deploy/artifacts/bq-server.jar
+cp server/bq-agent/target/bq-agent.jar     deploy/artifacts/bq-agent.jar
+rm -rf deploy/artifacts/web && cp -r web/dist deploy/artifacts/web
+# ④ 环境镜像装载（仅首次或环境变化时：JRE/nginx/arthas 版本升级；秒级，产物不进镜像）
+docker build -f deploy/docker/Dockerfile.server -t bianque/server:latest .
+docker build -f deploy/docker/Dockerfile.web    -t bianque/web:latest .
+docker build -f deploy/docker/Dockerfile.probe  -t bianque/probe:latest .
+# ⑤ 交付前复核探针字节码基线（major 55 = Java 11；防宿主 IDE 产物混入高版本字节码）
+unzip -p deploy/artifacts/bq-agent.jar com/bianque/agent/AgentMain.class | od -A d -t x1 | head -1
+# ⑥ 导出环境镜像离线包（三运行环境镜像 + mysql/redis；代码产物随 deploy/artifacts 目录另行分发）
+docker save bianque/server:latest bianque/web:latest bianque/probe:latest mysql:8.4 redis:7.4 \
+  | gzip > dist/bianque-images-runtime-latest.tar.gz
 ```
 
 > 历史口径（v1.1.0 及以前）为容器内多阶段构建：不依赖宿主构建环境，但冷构建需在容器内联网爬全部依赖
@@ -69,7 +78,7 @@ docker save bianque/server:1.1.1 bianque/web:1.1.1 bianque/probe:1.1.1 mysql:8.4
 
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
-| `BQ_VERSION` | 1.1.1 | 平台镜像 tag（升级版本时同步修改；离线部署需先 load 对应镜像） |
+| `BQ_VERSION` | latest | 运行环境镜像 tag（镜像不随代码版本变化；代码版本以 `deploy/artifacts` 产物与 `/api/health` 回显为准） |
 | `AGENT_TOKEN` | 空 | 节点接入令牌（`X-Agent-Token`）；**生产模式必配**（未配置服务端拒绝启动），需与探针侧一致 |
 | `INGEST_TOKEN` | 空（关闭） | 告警接入令牌（`X-Alert-Token`），配置后外部告警系统可推入 `POST /api/alerts/ingest` |
 | `LLM_BASE_URL` | 空 | AI 问诊端点预置（OpenAI 兼容，不含 `/chat/completions` 尾巴；也可部署后在「AI 问诊」页填写） |
@@ -94,36 +103,39 @@ curl http://<主机>/api/health                 # {"app":"bianque-server","versi
 
 - 容器化 server **自动关闭本机纳管通道**（`bianque.execution.local-enabled=false`）——容器内看不到宿主 JVM，
   真实诊断一律由目标主机探针回连提供；拟真靶场、审计、巡检、AI 问诊等全功能可用
-- **`GET /api/agent/download` 开箱即用**：bq-agent.jar 已打入镜像（/app/agents/），节点接入指引的
-  下载步骤无需手工放置
+- **`GET /api/agent/download` 开箱即用**：下载路径指向挂载目录（`deploy/artifacts/bq-agent.jar` →
+  `/app/artifacts/`），替换产物后接口即吐新包，节点接入指引的下载步骤无需手工放置
 - 数据落 MySQL volume（`mysql-data`），重启/升级不丢；server 日志与临时文件在 `server-data` volume
-- 升级：修改 `.env` 的 `BQ_VERSION` → `docker compose -f docker-compose.prod.yml up -d --build`
-  （DDL 自动增量，向后兼容）
+- 升级：替换 `deploy/artifacts/` 产物 → `docker compose -f docker-compose.prod.yml restart server probe`
+  （前端免重启；DDL 自动增量，向后兼容）。仅当运行环境（JRE/nginx/arthas）变化时才重建镜像
 - 备份：`docker exec bq-mysql sh -c "mysqldump -ubianque -p\$MYSQL_PASSWORD bianque" > backup.sql`
 - TLS：镜像内不做 TLS，生产建议外层 Nginx/网关统一终结 HTTPS 后反代到 `WEB_PORT`
 
 ## ② 节点探针 · Docker（Linux 主机推荐）
 
-探针镜像内置 `bq-agent.jar` + 完整 arthas 发行目录（`/probe/arthas/`，attach 显式 --arthas-home：
-离线免下载、对目标 JVM 用户可读，root 探针可 attach 其它用户的应用）。**必须** `--pid=host` 并挂载 `/tmp`
+探针镜像为纯运行环境（JDK 17 + 完整 arthas 发行目录 `/probe/arthas/`，attach 显式 --arthas-home：
+离线免下载、对目标 JVM 用户可读，root 探针可 attach 其它用户的应用）；探针包 `bq-agent.jar` 经
+volumes 挂载（升级 = 替换宿主产物 + 重启容器）。**必须** `--pid=host` 并挂载 `/tmp`
 （JVM attach 依赖宿主 `/tmp` 下的 hsperfdata/attach socket），探针以 root 运行可附加 root 启动的 JVM：
 
 ```bash
-docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:1.1.1 .   # 或由 compose 构建
+docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:latest .   # 或由 compose 构建（仅首次）
+mkdir -p /opt/bianque/artifacts && cp bq-agent.jar /opt/bianque/artifacts/   # 产物随包分发或从平台 /api/agent/download 获取
 docker run -d --name bq-probe --restart unless-stopped \
   --pid=host -v /tmp:/tmp \
+  -v /opt/bianque/artifacts:/probe/artifacts:ro \
   -e SERVER_URL=http://<平台IP>:8080 \
   -e AGENT_TOKEN=<与平台一致的令牌> \
   -e PROBE_NAME=<节点显示名，默认取 hostname> \
-  bianque/probe:1.1.1
+  bianque/probe:latest
 ```
 
-同机快速体验（平台本身用 compose 部署时）：`docker compose -f docker-compose.prod.yml --profile probe up -d probe`
-——compose 内置 `probe` 服务已带 `pid=host` 与 `/tmp` 挂载，经网络别名 `server` 直连。
+同机快速体验（平台本身用 compose 部署时）：`docker compose --profile probe -f docker-compose.prod.yml up -d probe`
+——compose 内置 `probe` 服务已带 `pid=host`、`/tmp` 与 artifacts 挂载，经网络别名 `server` 直连。
 
-只有探针要发给目标主机时，用独立镜像包（约 210MB，仅 `bianque/probe:1.1.1`）：
-`docker load -i bianque-probe-1.1.1.tar.gz`，运行命令同上；离线交付包内附
-`probe/README-探针镜像.md` 图文说明。
+只有探针要发给目标主机时，用独立镜像包（约 210MB，仅 `bianque/probe:latest` 运行环境）：
+`docker load -i bianque-probe-runtime-latest.tar.gz`，运行命令同上（另需带 `bq-agent.jar` 产物目录）；
+离线交付包内附 `probe/README-探针镜像.md` 图文说明。
 
 ## ③ 节点探针 · 裸机 systemd（已装 JDK 的 Linux 主机）
 

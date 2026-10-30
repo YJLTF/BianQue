@@ -72,7 +72,8 @@ bianque/
 cd deploy
 cp .env.example .env            # 按需修改令牌/密码/LLM（生产必改 AGENT_TOKEN）
 docker compose -f docker-compose.prod.yml up -d --build
-# 镜像为宿主构建产物装载（v1.1.1 起）：先按 deploy/README「构建发布」出包再 --build，秒级装载
+# 镜像 = 纯运行环境承载（latest，产物不进镜像）：先按 deploy/README「构建发布」出包归位
+# deploy/artifacts/ 再 --build；日常升级 = 替换产物 + restart，无需重建镜像
 ```
 
 **② 离线部署（已有交付包，目标机无需构建）**：

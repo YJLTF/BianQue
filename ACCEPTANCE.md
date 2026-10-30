@@ -9,6 +9,7 @@
 - [x] 【自动】前端构建通过；路由分包不变（ClinicView / AdminView 各自 chunk）
 - [ ] 【手动】诊断台收纳：一屏两栏（实例/会话卡含「本机进程纳管」折叠小节）+ 底部「高级工具」页签卡——命令速查行点击跳文档中心，火焰图/火山图页签内容与收纳前一致
 - [ ] 【手动】管理设置页签：「安全 / 参数 / 模板 / 用户 / 接入」五页签切换渲染；安全页高危黑名单卡追加拦截/移除回环不受布局调整影响
+- [ ] 【手动】产物挂载升级回环：替换 `deploy/artifacts/bq-server.jar` → `docker compose restart server` → `/api/health` 版本随 build-info 变化；替换 `deploy/artifacts/web` 前端免重启即时生效；替换 `artifacts/bq-agent.jar` → `/api/agent/download` 吐新包 + `restart probe` 后节点按新包心跳
 
 ## 0. v1.1.0 增补验收（R1–R4）
 

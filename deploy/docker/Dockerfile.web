@@ -1,8 +1,7 @@
-# 扁鹊前端镜像（宿主构建产物装载：Nginx 托管 + 反代，不在容器内 npm 构建）
-# 构建上下文 = 仓库根目录。装载前先在宿主出包：
-#   cd web && npm ci && npm run build
-# 然后：docker build -f deploy/docker/Dockerfile.web -t bianque/web:${BQ_VERSION} .
+# 扁鹊前端镜像 = 纯运行环境承载（Nginx + 反代配置）；静态产物 deploy/artifacts/web 经 volumes 挂载
+# 定位：内网快速移植运行——环境不变则镜像不重建；前端更新 = 替换 deploy/artifacts/web + restart（甚至免重启）
+# 构建（一次性或环境变化时）：docker build -f deploy/docker/Dockerfile.web -t bianque/web:latest .
+# 构建上下文 = 仓库根目录
 FROM nginx:1.27-alpine
 COPY deploy/docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY web/dist/ /usr/share/nginx/html
 EXPOSE 80

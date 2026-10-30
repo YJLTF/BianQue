@@ -1,11 +1,11 @@
-# 扁鹊节点探针镜像（宿主构建产物装载；agent 零第三方依赖，宿主打包秒级）
-# 必须以 pid=host + /tmp 挂载运行才能 attach 宿主 JVM（Linux 主机）：
-#   docker run -d --pid=host -v /tmp:/tmp -e SERVER_URL=http://平台:8080 bianque/probe:${BQ_VERSION:-1.1.1}
-# 装载前先出包：cd server && mvn -B -pl bq-agent -am package -DskipTests
+# 扁鹊节点探针镜像 = 纯运行环境承载（JDK 17 + 完整 arthas 发行目录 + 入口脚本），探针包不进镜像
+# 必须以 pid=host + /tmp 挂载运行才能 attach 宿主 JVM（Linux 主机）；bq-agent.jar 经 volumes 挂载：
+#   docker run -d --pid=host -v /tmp:/tmp -v <部署目录>/artifacts:/probe/artifacts \
+#     -e SERVER_URL=http://平台:8080 [-e AGENT_TOKEN=...] bianque/probe:latest
+# 构建（一次性或环境变化时）：docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:latest .
 # 探针用 JDK 17 运行（含 jdk.attach 与 arthas 依赖的工具能力），可跨版本 attach 目标 JVM
 FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /probe
-COPY server/bq-agent/target/bq-agent.jar ./
 # 完整 arthas 发行目录（含 arthas-core/agent/spy.jar、as.sh、async-profiler）：
 # attach 显式 --arthas-home 使用——离线内网免运行时下载；目录对目标 JVM 用户可读时，
 # root 探针也能 attach 其它用户的应用（agent jar 由目标进程自行打开）
