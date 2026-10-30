@@ -1,6 +1,6 @@
 <template>
   <el-row :gutter="12">
-    <el-col :span="5">
+    <el-col :span="6">
       <el-card shadow="never" header="应用 / 实例">
         <el-select v-model="instanceId" filterable class="instance-select" popper-class="opt-popper"
                    style="width: 100%">
@@ -21,23 +21,30 @@
         <el-button size="small" :disabled="!session.active" style="margin-top: 8px" @click="closeSessionNow">
           结束并重置
         </el-button>
-      </el-card>
-      <el-card shadow="never" header="本机进程纳管" style="margin-top: 12px">
-        <div v-if="localProcs.localEnabled">
-          <div v-for="p in localProcs.processes" :key="p.pid" class="lproc">
-            <code class="cmd">{{ p.mainClass }}</code>
-            <span class="sub">#{{ p.pid }}</span>
-            <el-button v-if="!managedPids.has(p.pid)" size="small" type="primary" plain
-                       :loading="attaching === p.pid" @click="attach(p.pid)">纳管</el-button>
-            <el-tag v-else size="small" type="success" effect="plain">已纳管</el-tag>
+        <template v-if="localProcs.localEnabled">
+          <div class="sec-hd" @click="localOpen = !localOpen">
+            <svg class="chev" :class="{ open: localOpen }" viewBox="0 0 24 24" width="12" height="12" fill="none"
+                 stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+            <span>本机进程纳管（{{ localProcs.processes.length }}）</span>
           </div>
-          <div class="sub" style="margin-top: 6px">纳管后可对其执行真实 Arthas 命令</div>
-        </div>
-        <div v-else class="sub">本机纳管未启用（local-enabled=false）</div>
+          <div v-show="localOpen">
+            <div v-for="p in localProcs.processes" :key="p.pid" class="lproc">
+              <code class="cmd">{{ p.mainClass }}</code>
+              <span class="sub">#{{ p.pid }}</span>
+              <el-button v-if="!managedPids.has(p.pid)" size="small" type="primary" plain
+                         :loading="attaching === p.pid" @click="attach(p.pid)">纳管</el-button>
+              <el-tag v-else size="small" type="success" effect="plain">已纳管</el-tag>
+            </div>
+            <div class="sub" style="margin-top: 6px">纳管后可对其执行真实 Arthas 命令</div>
+          </div>
+        </template>
+        <div v-else class="sub" style="margin-top: 10px">本机纳管未启用（local-enabled=false）</div>
       </el-card>
     </el-col>
 
-    <el-col :span="10">
+    <el-col :span="18">
       <el-card shadow="never" header="场景模板">
         <el-space wrap>
           <el-tag v-for="t in tpls" :key="t.id" class="tpl" type="info" effect="plain"
@@ -59,7 +66,9 @@
           <el-tag v-if="result && !blocked" size="small" :type="result.channel === 'real' ? 'success' : 'info'" effect="plain">
             {{ result.channel === "real" ? "真实执行" : "演示模拟" }} · {{ result.costMs }}ms
           </el-tag>
-          <span class="sub">高危命令将被平台黑名单拦截并审计</span>
+        </div>
+        <div class="sub" style="margin-top: 8px">
+          高危命令将被平台黑名单拦截并审计；watch / trace 等增强命令限次限频，会话结束自动 reset+stop 防增强残留
         </div>
       </el-card>
       <el-card shadow="never" style="margin-top: 12px">
@@ -110,8 +119,11 @@
       </el-card>
     </el-col>
 
-    <el-col :span="9">
-      <el-card shadow="never" header="命令速查">
+  </el-row>
+
+  <el-card shadow="never" class="tools-card" style="margin-top: 12px">
+    <el-tabs v-model="toolTab">
+      <el-tab-pane label="命令速查" name="cheats">
         <el-table :data="cmdDocs" size="small" @row-click="goDoc">
           <el-table-column prop="slug" label="命令" width="100" />
           <el-table-column prop="risk" label="风险" width="140">
@@ -121,17 +133,11 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="path" label="文档" min-width="140" />
+          <el-table-column prop="path" label="文档" min-width="240" />
         </el-table>
-      </el-card>
-      <el-alert type="info" :closable="false" style="margin-top: 12px"
-                title="watch / trace 等增强命令已限次限频；会话结束自动 reset+stop，防增强残留" />
-    </el-col>
-  </el-row>
-
-  <el-row :gutter="12" style="margin-top: 12px">
-    <el-col :span="12">
-      <el-card shadow="never" header="性能剖析（火焰图）">
+        <div class="sub" style="margin-top: 8px">点击行直达文档中心对应命令页；完整命令手册见「文档中心」</div>
+      </el-tab-pane>
+      <el-tab-pane label="性能剖析（火焰图）" name="profile">
         <div class="row">
           <el-button size="small" type="primary" plain :loading="profiling"
                      :disabled="!instanceId || profiling" @click="startProfile">开始 CPU 采样</el-button>
@@ -143,10 +149,8 @@
         <div v-if="flameUrl" class="flame-box">
           <iframe :src="flameUrl" class="flame-frame" title="火焰图" />
         </div>
-      </el-card>
-    </el-col>
-    <el-col :span="12">
-      <el-card shadow="never" header="双实例对比诊断（火山图）">
+      </el-tab-pane>
+      <el-tab-pane label="双实例对比（火山图）" name="compare">
         <div class="row" style="flex-wrap: wrap">
           <el-select v-model="cmpTarget" filterable size="small" placeholder="目标实例（如故障机）" style="width: 190px">
             <el-option v-for="i in instances.filter(i => i.online)" :key="i.instanceId" :value="i.instanceId"
@@ -187,9 +191,9 @@
           </el-table>
         </template>
         <el-empty v-else-if="!cmpRunning" description="同一应用两台机器一台慢——差异在哪？选好两个实例开跑" :image-size="50" />
-      </el-card>
-    </el-col>
-  </el-row>
+      </el-tab-pane>
+    </el-tabs>
+  </el-card>
 
   <el-dialog v-model="confirmVisible" title="高危命令确认" width="440px">
     <p>该命令等价于在目标进程内执行任意代码：</p>
@@ -253,6 +257,7 @@ let timer: number | undefined;
 
 const localProcs = ref<{ localEnabled: boolean; processes: LocalProcessVO[] }>({ localEnabled: false, processes: [] });
 const attaching = ref<number | null>(null);
+const localOpen = ref(false);
 const managedPids = computed(() => new Set(
   instances.value.filter((i) => i.localAgent).map((i) => Number(i.instanceId.replace("local-", ""))),
 ));
@@ -445,6 +450,9 @@ async function onExecute() {
   }
   await refreshSession();
 }
+
+// ---- 底部高级工具页签（命令速查 / 火焰图 / 火山图）----
+const toolTab = ref("cheats");
 
 // ---- 性能剖析（火焰图）----
 const viewMode = ref<"text" | "chart">("text");
@@ -674,6 +682,16 @@ onUnmounted(() => window.clearInterval(timer));
 .instance-select :deep(.el-input__inner) { font-size: 12px; }
 .lproc .cmd { flex: 1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lproc .el-button { margin-left: auto; }
+/* 左栏「本机进程纳管」折叠小节（与 AI 思考过程同款箭头） */
+.sec-hd {
+  display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 7px 0 2px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  font-size: 13px; color: var(--el-text-color-regular); cursor: pointer; user-select: none;
+}
+.sec-hd:hover { color: var(--el-color-primary); }
+.chev.open { transform: rotate(180deg); }
+/* 底部高级工具页签卡：页签头与内容间距收紧 */
+.tools-card :deep(.el-tabs__header) { margin-bottom: 10px; }
 /* 就地 AI 分析 */
 .ai-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .ai-panel {

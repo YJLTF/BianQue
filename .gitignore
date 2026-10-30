@@ -17,6 +17,7 @@ __pycache__/
 
 # ---- 运行时与本地配置 ----
 .env
+.env.bak*
 *.log
 logs/
 data/

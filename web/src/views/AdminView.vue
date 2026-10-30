@@ -1,239 +1,258 @@
 <template>
-  <el-row :gutter="12">
-    <el-col :span="12">
-      <el-card shadow="never" header="安全基线">
-        <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="端口绑定">
-            <el-tag size="small" type="success" effect="plain">127.0.0.1（仅本地）</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="强制认证">
-            <el-tag size="small" :type="baseline.authRequired ? 'success' : 'danger'" effect="plain">
-              {{ baseline.authRequired ? "已启用" : "未启用" }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="会话超时">{{ baseline.sessionTimeoutMinutes }} 分钟（自动 reset+stop）</el-descriptions-item>
-          <el-descriptions-item label="高危黑名单">
-            <el-tag v-for="c in baseline.blockedCommands ?? []" :key="c" size="small" type="danger" effect="plain"
-                    title="内置基线（安全红线，恒拦截不可移除）" style="margin: 0 4px 4px 0">
-              {{ c }}
-            </el-tag>
-            <el-tag v-for="c in baseline.blockedExtraCommands ?? []" :key="'x-' + c" size="small" type="warning"
-                    effect="plain" title="管理员追加项（可在下方高危命令黑名单卡移除）" style="margin: 0 4px 4px 0">
-              {{ c }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="审计">
-            <el-tag size="small" :type="baseline.auditEnabled ? 'success' : 'info'" effect="plain">
-              {{ baseline.auditEnabled ? "全操作留痕" : "关闭" }}
-            </el-tag>
-          </el-descriptions-item>
-        </el-descriptions>
+  <el-tabs v-model="tab" class="admin-tabs">
+    <el-tab-pane label="安全" name="security">
+      <el-row :gutter="12">
+        <el-col :span="12">
+          <el-card shadow="never" header="安全基线">
+            <el-descriptions :column="1" border size="small">
+              <el-descriptions-item label="端口绑定">
+                <el-tag size="small" type="success" effect="plain">127.0.0.1（仅本地）</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="强制认证">
+                <el-tag size="small" :type="baseline.authRequired ? 'success' : 'danger'" effect="plain">
+                  {{ baseline.authRequired ? "已启用" : "未启用" }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="会话超时">{{ baseline.sessionTimeoutMinutes }} 分钟（自动 reset+stop）</el-descriptions-item>
+              <el-descriptions-item label="高危黑名单">
+                <el-tag v-for="c in baseline.blockedCommands ?? []" :key="c" size="small" type="danger" effect="plain"
+                        title="内置基线（安全红线，恒拦截不可移除）" style="margin: 0 4px 4px 0">
+                  {{ c }}
+                </el-tag>
+                <el-tag v-for="c in baseline.blockedExtraCommands ?? []" :key="'x-' + c" size="small" type="warning"
+                        effect="plain" title="管理员追加项（可在「高危命令黑名单」卡移除）" style="margin: 0 4px 4px 0">
+                  {{ c }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="审计">
+                <el-tag size="small" :type="baseline.auditEnabled ? 'success' : 'info'" effect="plain">
+                  {{ baseline.auditEnabled ? "全操作留痕" : "关闭" }}
+                </el-tag>
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card shadow="never" header="权限矩阵（命令族 × 角色）">
+            <el-table :data="rbac" size="small" class="perm-table">
+              <el-table-column prop="family" label="命令族" min-width="240" />
+              <el-table-column prop="access" label="操作员" width="150" />
+            </el-table>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <el-card shadow="never" style="margin-top: 12px">
+        <template #header>
+          <div class="card-hd">
+            <span>高危命令黑名单</span>
+            <el-button size="small" text @click="reloadBaseline(); loadConfigs()">刷新</el-button>
+          </div>
+        </template>
+        <el-alert type="warning" :closable="false" style="margin-bottom: 10px"
+                  title="内置基线为安全红线：恒拦截、不可移除、不可放行；追加项只能加严，即时生效（人工诊断 / AI 会诊 / 模板保存统一拦截），所有改动入审计" />
+        <div class="bl-row">
+          <span class="bl-label">内置基线</span>
+          <el-tag v-for="c in baseline.blockedCommands ?? []" :key="'b-' + c" size="small" type="danger" effect="dark"
+                  class="bl-tag" title="内置高危命令，恒拦截不可移除">{{ c }}</el-tag>
+        </div>
+        <div class="bl-row">
+          <span class="bl-label">追加项</span>
+          <template v-if="(baseline.blockedExtraCommands ?? []).length">
+            <el-tag v-for="c in baseline.blockedExtraCommands ?? []" :key="'e-' + c" size="small" type="warning"
+                    class="bl-tag" :closable="canManage" title="管理员追加项，× 移除后该命令恢复放行"
+                    @close="removeBlocked(c)">{{ c }}</el-tag>
+          </template>
+          <span v-else class="cfg-desc">暂无追加（仅内置基线生效）</span>
+        </div>
+        <div v-if="canManage" class="bl-row bl-actions">
+          <el-input v-model="blInput" size="small" style="width: 280px" clearable
+                    placeholder="命令名，逗号/空格分隔可批量，如 jad sc" @keyup.enter="addBlocked" />
+          <el-button size="small" type="danger" plain :disabled="!blInput.trim()" @click="addBlocked">追加拦截</el-button>
+          <el-button size="small" text :disabled="!(baseline.blockedExtraCommands ?? []).length" @click="resetBlocked">
+            恢复默认（清空追加项）
+          </el-button>
+          <span v-if="blockedMeta" class="cfg-desc">
+            最近修改：{{ blockedMeta.updatedBy || "默认值" }}<template v-if="blockedMeta.updatedAt"> · {{ fmtTime(blockedMeta.updatedAt) }}</template>
+          </span>
+        </div>
       </el-card>
-      <el-card shadow="never" header="权限矩阵（命令族 × 角色）" style="margin-top: 12px">
-        <el-table :data="rbac" size="small" class="perm-table">
-          <el-table-column prop="family" label="命令族" min-width="240" />
-          <el-table-column prop="access" label="操作员" width="150" />
+    </el-tab-pane>
+
+    <el-tab-pane label="参数" name="params">
+      <el-card shadow="never">
+        <template #header>
+          <div class="card-hd">
+            <span>参数配置</span>
+            <el-button size="small" text @click="loadConfigs">刷新</el-button>
+          </div>
+        </template>
+        <el-alert type="info" :closable="false" style="margin-bottom: 10px"
+                  title="改动即时生效并入审计；端口绑定 / 强制认证 / 审计开关为安全红线不可配；高危黑名单内置基线不可削减，追加项在「安全」页「高危命令黑名单」卡管理" />
+        <el-table :data="configs" size="small" v-loading="configsLoading" class="cfg-table">
+          <el-table-column prop="category" label="分类" width="90" />
+          <el-table-column label="参数" min-width="260">
+            <template #default="{ row }">
+              <div class="cfg-name">{{ row.displayName }}<code class="cfg-key">{{ row.key }}</code></div>
+              <div class="cfg-desc">{{ row.description }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="当前值" width="200">
+            <template #default="{ row }">
+              <div class="cfg-val">
+                <el-input-number v-model="drafts[row.key]" :min="row.min" :max="row.max" :step="1"
+                                 size="small" controls-position="right" style="width: 130px" />
+                <el-tag v-if="row.customized" size="small" type="warning" effect="plain">已改</el-tag>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="defaultValue" label="默认" width="60" />
+          <el-table-column prop="effect" label="生效时机" min-width="150" />
+          <el-table-column label="最近修改" width="170">
+            <template #default="{ row }">
+              <span v-if="row.updatedBy" class="cfg-desc">{{ row.updatedBy }}<br>{{ fmtTime(row.updatedAt) }}</span>
+              <span v-else class="cfg-desc">默认值</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150">
+            <template #default="{ row }">
+              <el-button size="small" type="primary" text :disabled="String(drafts[row.key]) === row.value"
+                         @click="saveConfig(row)">保存</el-button>
+              <el-button size="small" text :disabled="!row.customized" @click="resetConfigRow(row)">恢复默认</el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </el-card>
-    </el-col>
-    <el-col :span="12">
-      <el-card shadow="never" header="Agent 安装（Linux · systemd）">
-        <pre class="out">{{ linux }}</pre>
-        <el-button size="small" style="margin-top: 6px" @click="copy(linux)">复制</el-button>
+    </el-tab-pane>
+
+    <el-tab-pane label="模板" name="templates">
+      <el-card shadow="never">
+        <template #header>
+          <div class="card-hd">
+            <span>诊断模板</span>
+            <span>
+              <el-button size="small" text @click="loadTpls">刷新</el-button>
+              <el-button v-if="canManage" size="small" type="primary" plain @click="openTplDialog()">新建模板</el-button>
+            </span>
+          </div>
+        </template>
+        <el-alert type="info" :closable="false" style="margin-bottom: 10px"
+                  title="诊断台场景 / 巡检体检命令集 / 急诊取证序列统一管理；内置模板可停用可复制不可删除；命令支持 {{占位符}}，应用模板时填参" />
+        <el-table :data="tplsAll" size="small" v-loading="tplsLoading" class="cfg-table">
+          <el-table-column prop="name" label="名称" width="180" />
+          <el-table-column label="类型" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain" :type="row.kind === 'diag' ? 'primary' : row.kind === 'checkup' ? 'success' : 'danger'">
+                {{ row.kind === "diag" ? "诊断台" : row.kind === "checkup" ? "体检" : "急诊" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="scene" label="场景" width="100" />
+          <el-table-column label="命令序列" min-width="320" class-name="wrap-cell">
+            <template #default="{ row }">
+              <code v-for="(it, i) in row.items" :key="i" class="tpl-cmd">{{ it.command }}</code>
+            </template>
+          </el-table-column>
+          <el-table-column label="占位符" width="130">
+            <template #default="{ row }">
+              <el-tag v-for="p in row.placeholders" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">{{ p }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="内置" width="70">
+            <template #default="{ row }">
+              <el-tag v-if="row.builtIn" size="small" type="warning" effect="plain">内置</el-tag>
+              <span v-else class="tpl-sub">{{ row.createdBy }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="启用" width="80">
+            <template #default="{ row }">
+              <el-switch :model-value="row.enabled" @change="(v: boolean) => toggleTpl(row, v)" />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="140">
+            <template #default="{ row }">
+              <el-button v-if="canManage" size="small" text type="primary" @click="openTplDialog(row)">编辑</el-button>
+              <el-button v-if="canManage" size="small" text type="danger" :disabled="row.builtIn"
+                         :title="row.builtIn ? '内置模板不可删除' : ''" @click="delTpl(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-card>
-      <el-card shadow="never" header="Agent 安装（Windows · 注册服务）" style="margin-top: 12px">
-        <pre class="out">{{ win }}</pre>
-        <el-button size="small" style="margin-top: 6px" @click="copy(win)">复制</el-button>
+    </el-tab-pane>
+
+    <el-tab-pane label="用户" name="users">
+      <el-card shadow="never">
+        <template #header>
+          <div class="card-hd">
+            <span>用户与角色</span>
+            <el-button v-if="canManage" size="small" type="primary" plain @click="createOpen = true">新增用户</el-button>
+          </div>
+        </template>
+        <el-table :data="users" size="small" v-loading="usersLoading" class="users-table">
+          <el-table-column prop="username" label="账号" width="120" />
+          <el-table-column prop="displayName" label="姓名" min-width="140" show-overflow-tooltip />
+          <el-table-column label="状态" width="80">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
+                {{ row.enabled ? "启用" : "停用" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="角色" width="140">
+            <template #default="{ row }">
+              <el-select v-if="canManage" :model-value="row.roles?.[0]" size="small" style="width: 100%"
+                         :disabled="row.username === 'admin'" @change="(v: string) => changeRole(row, v)">
+                <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
+              </el-select>
+              <el-tag v-else size="small" effect="plain">{{ row.roles?.[0] ?? "-" }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="权限点" min-width="220" class-name="wrap-cell">
+            <template #default="{ row }">
+              <el-tag v-for="p in row.permissions ?? []" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">
+                {{ p }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="canManage" label="操作" width="310">
+            <template #default="{ row }">
+              <el-button size="small" text type="primary" @click="rename(row)">改名</el-button>
+              <el-button size="small" text type="primary" @click="resetPwd(row)">重置密码</el-button>
+              <el-button size="small" text :type="row.enabled ? 'danger' : 'success'"
+                         :disabled="row.username === 'admin'" @click="toggleEnabled(row)">
+                {{ row.enabled ? "停用" : "启用" }}
+              </el-button>
+              <el-button size="small" text type="danger"
+                         :disabled="row.username === 'admin' || row.username === auth.user?.username"
+                         title="内置 admin 与当前登录账号不可删除"
+                         @click="removeUser(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-card>
+    </el-tab-pane>
+
+    <el-tab-pane label="接入" name="access">
+      <el-row :gutter="12">
+        <el-col :span="12">
+          <el-card shadow="never" header="Agent 安装（Linux · systemd）">
+            <pre class="out">{{ linux }}</pre>
+            <el-button size="small" style="margin-top: 6px" @click="copy(linux)">复制</el-button>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card shadow="never" header="Agent 安装（Windows · 注册服务）">
+            <pre class="out">{{ win }}</pre>
+            <el-button size="small" style="margin-top: 6px" @click="copy(win)">复制</el-button>
+          </el-card>
+        </el-col>
+      </el-row>
       <el-card shadow="never" header="MCP 接入" style="margin-top: 12px">
         <code>http://127.0.0.1:8563/mcp</code>（Bearer 认证 · 29 个诊断工具）
         <el-button size="small" style="margin-left: 8px" @click="copy('http://127.0.0.1:8563/mcp')">复制端点</el-button>
       </el-card>
-    </el-col>
-  </el-row>
-
-  <el-card shadow="never" style="margin-top: 12px">
-    <template #header>
-      <div class="card-hd">
-        <span>参数配置</span>
-        <el-button size="small" text @click="loadConfigs">刷新</el-button>
-      </div>
-    </template>
-    <el-alert type="info" :closable="false" style="margin-bottom: 10px"
-              title="改动即时生效并入审计；端口绑定 / 强制认证 / 审计开关为安全红线不可配；高危黑名单内置基线不可削减，追加项在下方「高危命令黑名单」管理" />
-    <el-table :data="configs" size="small" v-loading="configsLoading" class="cfg-table">
-      <el-table-column prop="category" label="分类" width="90" />
-      <el-table-column label="参数" min-width="260">
-        <template #default="{ row }">
-          <div class="cfg-name">{{ row.displayName }}<code class="cfg-key">{{ row.key }}</code></div>
-          <div class="cfg-desc">{{ row.description }}</div>
-        </template>
-      </el-table-column>
-      <el-table-column label="当前值" width="200">
-        <template #default="{ row }">
-          <div class="cfg-val">
-            <el-input-number v-model="drafts[row.key]" :min="row.min" :max="row.max" :step="1"
-                             size="small" controls-position="right" style="width: 130px" />
-            <el-tag v-if="row.customized" size="small" type="warning" effect="plain">已改</el-tag>
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="defaultValue" label="默认" width="60" />
-      <el-table-column prop="effect" label="生效时机" min-width="150" />
-      <el-table-column label="最近修改" width="170">
-        <template #default="{ row }">
-          <span v-if="row.updatedBy" class="cfg-desc">{{ row.updatedBy }}<br>{{ fmtTime(row.updatedAt) }}</span>
-          <span v-else class="cfg-desc">默认值</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="150">
-        <template #default="{ row }">
-          <el-button size="small" type="primary" text :disabled="String(drafts[row.key]) === row.value"
-                     @click="saveConfig(row)">保存</el-button>
-          <el-button size="small" text :disabled="!row.customized" @click="resetConfigRow(row)">恢复默认</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-  </el-card>
-
-  <el-card shadow="never" style="margin-top: 12px">
-    <template #header>
-      <div class="card-hd">
-        <span>高危命令黑名单</span>
-        <el-button size="small" text @click="reloadBaseline(); loadConfigs()">刷新</el-button>
-      </div>
-    </template>
-    <el-alert type="warning" :closable="false" style="margin-bottom: 10px"
-              title="内置基线为安全红线：恒拦截、不可移除、不可放行；追加项只能加严，即时生效（人工诊断 / AI 会诊 / 模板保存统一拦截），所有改动入审计" />
-    <div class="bl-row">
-      <span class="bl-label">内置基线</span>
-      <el-tag v-for="c in baseline.blockedCommands ?? []" :key="'b-' + c" size="small" type="danger" effect="dark"
-              class="bl-tag" title="内置高危命令，恒拦截不可移除">{{ c }}</el-tag>
-    </div>
-    <div class="bl-row">
-      <span class="bl-label">追加项</span>
-      <template v-if="(baseline.blockedExtraCommands ?? []).length">
-        <el-tag v-for="c in baseline.blockedExtraCommands ?? []" :key="'e-' + c" size="small" type="warning"
-                class="bl-tag" :closable="canManage" title="管理员追加项，× 移除后该命令恢复放行"
-                @close="removeBlocked(c)">{{ c }}</el-tag>
-      </template>
-      <span v-else class="cfg-desc">暂无追加（仅内置基线生效）</span>
-    </div>
-    <div v-if="canManage" class="bl-row bl-actions">
-      <el-input v-model="blInput" size="small" style="width: 280px" clearable
-                placeholder="命令名，逗号/空格分隔可批量，如 jad sc" @keyup.enter="addBlocked" />
-      <el-button size="small" type="danger" plain :disabled="!blInput.trim()" @click="addBlocked">追加拦截</el-button>
-      <el-button size="small" text :disabled="!(baseline.blockedExtraCommands ?? []).length" @click="resetBlocked">
-        恢复默认（清空追加项）
-      </el-button>
-      <span v-if="blockedMeta" class="cfg-desc">
-        最近修改：{{ blockedMeta.updatedBy || "默认值" }}<template v-if="blockedMeta.updatedAt"> · {{ fmtTime(blockedMeta.updatedAt) }}</template>
-      </span>
-    </div>
-  </el-card>
-
-  <el-card shadow="never" style="margin-top: 12px">
-    <template #header>
-      <div class="card-hd">
-        <span>诊断模板</span>
-        <span>
-          <el-button size="small" text @click="loadTpls">刷新</el-button>
-          <el-button v-if="canManage" size="small" type="primary" plain @click="openTplDialog()">新建模板</el-button>
-        </span>
-      </div>
-    </template>
-    <el-alert type="info" :closable="false" style="margin-bottom: 10px"
-              title="诊断台场景 / 巡检体检命令集 / 急诊取证序列统一管理；内置模板可停用可复制不可删除；命令支持 {{占位符}}，应用模板时填参" />
-    <el-table :data="tplsAll" size="small" v-loading="tplsLoading" class="cfg-table">
-      <el-table-column prop="name" label="名称" width="180" />
-      <el-table-column label="类型" width="90">
-        <template #default="{ row }">
-          <el-tag size="small" effect="plain" :type="row.kind === 'diag' ? 'primary' : row.kind === 'checkup' ? 'success' : 'danger'">
-            {{ row.kind === "diag" ? "诊断台" : row.kind === "checkup" ? "体检" : "急诊" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="scene" label="场景" width="100" />
-      <el-table-column label="命令序列" min-width="320" class-name="wrap-cell">
-        <template #default="{ row }">
-          <code v-for="(it, i) in row.items" :key="i" class="tpl-cmd">{{ it.command }}</code>
-        </template>
-      </el-table-column>
-      <el-table-column label="占位符" width="130">
-        <template #default="{ row }">
-          <el-tag v-for="p in row.placeholders" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">{{ p }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="内置" width="70">
-        <template #default="{ row }">
-          <el-tag v-if="row.builtIn" size="small" type="warning" effect="plain">内置</el-tag>
-          <span v-else class="tpl-sub">{{ row.createdBy }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="启用" width="80">
-        <template #default="{ row }">
-          <el-switch :model-value="row.enabled" @change="(v: boolean) => toggleTpl(row, v)" />
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="140">
-        <template #default="{ row }">
-          <el-button v-if="canManage" size="small" text type="primary" @click="openTplDialog(row)">编辑</el-button>
-          <el-button v-if="canManage" size="small" text type="danger" :disabled="row.builtIn"
-                     :title="row.builtIn ? '内置模板不可删除' : ''" @click="delTpl(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-  </el-card>
-
-  <el-card shadow="never" style="margin-top: 12px">
-    <template #header>
-      <div class="card-hd">
-        <span>用户与角色</span>
-        <el-button v-if="canManage" size="small" type="primary" plain @click="createOpen = true">新增用户</el-button>
-      </div>
-    </template>
-    <el-table :data="users" size="small" v-loading="usersLoading" class="users-table">
-      <el-table-column prop="username" label="账号" width="120" />
-      <el-table-column prop="displayName" label="姓名" min-width="140" show-overflow-tooltip />
-      <el-table-column label="状态" width="80">
-        <template #default="{ row }">
-          <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
-            {{ row.enabled ? "启用" : "停用" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="角色" width="140">
-        <template #default="{ row }">
-          <el-select v-if="canManage" :model-value="row.roles?.[0]" size="small" style="width: 100%"
-                     :disabled="row.username === 'admin'" @change="(v: string) => changeRole(row, v)">
-            <el-option v-for="r in ROLES" :key="r.v" :value="r.v" :label="r.l" />
-          </el-select>
-          <el-tag v-else size="small" effect="plain">{{ row.roles?.[0] ?? "-" }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="权限点" min-width="220" class-name="wrap-cell">
-        <template #default="{ row }">
-          <el-tag v-for="p in row.permissions ?? []" :key="p" size="small" effect="plain" style="margin: 0 4px 4px 0">
-            {{ p }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column v-if="canManage" label="操作" width="310">
-        <template #default="{ row }">
-          <el-button size="small" text type="primary" @click="rename(row)">改名</el-button>
-          <el-button size="small" text type="primary" @click="resetPwd(row)">重置密码</el-button>
-          <el-button size="small" text :type="row.enabled ? 'danger' : 'success'"
-                     :disabled="row.username === 'admin'" @click="toggleEnabled(row)">
-            {{ row.enabled ? "停用" : "启用" }}
-          </el-button>
-          <el-button size="small" text type="danger"
-                     :disabled="row.username === 'admin' || row.username === auth.user?.username"
-                     title="内置 admin 与当前登录账号不可删除"
-                     @click="removeUser(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-  </el-card>
+    </el-tab-pane>
+  </el-tabs>
 
   <el-dialog v-model="createOpen" title="新增用户" width="420px">
     <el-form label-width="80px">
@@ -306,6 +325,9 @@ import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
 const canManage = computed(() => auth.can("admin:user"));
+
+// 设置分区页签：安全（基线/权限矩阵/黑名单）/ 参数 / 模板 / 用户 / 接入
+const tab = ref("security");
 
 interface Baseline {
   bindLocalOnly: boolean;
