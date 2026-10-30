@@ -2,7 +2,19 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
-## v1.1.1 发布（本次）：诊断台与管理设置布局收纳
+## v1.1.2 发布（本次）：容器化火焰图全链路修复 + 纯运行环境化回归修补
+
+- **修复 · 火焰图报错被吞成「节点回传内容为空或渲染失败」**：arthas 把命令级失败放在 `type=status` 结果里（statusCode≠0 + message，如 AsyncProfiler 报错），平台渲染器把 status 一律当终止标记忽略 → 渲染为空串 → 通道误判「内容为空」。现 status(statusCode≠0)/error 结果原样透传真实原因（FastPathClient 渲染层 + AgentChannelExecutor 通道层），单测用事故现场报文固化（FastPathClientTest）
+- **修复 · profiler/cat 命令的 agent-json 渲染**：`profiler` 结果原样吐 JSON（stop 产物路径混在 JSON 里被路径正则带偏）→ 改渲染 `executeResult` 正文 + 产物路径独立成行（与 ProfileService 提取契约对齐）；`cat` 结果去掉 JSON 包装直接回传正文（火焰图 HTML 曾以 `cat: {"content":...}` 落库导致 iframe 渲染成转义文本）
+- **修复 · compose 演示探针无法 attach/剖析容器内 JVM**：①探针与目标不同 pid 命名空间时，attach API 枚举用的 hsperfdata pid（容器内 server=pid 1）会被按宿主命名空间解释——对 VM init 发 SIGQUIT，**实测带崩整台 Docker VM（全栈反弹）**→ compose 探针改 `pid: service:server`；②arthas HTTP 端口绑目标网络命名空间 loopback，探针共享 pid 不共享网络时不可达 → `network_mode: service:server`；③目标 tmpdir 落在 noexec tmpfs（Docker VM /tmp）时 async-profiler .so 无法 dlopen（`failed to map segment from shared object`）→ server/probe 共享 exec 卷 `bq-tmp:/tmp`。三者就位后 compose 演示可对 server JVM 全链路采样出火焰图（浏览器实测）；独立探针形态（宿主 JVM 目标）不受影响，边界写入 deploy README「探针工作原理」
+- **修复 · 纯运行环境化回归：容器静默回落 H2**：v1.1.1 旧镜像 ENTRYPOINT 自带 `--spring.profiles.active=mysql,docker`，改为纯运行环境入口脚本后该参数丢失——容器**静默**用 H2 文件库（health 照常 UP、Redis 连不上回退内存，数据不入 MySQL），验收未暴露。现 compose 显式 `--spring.profiles.active=docker`
+- **修复 · nginx 反代缓存死上游**：nginx 启动时解析 `server` 并永久缓存，server 容器重建换 IP 后 502（升级链路雷）。改 Docker 内置 DNS 动态解析（`resolver 127.0.0.11 valid=3s` + 变量 proxy_pass），web 镜像随之重建
+- **升级流程口径修正**：jar 产物必须**原子替换**（拷临时名 + `mv -f`）——运行中的 Spring Boot 持有 jar 句柄，原地 `cp` 覆写会让未加载类炸 `NoClassDefFoundError`（重启前请求随机 500，实测）；deploy README/compose 注释同步
+- **构建坑固化**：maven 增量编译曾复用无 `-parameters` 的陈旧 class（Spring 6.1 参数名反射必需），集成测试批量 500（「Ensure that the compiler uses the '-parameters' flag」）——`clean test` 全量编译即恢复；发布构建保持 `clean package`
+- 版本 1.1.2 全量对齐（pom ×4 / AgentMain VERSION / web package.json）；服务端 90 用例全绿（+4 渲染用例）
+- 实测：compose 全新起栈——health 1.1.2、docker profile 生效（MySQL/Redis）、探针注册 bq-server/bq-agent 实例、诊断台选 server 实例「开始 CPU 采样 → 停止并出图」出火焰图（产物 38KB HTML，独立打开渲染 CPU profile 火焰图完好）
+
+## v1.1.1 发布：诊断台与管理设置布局收纳
 
 - **诊断台**：「本机进程纳管」并入「应用 / 实例」卡（折叠小节，标题带进程数）；右栏「命令速查」常驻列撤销，与第二行火焰图/火山图合并为底部「高级工具」通栏页签卡（命令速查 / 性能剖析 / 双实例对比）；主体列 10→18 加宽，两行 8 卡收为一屏 5 块；watch/trace 限次限频提示并入命令构建卡说明行
 - **管理设置**：8 张平铺卡改「安全 / 参数 / 模板 / 用户 / 接入」五页签——安全页 = 安全基线 + 权限矩阵（并排）+ 高危命令黑名单（通栏），管理动作首屏直达，参考型内容（Agent 安装/MCP）归档「接入」；联动文案同步（参数页提示黑名单移至「安全」页、基线追加项 tag 悬停说明）

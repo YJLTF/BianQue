@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.bianque</groupId>
   <artifactId>bq-parent</artifactId>
-  <version>1.1.1</version>
+  <version>1.1.2</version>
   <packaging>pom</packaging>
   <name>BianQue Parent</name>
   <description>扁鹊 BianQue 线上诊断平台 - 后端多模块父 POM</description>

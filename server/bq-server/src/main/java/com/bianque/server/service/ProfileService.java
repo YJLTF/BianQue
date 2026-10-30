@@ -75,7 +75,8 @@ public class ProfileService {
         return out;
     }
 
-    static String findOutputPath(String output) {
+    /** stop 输出中的火焰图产物路径提取（渲染契约：路径须独立成行，见 FastPathClient.renderProfiler） */
+    public static String findOutputPath(String output) {
         if (output == null) {
             return null;
         }

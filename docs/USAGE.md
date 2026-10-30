@@ -1,4 +1,4 @@
-# 扁鹊 BianQue · 使用指南（v1.1.1）
+# 扁鹊 BianQue · 使用指南（v1.1.2）
 
 > 面向平台使用者（运维 / 研发 / 只读方）。部署安装见 [`deploy/README.md`](../deploy/README.md)，
 > 迭代变更见 [`CHANGELOG.md`](../CHANGELOG.md)。平台基于 Arthas 4.3.5，登录后左侧导航即十页功能流。

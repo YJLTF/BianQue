@@ -35,6 +35,13 @@ public class AgentChannelExecutor implements DiagExecutor {
         if (!AgentCommandEntity.DONE.equals(done.status)) {
             return DiagResult.fail(done.error == null ? "节点执行失败" : done.error, cost);
         }
+        // arthas 把命令级失败（statusCode!=0）放在 status 结果里，先于渲染透传真实原因
+        if ("agent-json".equals(done.outputKind)) {
+            String err = FastPathClient.agentJsonError(done.output);
+            if (err != null) {
+                return DiagResult.fail(err, cost);
+            }
+        }
         String text = "agent-json".equals(done.outputKind)
                 ? FastPathClient.renderAgentJson(done.output) : done.output;
         if (text == null || text.isBlank()) {

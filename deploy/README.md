@@ -1,4 +1,4 @@
-# deploy（部署）· v1.1.1
+# deploy（部署）· v1.1.2
 
 扁鹊平台部署形态：
 
@@ -44,9 +44,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 **日常升级（镜像不动）**：替换 `deploy/artifacts/` 产物即可——
-前端免重启（目录即时生效）；后端/探针 `docker compose -f docker-compose.prod.yml restart server probe`
-（目录挂载对文件替换路径级生效）。版本以产物与 `/api/health` 回显为准（build-info 注入，无硬编码）。
-改 compose 配置 / 环境变量 / 运行环境（JRE、arthas 版本）时才需 `up -d --build`。
+前端免重启（目录即时生效）；后端/探针 `docker compose -f docker-compose.prod.yml restart server probe`。
+**jar 必须原子替换**（先拷临时名再 `mv -f` 覆盖，勿直接 `cp` 覆写）：运行中的 Spring Boot 持有 jar 文件句柄，
+原地覆写会让未加载的类炸 `NoClassDefFoundError`（重启前的请求随机 500）。版本以产物与 `/api/health`
+回显为准（build-info 注入，无硬编码）。改 compose 配置 / 环境变量 / 运行环境（JRE、arthas 版本）时才需 `up -d --build`。
 
 ## ⓪.1 构建发布（开发机出镜像）
 
@@ -58,8 +59,9 @@ cd server && mvn -B -pl bq-server,bq-agent -am clean package -DskipTests && cd .
 # ② 前端 dist
 cd web && npm ci && npm run build && cd ..
 # ③ 产物归位（规范化命名，compose 按此挂载；artifacts 目录不入库）
-cp server/bq-server/target/bq-server-*.jar deploy/artifacts/bq-server.jar
-cp server/bq-agent/target/bq-agent.jar     deploy/artifacts/bq-agent.jar
+#    jar 用「拷临时名 + mv -f」原子替换：目标机上运行中的服务端持有旧文件句柄，原地 cp 覆写会致其类加载炸裂
+cp server/bq-server/target/bq-server-*.jar deploy/artifacts/.bq-server.jar.tmp && mv -f deploy/artifacts/.bq-server.jar.tmp deploy/artifacts/bq-server.jar
+cp server/bq-agent/target/bq-agent.jar     deploy/artifacts/.bq-agent.jar.tmp && mv -f deploy/artifacts/.bq-agent.jar.tmp deploy/artifacts/bq-agent.jar
 rm -rf deploy/artifacts/web && cp -r web/dist deploy/artifacts/web
 # ④ 环境镜像装载（仅首次或环境变化时：JRE/nginx/arthas 版本升级；秒级，产物不进镜像）
 docker build -f deploy/docker/Dockerfile.server -t bianque/server:latest .
@@ -94,7 +96,7 @@ docker save bianque/server:latest bianque/web:latest bianque/probe:latest mysql:
 **验证**：
 
 ```bash
-curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.1.1","status":"UP",...}
+curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.1.2","status":"UP",...}
 # 浏览器打开 http://<主机>/ → 节点管理页
 # 登录：演示模式 admin/admin123；生产模式用 BIANQUE_ADMIN_PASSWORD 设置的口令
 ```
@@ -106,7 +108,8 @@ curl http://<主机>/api/health                 # {"app":"bianque-server","versi
 - **`GET /api/agent/download` 开箱即用**：下载路径指向挂载目录（`deploy/artifacts/bq-agent.jar` →
   `/app/artifacts/`），替换产物后接口即吐新包，节点接入指引的下载步骤无需手工放置
 - 数据落 MySQL volume（`mysql-data`），重启/升级不丢；server 日志与临时文件在 `server-data` volume
-- 升级：替换 `deploy/artifacts/` 产物 → `docker compose -f docker-compose.prod.yml restart server probe`
+- 升级：原子替换 `deploy/artifacts/` 产物（mv，勿原地 cp，见「日常升级」）→
+  `docker compose -f docker-compose.prod.yml restart server probe`
   （前端免重启；DDL 自动增量，向后兼容）。仅当运行环境（JRE/nginx/arthas）变化时才重建镜像
 - 备份：`docker exec bq-mysql sh -c "mysqldump -ubianque -p\$MYSQL_PASSWORD bianque" > backup.sql`
 - TLS：镜像内不做 TLS，生产建议外层 Nginx/网关统一终结 HTTPS 后反代到 `WEB_PORT`
@@ -115,8 +118,11 @@ curl http://<主机>/api/health                 # {"app":"bianque-server","versi
 
 探针镜像为纯运行环境（JDK 17 + 完整 arthas 发行目录 `/probe/arthas/`，attach 显式 --arthas-home：
 离线免下载、对目标 JVM 用户可读，root 探针可 attach 其它用户的应用）；探针包 `bq-agent.jar` 经
-volumes 挂载（升级 = 替换宿主产物 + 重启容器）。**必须** `--pid=host` 并挂载 `/tmp`
-（JVM attach 依赖宿主 `/tmp` 下的 hsperfdata/attach socket），探针以 root 运行可附加 root 启动的 JVM：
+volumes 挂载（升级 = 替换宿主产物 + 重启容器）。剖析宿主 JVM 时**必须** `--pid=host` 并挂载 `/tmp`
+（JVM attach 依赖宿主 `/tmp` 下的 hsperfdata/attach socket），探针以 root 运行可附加 root 启动的 JVM。
+**勿用此形态 attach 容器内 JVM**：容器目标的 hsperfdata pid 属容器命名空间（容器内 pid 1），
+宿主命名空间按其 attach 等于向宿主 init 发信号——容器目标请让探针与目标共享命名空间
+（compose `--profile probe` 演示即 `pid: service:server` + 共享卷，见 docker-compose.prod.yml 注释）：
 
 ```bash
 docker build -f deploy/docker/Dockerfile.probe -t bianque/probe:latest .   # 或由 compose 构建（仅首次）
@@ -131,7 +137,8 @@ docker run -d --name bq-probe --restart unless-stopped \
 ```
 
 同机快速体验（平台本身用 compose 部署时）：`docker compose --profile probe -f docker-compose.prod.yml up -d probe`
-——compose 内置 `probe` 服务已带 `pid=host`、`/tmp` 与 artifacts 挂载，经网络别名 `server` 直连。
+——compose 内置 `probe` 服务与 `server` 共享 pid/网络命名空间和 exec tmpdir 卷（`bq-tmp`），
+注册即可见本栈 server JVM，诊断台「性能剖析」可直接对其采样出火焰图（无需任何宿主 JVM）。
 
 只有探针要发给目标主机时，用独立镜像包（约 210MB，仅 `bianque/probe:latest` 运行环境）：
 `docker load -i bianque-probe-runtime-latest.tar.gz`，运行命令同上（另需带 `bq-agent.jar` 产物目录）；
@@ -185,6 +192,13 @@ java -jar bq-agent.jar --server http://平台IP:8080 --token <令牌> --arthas a
 - **attach 与用户**：agent jar 由目标 JVM 以其自身用户打开，同用户或发行目录可读方可 attach（详见 ③ 节说明）；
   容器探针默认 root，配合内置发行目录可附加其它用户启动的宿主 JVM；非 root 目标进程也可在对应用户下另行运行探针
 - **同一 JVM 只允许一个 arthas agent**：目标进程此前被手工 attach 过且未 stop 的，先停止旧 agent
+- **跨命名空间 attach 禁止**：attach API 枚举依赖目标 tmpdir 下的 hsperfdata，其文件名 pid 属目标
+  自己的命名空间；探针按**自己的**命名空间解释该 pid 去 attach——目标在其它 pid 命名空间（容器）时
+  会 attach 到错误进程（命中 pid 1 即向宿 init 发 SIGQUIT，实测可带崩整台 Docker VM）。
+  容器目标必须与探针共享 pid 命名空间（compose 演示形态）或直接裸机探针
+- **目标 tmpdir 必须可执行**：async-profiler 把采样 .so 解压到目标 `java.io.tmpdir` 再 dlopen，
+  /tmp 挂载为 noexec tmpfs 时报 `failed to map segment from shared object`——compose 演示以
+  exec 卷 `bq-tmp` 规避；宿主机 /tmp 为 noexec 的环境需调整挂载或目标 JVM 的 `-Djava.io.tmpdir`
 - 探针空闲 30 分钟自动回收 arthas 会话；平台侧会话关闭时下发 stop，防增强残留
 - `bianque.agent.token` 为空时探针接入开放（仅限内网演示）；生产必配且探针侧一致
 - 完整安全边界见根 [README](../README.md)「红线」与「已知边界」章节

@@ -61,7 +61,11 @@ public class FastPathClient {
             if (!results.isArray() || results.isEmpty()) {
                 return new ExecOut(null, "空结果");
             }
-            return new ExecOut(renderResults(results), null);
+            Rendered out = renderResults(results);
+            if (out.error != null) {
+                return new ExecOut(null, out.error);
+            }
+            return new ExecOut(out.text, null);
         } catch (Exception e) {
             return new ExecOut(null, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
@@ -84,18 +88,32 @@ public class FastPathClient {
 
     // ---- 渲染：agent 返回结构化模型，按平台常用命令类型转控制台风格文本 ----
 
-    /** 渲染 arthas agent /api 的原始响应 JSON（平台 Agent 通道回传形态）；解析失败返回 null */
+    /** 渲染 arthas agent /api 的原始响应 JSON（平台 Agent 通道回传形态）；命令级失败返回 null（原因经 agentJsonError） */
     public static String renderAgentJson(String body) {
+        Rendered r = renderAgentResponse(body);
+        return r.error == null ? r.text : null;
+    }
+
+    /** agent-json 回传中的命令级失败信息（type=status 且 statusCode!=0，如 AsyncProfiler 报错）；无则 null */
+    public static String agentJsonError(String body) {
+        return renderAgentResponse(body).error;
+    }
+
+    private static Rendered renderAgentResponse(String body) {
         try {
             JsonNode results = JSON.readTree(body).path("body").path("results");
-            return results.isArray() && !results.isEmpty() ? renderResults(results) : null;
+            if (!results.isArray() || results.isEmpty()) {
+                return new Rendered(null, null);
+            }
+            return renderResults(results);
         } catch (Exception e) {
-            return null;
+            return new Rendered(null, null);
         }
     }
 
-    private static String renderResults(JsonNode results) {
+    private static Rendered renderResults(JsonNode results) {
         StringBuilder sb = new StringBuilder();
+        String error = null;
         for (JsonNode r : results) {
             String type = r.path("type").asText("");
             switch (type) {
@@ -103,13 +121,41 @@ public class FastPathClient {
                 case "jvm" -> renderJvm(sb, r.path("jvmInfo"));
                 case "memory" -> renderMemory(sb, r.path("memoryInfo"));
                 case "thread" -> renderThread(sb, r);
-                case "status" -> { /* 终止标记，忽略 */ }
+                case "profiler" -> renderProfiler(sb, r);
+                // cat 回传产物正文（火焰图 html 落库/iframe 渲染都用原文，去 JSON 包装）
+                case "cat" -> sb.append(r.path("content").asText(""));
+                case "status" -> {
+                    // arthas 把命令级失败放在 status 结果里（statusCode!=0 + message），
+                    // 例如 profiler 的 AsyncProfiler 错误——忽略会吞掉真实原因
+                    if (r.path("statusCode").asInt(0) != 0 && error == null) {
+                        String msg = r.path("message").asText("");
+                        error = msg.isBlank() ? r.toString() : msg;
+                    }
+                }
+                case "error" -> {
+                    if (error == null) {
+                        String msg = r.path("message").asText("");
+                        error = msg.isBlank() ? r.toString() : msg;
+                    }
+                }
                 default -> {
                     sb.append(type).append(": ").append(r.toString()).append('\n');
                 }
             }
         }
-        return sb.toString().trim();
+        return new Rendered(sb.toString().trim(), error == null || error.isBlank() ? null : error);
+    }
+
+    /** profiler（async-profiler）结果：回显执行输出；stop 时带产物路径独立成行（平台按 <路径>.html 提取回传） */
+    private static void renderProfiler(StringBuilder sb, JsonNode r) {
+        String exec = r.path("executeResult").asText("").trim();
+        if (!exec.isEmpty()) {
+            sb.append(exec).append('\n');
+        }
+        String out = r.path("outputFile").asText("");
+        if (!out.isEmpty()) {
+            sb.append(out).append('\n');
+        }
     }
 
     private static void renderJvm(StringBuilder sb, JsonNode jvmInfo) {
@@ -165,5 +211,8 @@ public class FastPathClient {
     }
 
     public record ExecOut(String output, String error) {
+    }
+
+    private record Rendered(String text, String error) {
     }
 }

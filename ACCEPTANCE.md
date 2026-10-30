@@ -1,6 +1,15 @@
-# 扁鹊 BianQue · 验收清单（v1.0.0，S1–S8 · v1.1.0 增补 · v1.1.1 增补）
+# 扁鹊 BianQue · 验收清单（v1.0.0，S1–S8 · v1.1.0/v1.1.1 增补 · v1.1.2 增补）
 
 > 适用版本：git main 分支（v1.0.0 及之后）。
+
+## 0.0 v1.1.2 增补验收（容器化火焰图 + 回归修补）
+
+> 前置：服务端 `mvn -B clean test`（90 用例）+ 前端 `npm run build` 全绿。
+
+- [x] 【自动】命令级失败透传：FastPathClientTest 4 用例（status statusCode≠0 回传真实 message、profiler 产物路径独立成行与 ProfileService 提取契约对齐、cat 去 JSON 包装回正文、空/坏报文不误报）
+- [x] 【手动】compose 演示全链路：`--profile probe` 起栈 → 诊断台选 bq-server 实例 → 「性能剖析」开始 CPU 采样 → 停止并出图 → 火焰图 HTML 落库（38KB）且独立打开渲染正常；期间 server/probe 不再被 attach 带崩
+- [x] 【手动】docker profile 回归：容器日志无「No active profile」、数据源连 `jdbc:mysql://mysql:3306`、登录态走 Redis；jar 原子替换 + `restart server probe` 升级回环可用
+- [x] 【手动】nginx 动态解析：server 容器重建换 IP 后 web 反代不再 502
 
 ## 0.1 v1.1.1 增补验收（布局收纳）
 

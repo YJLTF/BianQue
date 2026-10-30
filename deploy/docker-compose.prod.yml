@@ -1,6 +1,7 @@
 # 扁鹊 · BianQue 平台全容器一键部署
 # 架构：镜像 = 纯运行环境承载（tag 默认 latest，环境不变不重建）；代码产物走 deploy/artifacts 挂载
-# 升级 = 替换 deploy/artifacts 产物 + docker compose restart（前端免重启；无需重建镜像）
+# 升级 = 原子替换 deploy/artifacts 产物（拷临时名 + mv -f，勿原地 cp 覆写运行中服务的 jar）
+#        + docker compose restart（前端免重启；无需重建镜像）
 # 首次部署：① 按 README「构建发布」出包并放入 deploy/artifacts/（bq-server.jar / bq-agent.jar / web/）
 #           ② docker compose -f docker-compose.prod.yml up -d --build   （构建为环境装载，秒级）
 # 可选：附加本机探针演示  docker compose -f docker-compose.prod.yml --profile probe up -d probe
@@ -38,7 +39,10 @@ services:
     container_name: bq-server
     # 容器内无本机 JVM 可 attach：关闭本机纳管通道，真实诊断一律走节点探针
     # 探针包下载路径指向挂载目录（升级替换 artifacts 后 GET /api/agent/download 即新包）
+    # 激活 docker profile（mysql/redis 服务名 + env 接线）：纯运行环境入口不隐含 profile，
+    # 缺失会静默回落 H2 文件库（health 照常 UP，数据不入 MySQL——曾因此回归）
     command:
+      - "--spring.profiles.active=docker"
       - "--bianque.execution.local-enabled=false"
       - "--bianque.agent.jar-path=/app/artifacts/bq-agent.jar"
       - "--bianque.agent.token=${AGENT_TOKEN:-}"
@@ -63,6 +67,10 @@ services:
       - server-data:/app/data
       # 代码产物挂载（升级 = 替换宿主文件 + restart；目录挂载对文件替换路径级生效）
       - ./artifacts:/app/artifacts:ro
+      # /tmp 与 probe 共享（exec 卷，ext4 非 noexec）：JVM attach socket 与 async-profiler 采样
+      # .so 都落在目标进程的 tmpdir——探针与目标两侧视图一致且可执行，火焰图才可用；
+      # 宿主/VM 的 /tmp 常为 noexec tmpfs，直接挂载会导致 dlopen "failed to map segment" 失败
+      - bq-tmp:/tmp
     restart: unless-stopped
 
   web:
@@ -80,21 +88,26 @@ services:
       - ./artifacts/web:/usr/share/nginx/html:ro
     restart: unless-stopped
 
-  # 本机探针演示（--profile probe）：仅 Linux 主机可 attach 宿主 JVM（pid=host + /tmp 挂载）
+  # 本机探针演示（--profile probe）：与 server 共享 pid/网络命名空间 + bq-tmp 卷（exec tmpdir），
+  # attach 目标 pid、attach socket、arthas HTTP 端口(loopback) 两侧完全一致，可对本栈 server JVM 剖析火焰图。
+  # 勿改回 pid: host：Attach API 枚举用的 hsperfdata pid 是目标自己命名空间的（容器内 server=pid 1），
+  # 探针按宿主命名空间解释会对 VM init 发 SIGQUIT，带崩整个 Docker VM（实测全栈反弹）。
+  # Linux 主机上剖析宿主其它 JVM 走 README② 裸机/独立容器形态（宿主 JVM 的 hsperfdata pid 本就属宿主命名空间）。
   probe:
     build:
       context: ..
       dockerfile: deploy/docker/Dockerfile.probe
     image: bianque/probe:${BQ_VERSION:-latest}
     container_name: bq-probe
-    pid: "host"
+    pid: "service:server"
+    network_mode: "service:server"
     environment:
-      SERVER_URL: http://server:8080
+      SERVER_URL: http://127.0.0.1:8080
       AGENT_TOKEN: ${AGENT_TOKEN:-}
       PROBE_NAME: ${PROBE_NAME:-}
       PROBE_INTERVAL: ${PROBE_INTERVAL:-5}
     volumes:
-      - /tmp:/tmp
+      - bq-tmp:/tmp
       # 探针包挂载（升级 = 替换 artifacts/bq-agent.jar + restart）
       - ./artifacts:/probe/artifacts:ro
     depends_on:
@@ -106,3 +119,4 @@ volumes:
   mysql-data:
   redis-data:
   server-data:
+  bq-tmp:
