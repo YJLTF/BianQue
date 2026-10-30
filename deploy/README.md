@@ -155,8 +155,10 @@ sudo ./install.sh --server http://<平台IP>:8080 --token <令牌> --user <应�
 #       --install-dir /opt/bq-probe --java /opt/jdk21 | /opt/jdk21/bin/java
 ```
 
-安装器行为：拷贝 `bq-agent.jar` 与 `arthas/` 发行目录到安装目录（发行目录自动 `a+rX`，
-保证目标 JVM 用户可读）→ 写入 `bq-probe.service`（自动重启，`--user` 时写入运行账号）→ `enable --now`。
+安装器行为：先停旧 `bq-probe` 服务并检测残留手工探针进程（同机仅一个探针，防重复节点与命令争抢）
+→ 校验 arthas 发行目录完整（缺 arthas-core.jar 拒装：离线内网 attach 会全部失败）→ 拷贝 `bq-agent.jar`
+与 `arthas/` 发行目录到安装目录（发行目录自动 `a+rX`，保证目标 JVM 用户可读）→ 写入 `bq-probe.service`
+（自动重启，`--user` 时写入运行账号）→ `enable --now`。
 日志：`journalctl -u bq-probe -f`；卸载：`systemctl disable --now bq-probe && rm -rf <安装目录>`。
 
 **attach 与用户（重要）**：agent jar 由目标 JVM 以其自身用户打开——跨用户 attach 失败的根因

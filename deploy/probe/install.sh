@@ -13,6 +13,7 @@
 #   --java 可给 JDK 根目录（自动拼 bin/java）或 java 可执行文件绝对路径；缺省取 PATH
 #   --user 服务运行账号：与目标 JVM 同用户运行是 attach 的可靠口径（可 attach 该用户启动的 JVM，
 #     并满足最小权限）；缺省 root（配合发行目录仍可 attach 其它用户的 JVM）
+#   同机仅允许一个探针：安装器会先停旧 bq-probe 服务，若仍检测到手工启动的 bq-agent 进程则拒绝安装
 # 卸载: sudo systemctl disable --now bq-probe && sudo rm -rf <INSTALL_DIR>
 # ============================================================
 set -euo pipefail
@@ -37,6 +38,15 @@ if [ -n "$USER_ACCT" ]; then
   id "$USER_ACCT" >/dev/null 2>&1 || { echo "用户不存在：$USER_ACCT"; exit 2; }
 fi
 
+# 升级/重装路径：先停已有服务实例；再防双探针——残留的手工探针进程会造成重复节点与命令争抢
+systemctl stop bq-probe 2>/dev/null || true
+if pgrep -f "bq-agent.jar" >/dev/null 2>&1; then
+  echo "检测到本机仍有运行中的 bq-agent 进程（同机只应一个探针）："
+  pgrep -af "bq-agent.jar" | sed 's/^/  /'
+  echo "请先 kill 旧进程（如为手工 java -jar 起的，机器重启也不会自启）后重试安装。"
+  exit 1
+fi
+
 # 产物就近取脚本同目录（交付包 probe/ 布局）；--jar/--arthas 可覆盖为任意路径
 DIR="$(cd "$(dirname "$0")" && pwd)"
 JAR="${JAR:-$DIR/bq-agent.jar}"
@@ -55,6 +65,8 @@ if [ -z "$ARTHAS" ]; then
 fi
 if [ -d "$ARTHAS" ]; then
   [ -f "$ARTHAS/arthas-boot.jar" ] || { echo "arthas 目录缺 arthas-boot.jar：$ARTHAS"; exit 2; }
+  # 完整发行目录必须含 arthas-core.jar：缺失时 arthas-boot 首次 attach 需联网下载发行包，内网直接失败
+  [ -f "$ARTHAS/arthas-core.jar" ] || { echo "arthas 目录缺 arthas-core.jar（非完整发行目录，离线内网 attach 会全部失败）：$ARTHAS"; exit 2; }
   ARTHAS_KIND=dir
 else
   [ -f "$ARTHAS" ] || { echo "找不到 arthas-boot.jar：$ARTHAS"; exit 2; }
