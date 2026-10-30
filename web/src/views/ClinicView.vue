@@ -172,6 +172,9 @@
         <el-alert v-if="cmpRunning" title="采样进行中：两实例各执行 memory/dashboard/jvm ×N 轮，请稍候…"
                   type="info" :closable="false" style="margin-top: 8px" />
         <template v-if="cmpResult">
+          <el-alert v-if="cmpResult.errors?.length" type="warning" :closable="false" style="margin-top: 8px"
+                    :title="`部分命令未取得有效样本（${cmpResult.errors.length} 条），不影响已取得指标的对比`"
+                    :description="cmpResult.errors.join('；')" />
           <VolcanoChart v-if="cmpHasSufficient" :metrics="cmpResult.metrics" :rounds="cmpResult.rounds" />
           <el-table :data="cmpResult.metrics" size="small" style="margin-top: 8px" max-height="220">
             <el-table-column prop="key" label="指标" min-width="150" />
@@ -547,7 +550,11 @@ async function runCompare() {
   cmpResult.value = null;
   try {
     cmpResult.value = await compareDiag(cmpTarget.value, cmpBase.value, cmpRounds.value);
-    ElMessage.success(`对比完成：${cmpResult.value.metrics.length} 项指标`);
+    if (cmpResult.value.errors?.length) {
+      ElMessage.warning(`对比完成：${cmpResult.value.metrics.length} 项指标，另有 ${cmpResult.value.errors.length} 条命令失败`);
+    } else {
+      ElMessage.success(`对比完成：${cmpResult.value.metrics.length} 项指标`);
+    }
   } catch (e) {
     ElMessage.error(errMsg(e));
   } finally {

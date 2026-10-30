@@ -2,7 +2,17 @@
 
 按迭代追加；每个迭代的验收细目见 [ACCEPTANCE.md](ACCEPTANCE.md)，部署操作见 [deploy/README.md](deploy/README.md)。
 
-## v1.1.2 发布（本次）：容器化火焰图全链路修复 + 纯运行环境化回归修补
+## v1.1.3 发布（本次）：火山图对比失败可见性 + 真实通道输出解析（线上真机验证驱动）
+
+- **修复 · 对比采样全部失败被吞成「正常的空对比」**：火山图双实例对比曾把每条命令的执行失败静默丢弃——线上两实例全部 attach 失败时，等待 2 分钟后回传 `metrics: [] / insufficient: []` 的"干净空结果"，排查者无从得知 18 条命令其实一条都没成功。现：①`collect` 透传每条失败的真实原因（attach 失败原文/节点无回传/执行成功但解析不出指标，带「实例」命令 上下文，单条截断 200 字、清单封顶 30 条）；②首轮两实例全部零样本即快速失败（HTTP 502），不再空转剩余轮次徒增等待，错误信息直接带首个失败原因；③部分失败照常出对比（样本足够的指标正常计算），失败清单随 `errors` 字段回传，页面黄色告警横幅逐条展示 + toast 提示失败条数。CompareServiceTest 2 用例以线上事故形态固化（全败中止透传原因/部分失败样本照常统计）
+- **修复 · 真实通道输出解析不出指标（真机验证揪出第二缺陷）**：快速失败机制落地当轮真机验证即报「执行成功但未能从输出解析出指标」——arthas 4.3.5 /api 真实输出与官方文档/拟真格式全然不同，解析器此前只认文档形态，真实通道的 memory/jvm/dashboard 图表与火山图采样**一直是空的**（v1.1.0 引入，手动验收未覆盖真实通道）：
+  - memory 真实输出为字节键值行（`heap used=X total=Y max=Z`，非文档百分比表格）→ 新增 MEM_BYTES_ROW 形态，水位=used/max；metaspace 等 max=-1 的池不产出伪水位
+  - jvm 真实输出为 `KEY : value` 单空格冒号形态（旧解析只认两格对齐/`key=`）→ JVM_KV 增冒号分隔；小节头（THREAD/COUNT）归一为 `thread.count` 点分键；GC 节无计数时 gcTotalCount=-1（缺省语义），不再把 0 当真实 GC 次数采进对比样本
+  - dashboard 真实输出是结构化 JSON（非 TUI 表格）→ bq-core 零依赖方案：`"type":"dashboard"` 标记识别，gcInfos 求和、memoryInfo 池行花括号配对取 used/max（老年代行名随收集器 g1_old_gen/ps_old_gen 自适应）、threads 数组计线程数、systemLoadAverage 出 load.avg；TIMED_WAITING 不混入 WAITING
+  - ResultParsersTest +3 用例以真机报文固化；真实通道 memory 图表（诊断台「文本/图表」）随之从不可用变为可用
+- 版本 1.1.3 全量对齐（pom ×4 / AgentMain VERSION / web package.json）；服务端 95 用例全绿（+5）、前端 vue-tsc 构建全绿
+
+## v1.1.2 发布：容器化火焰图全链路修复 + 纯运行环境化回归修补
 
 - **修复 · 火焰图报错被吞成「节点回传内容为空或渲染失败」**：arthas 把命令级失败放在 `type=status` 结果里（statusCode≠0 + message，如 AsyncProfiler 报错），平台渲染器把 status 一律当终止标记忽略 → 渲染为空串 → 通道误判「内容为空」。现 status(statusCode≠0)/error 结果原样透传真实原因（FastPathClient 渲染层 + AgentChannelExecutor 通道层），单测用事故现场报文固化（FastPathClientTest）
 - **修复 · profiler/cat 命令的 agent-json 渲染**：`profiler` 结果原样吐 JSON（stop 产物路径混在 JSON 里被路径正则带偏）→ 改渲染 `executeResult` 正文 + 产物路径独立成行（与 ProfileService 提取契约对齐）；`cat` 结果去掉 JSON 包装直接回传正文（火焰图 HTML 曾以 `cat: {"content":...}` 落库导致 iframe 渲染成转义文本）

@@ -226,6 +226,9 @@ public final class ResultParsers {
             Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
     private static final Pattern DASH_MEMORY = Pattern.compile(
             "Memory:\\s*heap\\s*([\\d.]+)%\\s*old\\s*([\\d.]+)%\\s*meta\\s*([\\d.]+)%");
+    /** 真实通道（arthas 4.3.5 /api）memory 字节键值行：heap / g1_old_gen used=X total=Y max=Z */
+    private static final Pattern MEM_BYTES_ROW = Pattern.compile(
+            "^\\s*(\\S+)\\s+used=(-?\\d+)\\s+total=(-?\\d+)\\s+max=(-?\\d+)\\s*$", Pattern.MULTILINE);
 
     /** 官方表格 / 拟真键值 / dashboard 单行 三种形态 */
     public static MemoryView parseMemory(String output) {
@@ -295,6 +298,29 @@ public final class ResultParsers {
         if (!pools.isEmpty()) {
             return new MemoryView(pools, heap, old, meta, cpu);
         }
+        // 真实通道字节键值形态（used/total/max 为字节数，水位 = used/max）
+        Matcher bytes = MEM_BYTES_ROW.matcher(output);
+        int bHits = 0;
+        while (bytes.find()) {
+            bHits++;
+            String name = bytes.group(1).toLowerCase();
+            double used = Double.parseDouble(bytes.group(2));
+            double max = Double.parseDouble(bytes.group(4));
+            double pct = max > 0 ? used / max * 100 : -1;
+            pools.add(new MemoryPool(name, used, max, pct));
+            if (name.equals("heap") && pct >= 0) {
+                heap = pct;
+            }
+            if (name.contains("old") && pct >= 0) {
+                old = pct;
+            }
+            if (name.contains("metaspace") && pct >= 0) {
+                meta = pct;
+            }
+        }
+        if (bHits >= 3) {
+            return new MemoryView(pools, heap, old, meta, cpu);
+        }
         Matcher row = MEM_TABLE_ROW.matcher(output);
         int hits = 0;
         while (row.find()) {
@@ -343,18 +369,26 @@ public final class ResultParsers {
 
     // ---- jvm ----
 
-    /** key= value（拟真）/ KEY  VALUE 两格对齐（官方）双形态；单空格的栈行（at …）不匹配 */
+    /**
+     * key= value（拟真）/ KEY  VALUE 两格对齐（官方 4.x 旧版）/ KEY : value（4.3.5 真实通道）三形态；
+     * 单空格的栈行（at …）不匹配
+     */
     private static final Pattern JVM_KV = Pattern.compile(
-            "^\\s*([A-Za-z][\\w.\\-]*)\\s*(?:=\\s+|\\s{2,})(\\S.*?)\\s*$", Pattern.MULTILINE);
+            "^\\s*([A-Za-z][\\w.\\-]*)\\s*(?:=\\s+|\\s*:\\s|\\s{2,})(\\S.*?)\\s*$", Pattern.MULTILINE);
 
     public static JvmView parseJvm(String output) {
         if (output == null || output.isBlank()) {
             return null;
         }
         Map<String, String> kv = new LinkedHashMap<>();
+        String section = "";
         for (String line : output.split("\\r?\\n")) {
             Matcher m = JVM_KV.matcher(line);
             if (!m.find()) {
+                // 小节头（RUNTIME / THREAD / GARBAGE-COLLECTORS…）：供跨节键名归一（THREAD+COUNT → thread.count）
+                if (line.trim().matches("[A-Z][A-Z \\-]{1,}")) {
+                    section = line.trim().toLowerCase().replace(' ', '-');
+                }
                 continue;
             }
             String key = m.group(1);
@@ -363,14 +397,21 @@ public final class ResultParsers {
                 continue;
             }
             kv.put(key, val);
+            // 节内归一别名（THREAD+COUNT → thread.count）；已带点号的键（gc.ps_scavenge_count 等）不再生别名，防 gc 求和重复计数
+            if (!section.isEmpty() && !key.contains(".")) {
+                kv.putIfAbsent(section + "." + key.toLowerCase().replace('_', '-'), val);
+            }
         }
         if (kv.isEmpty()) {
             return null;
         }
-        long gc = kv.entrySet().stream()
+        // 无任何 gc.*count 键时回 -1（缺省语义，见 JvmView），避免把 0 当真实 GC 总次数采进对比样本
+        List<String> gcKeys = kv.entrySet().stream()
                 .filter(e -> e.getKey().matches("gc\\.[\\w.\\-]*count"))
-                .mapToLong(e -> parseLongSafe(e.getValue()))
-                .sum();
+                .map(Map.Entry::getKey)
+                .toList();
+        long gc = gcKeys.isEmpty() ? -1
+                : gcKeys.stream().mapToLong(k -> parseLongSafe(kv.get(k))).sum();
         return new JvmView(kv, gc);
     }
 
@@ -436,6 +477,11 @@ public final class ResultParsers {
             if (c.find()) {
                 out.put("cpu.pct", Double.parseDouble(c.group(1)));
             }
+            if (output.contains("\"type\":\"dashboard\"")) {
+                // 真实通道（arthas 4.3.5 /api）dashboard 回传结构化 JSON（FastPathClient 渲染为 "dashboard: {…}"），
+                // 无 TUI 表格——直接从 JSON 提取标量
+                dashboardJsonScalars(output, out);
+            }
         }
         if ("jvm".equals(cmd)) {
             JvmView j = parseJvm(output);
@@ -455,6 +501,100 @@ public final class ResultParsers {
             }
         }
         return out;
+    }
+
+    // ---- dashboard 结构化 JSON（真实通道）标量提取 ----
+
+    /**
+     * arthas 4.3.5 /api 的 dashboard JSON：gcInfos[]（collectionCount）、memoryInfo.heap[]/nonheap[]
+     * （used/total/max + name）、threads[]（逐线程对象）、runtimeInfo.systemLoadAverage。
+     * 不引 JSON 库（bq-core 零依赖）：行对象用花括号配对定位，字段按稳定键名正则取值。
+     */
+    private static void dashboardJsonScalars(String output, Map<String, Double> out) {
+        Matcher gc = Pattern.compile("\"collectionCount\":(\\d+)").matcher(output);
+        long gcSum = 0;
+        while (gc.find()) {
+            gcSum += Long.parseLong(gc.group(1));
+        }
+        if (gcSum > 0) {
+            out.put("gc.total.count", (double) gcSum);
+        }
+        poolPct(output, Pattern.compile("\"name\":\"heap\""), out, "mem.heap.pct");
+        // 老年代行名随收集器而异（g1_old_gen / ps_old_gen / cms_old_gen…），按含 old 匹配首个池行
+        poolPct(output, Pattern.compile("\"name\":\"[\\w '\\-]*old[\\w '\\-]*\""), out, "mem.old.pct");
+        poolPct(output, Pattern.compile("\"name\":\"[\\w '\\-]*metaspace[\\w '\\-]*\""), out, "mem.meta.pct");
+        out.put("thread.total", (double) countOccurrences(output, "\"interrupted\":"));
+        int waiting = countOccurrences(output, "\"state\":\"WAITING\"");
+        if (waiting > 0) {
+            out.put("thread.waiting", (double) waiting);
+        }
+        Matcher ld = Pattern.compile("\"systemLoadAverage\":([\\d.]+)").matcher(output);
+        if (ld.find()) {
+            out.put("load.avg", Double.parseDouble(ld.group(1)));
+        }
+    }
+
+    /** 从 JSON 中定位「name 匹配的池行」对象，取 used/max 算水位百分比（max 未知则跳过） */
+    private static void poolPct(String json, Pattern namePat, Map<String, Double> out, String key) {
+        Matcher n = namePat.matcher(json);
+        while (n.find()) {
+            String obj = enclosingObject(json, n.start());
+            if (obj != null) {
+                Matcher u = Pattern.compile("\"used\":(-?\\d+)").matcher(obj);
+                Matcher mx = Pattern.compile("\"max\":(-?\\d+)").matcher(obj);
+                if (u.find() && mx.find()) {
+                    double max = Double.parseDouble(mx.group(1));
+                    if (max > 0) {
+                        out.put(key, Double.parseDouble(u.group(1)) / max * 100);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    /** pos 所在的完整 {...} 对象文本（花括号配对；无闭合返回 null） */
+    private static String enclosingObject(String s, int pos) {
+        int depth = 0;
+        int start = -1;
+        for (int i = pos; i >= 0; i--) {
+            char c = s.charAt(i);
+            if (c == '}') {
+                depth++;
+            } else if (c == '{') {
+                if (depth == 0) {
+                    start = i;
+                    break;
+                }
+                depth--;
+            }
+        }
+        if (start < 0) {
+            return null;
+        }
+        int d = 0;
+        for (int j = start; j < s.length(); j++) {
+            char e = s.charAt(j);
+            if (e == '{') {
+                d++;
+            } else if (e == '}') {
+                d--;
+                if (d == 0) {
+                    return s.substring(start, j + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static int countOccurrences(String s, String needle) {
+        int n = 0;
+        int at = s.indexOf(needle);
+        while (at >= 0) {
+            n++;
+            at = s.indexOf(needle, at + needle.length());
+        }
+        return n;
     }
 
     /** Welch t 检验（双侧 p 值，t 分布正态近似；样本 ≥2 才有效）——火山图双实例对比用 */

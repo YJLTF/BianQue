@@ -1,6 +1,7 @@
 package com.bianque.core.diag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -204,6 +205,126 @@ class ResultParsersTest {
         Map<String, Double> j = ResultParsers.scalarMetrics("jvm", MOCK_JVM);
         assertEquals(945.0, j.get("gc.total.count"), 1e-9);
         assertEquals(388.0, j.get("thread.total"), 1e-9);
+    }
+
+    // ---- 真实通道（arthas 4.3.5 /api）形态：线上实测报文固化（v1.1.3 火山图对比曾三条命令全部解析为空）----
+
+    /** 真实 memory：字节键值行（used/total/max 为字节），heap/nonheap 分组；metaspace max=-1 水位不可知 */
+    private static final String ARTHAS_MEMORY_REAL = """
+            heap
+             heap                   used=113942704    total=201326592    max=18773704704
+             g1_eden_space          used=50331648     total=117440512    max=-1
+             g1_old_gen             used=47255848     total=67108864     max=18773704704
+             g1_survivor_space      used=16355208     total=16777216     max=-1
+            nonheap
+             nonheap                used=183848984    total=187432960    max=-1
+             codeheap_'non-nmethods' used=1995520      total=3932160     max=7606272
+             metaspace              used=126659880    total=127729664    max=-1
+             codeheap_'profiled_nmethods' used=28392704     total=28442624     max=122023936
+             compressed_class_space used=16436848     total=16908288     max=1073741824
+             codeheap_'non-profiled_nmethods' used=10364032     total=10420224     max=122028032
+            """;
+
+    /** 真实 jvm：KEY : value 单空格冒号形态，小节头（THREAD 等）；GC 节无计数（空值） */
+    private static final String ARTHAS_JVM_REAL = """
+            RUNTIME
+             MACHINE-NAME : 1@0642df376e83
+             JVM-START-TIME : 2026-10-30 09:59:09
+             SPEC-VERSION : 21
+             VM-VERSION : 21.0.13+9-LTS
+             CLASS-PATH : /app/artifacts/bq-server.jar
+            CLASS-LOADING
+             LOADED-CLASS-COUNT : 22939
+             UNLOADED-CLASS-COUNT : 0
+            COMPILATION
+             TOTAL-COMPILE-TIME : 34171
+            GARBAGE-COLLECTORS
+             G1 Young Generation :
+             G1 Concurrent GC :
+             G1 Old Generation :
+            MEMORY
+             HEAP-MEMORY-USAGE :
+             PENDING-FINALIZE-COUNT : 0
+            OPERATING-SYSTEM
+             OS : Linux
+             PROCESSORS-COUNT : 20
+             LOAD-AVERAGE : 0.0556640625
+            THREAD
+             COUNT : 63
+             DAEMON-COUNT : 58
+             DEADLOCK-COUNT : 0
+            FILE-DESCRIPTOR
+             OPEN-FILE-DESCRIPTOR-COUNT : -1
+            """;
+
+    /** 真实 dashboard：结构化 JSON（FastPathClient 渲染为 "dashboard: {…}"），threads 数组截选 4 条 */
+    private static final String ARTHAS_DASHBOARD_REAL = """
+            dashboard: {"gcInfos":[{"collectionCount":20,"collectionTime":272,"name":"g1_young_generation"},\
+            {"collectionCount":8,"collectionTime":20,"name":"g1_concurrent_gc"},\
+            {"collectionCount":0,"collectionTime":0,"name":"g1_old_generation"}],"jobId":12,\
+            "memoryInfo":{"heap":[\
+            {"max":18773704704,"name":"heap","total":201326592,"type":"heap","used":113942704},\
+            {"max":-1,"name":"g1_eden_space","total":117440512,"type":"heap","used":50331648},\
+            {"max":18773704704,"name":"g1_old_gen","total":67108864,"type":"heap","used":47255848},\
+            {"max":-1,"name":"g1_survivor_space","total":16777216,"type":"heap","used":16355208}],\
+            "nonheap":[\
+            {"max":-1,"name":"nonheap","total":189202432,"type":"nonheap","used":185608656},\
+            {"max":-1,"name":"metaspace","total":128188416,"type":"nonheap","used":127078128}],\
+            "buffer_pool":[\
+            {"max":-9223372036854775808,"name":"mapped","total":0,"type":"buffer_pool","used":0},\
+            {"max":-9223372036854775808,"name":"direct","total":58836919,"type":"buffer_pool","used":58836921}]},\
+            "runtimeInfo":{"javaHome":"/opt/java/openjdk","javaVersion":"21.0.13","osName":"Linux",\
+            "osVersion":"6.6.87","processors":20,"systemLoadAverage":0.1728515625,\
+            "timestamp":1793354630773,"uptime":280},\
+            "threads":[\
+            {"cpu":0.0,"daemon":false,"deltaTime":0,"group":"main","id":75,"interrupted":false,\
+            "name":"DestroyJavaVM","priority":5,"state":"RUNNABLE","time":16851},\
+            {"cpu":0.0,"daemon":true,"deltaTime":0,"group":"main","id":65,"interrupted":false,\
+            "name":"http-nio-8080-exec-4","priority":5,"state":"TIMED_WAITING","time":1761},\
+            {"cpu":0.0,"daemon":true,"deltaTime":0,"group":"main","id":63,"interrupted":false,\
+            "name":"http-nio-8080-exec-2","priority":5,"state":"WAITING","time":769},\
+            {"cpu":0.0,"daemon":true,"deltaTime":0,"group":"main","id":62,"interrupted":false,\
+            "name":"http-nio-8080-exec-1","priority":5,"state":"WAITING","time":731}],"type":"dashboard"}
+            """;
+
+    @Test
+    void 真实memory_字节键值行水位与图表() {
+        MemoryView v = ResultParsers.parseMemory(ARTHAS_MEMORY_REAL);
+        assertNotNull(v);
+        assertEquals(113942704.0 / 18773704704L * 100, v.heapPct(), 1e-9);
+        assertEquals(47255848.0 / 18773704704L * 100, v.oldPct(), 1e-9);
+        assertNull(v.metaPct()); // metaspace max=-1，水位不可知
+        assertEquals(10, v.pools().size());
+        // 图表视图同样可用（真实通道 memory 之前一直解析不出结构）
+        assertNotNull(ResultParsers.parse("memory", ARTHAS_MEMORY_REAL).get("memory"));
+        Map<String, Double> s = ResultParsers.scalarMetrics("memory", ARTHAS_MEMORY_REAL);
+        assertEquals(2, s.size());
+        assertEquals(113942704.0 / 18773704704L * 100, s.get("mem.heap.pct"), 1e-9);
+        assertEquals(47255848.0 / 18773704704L * 100, s.get("mem.old.pct"), 1e-9);
+    }
+
+    @Test
+    void 真实jvm_冒号键值_小节归一_GC缺省() {
+        JvmView v = ResultParsers.parseJvm(ARTHAS_JVM_REAL);
+        assertNotNull(v);
+        assertEquals(-1, v.gcTotalCount()); // GC 节无计数 → 缺省 -1，不把 0 当真实 GC 次数采进样本
+        assertEquals("63", v.kv().get("thread.count")); // THREAD 节 COUNT 归一为 thread.count
+        assertEquals("1@0642df376e83", v.kv().get("MACHINE-NAME"));
+        Map<String, Double> s = ResultParsers.scalarMetrics("jvm", ARTHAS_JVM_REAL);
+        assertEquals(Map.of("thread.total", 63.0), s);
+    }
+
+    @Test
+    void 真实dashboard_JSON标量提取() {
+        Map<String, Double> s = ResultParsers.scalarMetrics("dashboard -n 1", ARTHAS_DASHBOARD_REAL);
+        assertEquals(28.0, s.get("gc.total.count"), 1e-9); // 20 + 8 + 0
+        assertEquals(113942704.0 / 18773704704L * 100, s.get("mem.heap.pct"), 1e-9);
+        assertEquals(47255848.0 / 18773704704L * 100, s.get("mem.old.pct"), 1e-9);
+        assertEquals(4.0, s.get("thread.total"), 1e-9);
+        assertEquals(2.0, s.get("thread.waiting"), 1e-9); // TIMED_WAITING 不计入 WAITING
+        assertEquals(0.1728515625, s.get("load.avg"), 1e-9);
+        assertFalse(s.containsKey("mem.meta.pct")); // metaspace max=-1
+        assertFalse(s.containsKey("cpu.pct")); // JSON 形态无进程级 CPU%
     }
 
     @Test

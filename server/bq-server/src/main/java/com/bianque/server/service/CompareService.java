@@ -15,6 +15,8 @@ import org.springframework.web.server.ResponseStatusException;
  * 双实例基线对比诊断（火山图）：目标实例 vs 基线实例，同一命令集重复采样 N 轮
  * （memory / dashboard / jvm），逐指标做倍数变化（log2）与显著性（Welch t）。
  * 样本不足（<2 个有效窗口）的指标降级为"仅倍数变化"，产品口径为参考性对比。
+ * 失败可见：单条命令失败进 errors 回传；首轮两实例全部无样本即快速失败并透传
+ * 真实原因（曾把全部失败吞成空 metrics/insufficient，线上看起来像一次正常的空对比）。
  */
 @Service
 public class CompareService {
@@ -50,10 +52,18 @@ public class CompareService {
         }
         Map<String, List<Double>> tSamples = new TreeMap<>();
         Map<String, List<Double>> bSamples = new TreeMap<>();
+        List<String> errors = new ArrayList<>();
         for (int round = 1; round <= rounds; round++) {
             for (String cmd : ROUND_COMMANDS) {
-                collect(diag.execute(target, cmd, "对比诊断", operator), cmd, tSamples);
-                collect(diag.execute(base, cmd, "对比诊断", operator), cmd, bSamples);
+                collect(diag.execute(target, cmd, "对比诊断", operator), target, cmd, tSamples, errors);
+                collect(diag.execute(base, cmd, "对比诊断", operator), base, cmd, bSamples, errors);
+            }
+            // 首轮零样本即中止：继续跑完只会重复同一失败（每条失败命令可耗时数秒，rounds×命令数×2 实例），
+            // 且必须把真实原因抛出而非静默回传空结果
+            if (round == 1 && tSamples.isEmpty() && bSamples.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "对比采样失败：第 1 轮两实例 " + ROUND_COMMANDS.size() * 2 + " 条命令全部无有效样本，已中止——"
+                                + errors.get(0));
             }
             if (round < rounds) {
                 try {
@@ -92,15 +102,36 @@ public class CompareService {
         out.put("base", base);
         out.put("metrics", metrics);
         out.put("insufficient", insufficient);
+        out.put("errors", errors);
         return out;
     }
 
-    private void collect(DiagResult r, String cmd, Map<String, List<Double>> into) {
-        if (r == null || !r.success() || r.output() == null) {
+    /** 采样一条命令的结果：成功且可解析则入样本池；失败/无回传/解析不出指标一律记入 errors（失败可见） */
+    private void collect(DiagResult r, String instanceId, String cmd,
+                         Map<String, List<Double>> into, List<String> errors) {
+        if (r == null) {
+            recordError(errors, instanceId, cmd, "节点无回传");
             return;
         }
-        ResultParsers.scalarMetrics(cmd, r.output())
-                .forEach((k, v) -> into.computeIfAbsent(k, x -> new ArrayList<>()).add(v));
+        if (!r.success() || r.output() == null || r.output().isBlank()) {
+            recordError(errors, instanceId, cmd,
+                    r.error() == null || r.error().isBlank() ? "回传内容为空或渲染失败" : r.error());
+            return;
+        }
+        var got = ResultParsers.scalarMetrics(cmd, r.output());
+        if (got.isEmpty()) {
+            recordError(errors, instanceId, cmd, "执行成功但未能从输出解析出指标");
+            return;
+        }
+        got.forEach((k, v) -> into.computeIfAbsent(k, x -> new ArrayList<>()).add(v));
+    }
+
+    private static void recordError(List<String> errors, String instanceId, String cmd, String why) {
+        if (errors.size() >= 30) { // 封顶防超长报文；根因通常首条即明
+            return;
+        }
+        String line = "「" + instanceId + "」" + cmd + ": " + why;
+        errors.add(line.length() > 200 ? line.substring(0, 200) + "…" : line);
     }
 
     private static double mean(List<Double> v) {

@@ -1,4 +1,4 @@
-# deploy（部署）· v1.1.2
+# deploy（部署）· v1.1.3
 
 扁鹊平台部署形态：
 
@@ -96,7 +96,7 @@ docker save bianque/server:latest bianque/web:latest bianque/probe:latest mysql:
 **验证**：
 
 ```bash
-curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.1.2","status":"UP",...}
+curl http://<主机>/api/health                 # {"app":"bianque-server","version":"1.1.3","status":"UP",...}
 # 浏览器打开 http://<主机>/ → 节点管理页
 # 登录：演示模式 admin/admin123；生产模式用 BIANQUE_ADMIN_PASSWORD 设置的口令
 ```

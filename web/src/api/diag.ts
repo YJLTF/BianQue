@@ -63,6 +63,8 @@ export interface CompareResultVO {
   base: string;
   metrics: CompareMetric[];
   insufficient: string[];
+  /** 采样中失败/未解析出指标的命令清单（「实例」命令: 原因）；空数组=全部成功 */
+  errors?: string[];
 }
 
 /** 双实例基线对比（火山图）：同步采样 + Welch t，耗时随轮数增长 */

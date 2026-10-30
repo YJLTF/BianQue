@@ -1,9 +1,9 @@
-# 扁鹊 · BianQue v1.1.2 — 基于 Arthas 4.3.5 的线上诊断平台
+# 扁鹊 · BianQue v1.1.3 — 基于 Arthas 4.3.5 的线上诊断平台
 
 > 望闻问切，线上无障。把"SSH → arthas-boot → 敲命令"变成"浏览器选应用 → 选场景 → 看结论"，
 > 并用安全壳管住 Arthas 进程内任意代码执行能力。
 
-**版本**：v1.1.2（2026-10）· 引擎 Arthas 4.3.5 · 运行时 JRE 21 · 目标 JVM JDK 11+
+**版本**：v1.1.3（2026-10）· 引擎 Arthas 4.3.5 · 运行时 JRE 21 · 目标 JVM JDK 11+
 
 ## 核心能力
 
@@ -90,7 +90,7 @@ cd deploy && cp .env.example .env && docker compose -f docker-compose.prod.yml u
 # 或分步：
 docker compose -f deploy/docker-compose.yml up -d mysql redis     # 基础设施
 cd server && mvn -B package && cd ..
-java -jar server/bq-server/target/bq-server-1.1.2.jar --spring.profiles.active=mysql
+java -jar server/bq-server/target/bq-server-1.1.3.jar --spring.profiles.active=mysql
 java -jar docs/research/arthas-inspect/math-game.jar              # 演示靶场进程
 cp server/bq-agent/target/bq-agent.jar agents/                    # 本机演示节点（可选）
 cd web && npm install && npm run dev                              # http://localhost:5173
@@ -115,7 +115,7 @@ cd web && npm install && npm run dev                              # http://local
 - 数据落 MySQL volume（审计/巡检/取证/用户/LLM 配置），升级镜像不丢；DDL 自动增量
 - 升级：改 `.env` 的 `BQ_VERSION` → `docker compose -f docker-compose.prod.yml up -d`（重新 build 同理）
 - 备份：`docker exec bq-mysql sh -c "mysqldump -ubianque -p\$MYSQL_PASSWORD bianque" > backup.sql`
-- 部署校验：`curl http://<主机>/api/health` 返回 `{"app":"bianque-server","version":"1.1.2","status":"UP"}`
+- 部署校验：`curl http://<主机>/api/health` 返回 `{"app":"bianque-server","version":"1.1.3","status":"UP"}`
 
 ## 红线（所有阶段生效）
 

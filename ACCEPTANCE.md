@@ -1,8 +1,17 @@
-# 扁鹊 BianQue · 验收清单（v1.0.0，S1–S8 · v1.1.0/v1.1.1 增补 · v1.1.2 增补）
+# 扁鹊 BianQue · 验收清单（v1.0.0，S1–S8 · v1.1.0/v1.1.1/v1.1.2 增补 · v1.1.3 增补）
 
 > 适用版本：git main 分支（v1.0.0 及之后）。
 
-## 0.0 v1.1.2 增补验收（容器化火焰图 + 回归修补）
+## 0.0 v1.1.3 增补验收（对比诊断失败可见性）
+
+> 前置：服务端 `mvn -B clean test`（95 用例）+ 前端 `npm run build` 全绿。
+
+- [x] 【自动】全败快速失败：两实例第 1 轮 6 条命令全部失败 → HTTP 502 且错误信息带真实原因与「实例」命令 上下文，不再空转剩余轮次（CompareServiceTest，Mockito verify 恰好 6 次执行）
+- [x] 【自动】部分失败可见：memory 成功 + dashboard/jvm 失败 → 3 项内存指标照常统计 sufficient，errors 清单 8 条带实例与命令上下文，insufficient 为空（CompareServiceTest）
+- [x] 【自动】真实通道输出解析：memory 字节键值行（水位=used/max、metaspace max=-1 不产伪水位）、jvm 冒号键值+小节归一（thread.count、GC 缺省 -1 不采零样本）、dashboard 结构化 JSON（gcInfos 求和/池行花括号配对/线程计数/load.avg，TIMED_WAITING 不混 WAITING）——ResultParsersTest 3 用例以真机报文固化
+- [ ] 【手动】页面形态：对比页部分失败出黄色告警横幅（逐条原因）+ toast 提示失败条数；全部失败 toast 直接显示 attach 失败原文；真实通道实例 memory/dashboard 命令「图表」视图出图
+
+## 0.1 v1.1.2 增补验收（容器化火焰图 + 回归修补）
 
 > 前置：服务端 `mvn -B clean test`（90 用例）+ 前端 `npm run build` 全绿。
 
@@ -12,7 +21,7 @@
 - [x] 【手动】docker profile 回归：容器日志无「No active profile」、数据源连 `jdbc:mysql://mysql:3306`、登录态走 Redis；jar 原子替换 + `restart server probe` 升级回环可用
 - [x] 【手动】nginx 动态解析：server 容器重建换 IP 后 web 反代不再 502
 
-## 0.1 v1.1.1 增补验收（布局收纳）
+## 0.2 v1.1.1 增补验收（布局收纳）
 
 > 前置：`npm run build`（vue-tsc + vite）全绿。
 
@@ -21,7 +30,7 @@
 - [ ] 【手动】管理设置页签：「安全 / 参数 / 模板 / 用户 / 接入」五页签切换渲染；安全页高危黑名单卡追加拦截/移除回环不受布局调整影响
 - [ ] 【手动】产物挂载升级回环：替换 `deploy/artifacts/bq-server.jar` → `docker compose restart server` → `/api/health` 版本随 build-info 变化；替换 `deploy/artifacts/web` 前端免重启即时生效；替换 `artifacts/bq-agent.jar` → `/api/agent/download` 吐新包 + `restart probe` 后节点按新包心跳
 
-## 0. v1.1.0 增补验收（R1–R4）
+## 0.3 v1.1.0 增补验收（R1–R4）
 
 > 服务端 `mvn -B test`（86 用例）+ 前端 `npm run build` 全绿为本节前置。
 
