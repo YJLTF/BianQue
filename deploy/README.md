@@ -142,7 +142,7 @@ docker run -d --name bq-probe --restart unless-stopped \
 
 只有探针要发给目标主机时，用独立镜像包（约 210MB，仅 `bianque/probe:latest` 运行环境）：
 `docker load -i bianque-probe-runtime-latest.tar.gz`，运行命令同上（另需带 `bq-agent.jar` 产物目录）；
-离线交付包内附 `probe/README-探针镜像.md` 图文说明。
+交付包（dist/）内附 `probe/` 裸机物料与 `README.md` 分发说明。
 
 ## ③ 节点探针 · 裸机 systemd（已装 JDK 的 Linux 主机）
 
