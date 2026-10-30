@@ -225,7 +225,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { executeDiag, getInstances, getSession, closeSession, getLocalProcesses, attachLocalProcess,
-         profileStart, profileStop, compareDiag,
+         profileStart, profileStop, artifactTicket, compareDiag,
          type DiagResultVO, type InstanceVO, type LocalProcessVO, type CompareResultVO } from "@/api/diag";
 import { http, errMsg } from "@/api/http";
 import { llmChatStream, type LlmDocRef } from "@/api/llm";
@@ -499,7 +499,6 @@ const profiling = ref(false);
 const stopping = ref(false);
 const profileTip = ref("");
 const flameUrl = ref("");
-let flameBlobUrl = "";
 
 async function startProfile() {
   profiling.value = true;
@@ -523,12 +522,10 @@ async function stopProfile() {
     const r = await profileStop(instanceId.value);
     profiling.value = false;
     profileTip.value = `产物 ${r.path}（${Math.round(r.sizeBytes / 1024)}KB）`;
-    // iframe 无法携带 Bearer 头：带头 fetch 为 blob 再灌 iframe（blob 同源，可渲染）
-    const resp = await fetch(r.url, { headers: { Authorization: `Bearer ${auth.user?.token ?? ""}` } });
-    if (!resp.ok) throw new Error(`工件加载失败 HTTP ${resp.status}`);
-    if (flameBlobUrl) URL.revokeObjectURL(flameBlobUrl);
-    flameBlobUrl = URL.createObjectURL(await resp.blob());
-    flameUrl.value = flameBlobUrl;
+    // iframe 无法携带 Bearer 头；blob 载荷会继承页面 CSP（frame-src 不含 blob:、内联脚本被
+    // script-src 禁）被浏览器整体拦截——改签发一次性查看票据，iframe 直接以同源 URL 渲染
+    const t = await artifactTicket(r.artifactId);
+    flameUrl.value = `${t.url}?bt=${encodeURIComponent(t.ticket)}`;
     ElMessage.success("火焰图已生成");
   } catch (e) {
     ElMessage.error(errMsg(e));

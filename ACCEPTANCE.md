@@ -8,6 +8,7 @@
 
 - [x] 【自动】命令级失败透传：FastPathClientTest 4 用例（status statusCode≠0 回传真实 message、profiler 产物路径独立成行与 ProfileService 提取契约对齐、cat 去 JSON 包装回正文、空/坏报文不误报）
 - [x] 【手动】compose 演示全链路：`--profile probe` 起栈 → 诊断台选 bq-server 实例 → 「性能剖析」开始 CPU 采样 → 停止并出图 → 火焰图 HTML 落库（38KB）且独立打开渲染正常；期间 server/probe 不再被 attach 带崩
+- [x] 【手动】火焰图页面内渲染（CSP 修复）：停止出图后 iframe 以同源票据 URL 加载，canvas 实际绘制（多点采样 2656/7623 像素非透明）；票据首用 200/重放 401、无票据 401、Bearer 200——强制认证不降级
 - [x] 【手动】docker profile 回归：容器日志无「No active profile」、数据源连 `jdbc:mysql://mysql:3306`、登录态走 Redis；jar 原子替换 + `restart server probe` 升级回环可用
 - [x] 【手动】nginx 动态解析：server 容器重建换 IP 后 web 反代不再 502
 

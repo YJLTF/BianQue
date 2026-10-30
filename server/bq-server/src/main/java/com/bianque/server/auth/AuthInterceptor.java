@@ -19,9 +19,11 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final Set<String> WRITE_METHODS = Set.of("POST", "PUT", "DELETE", "PATCH");
 
     private final TokenStore tokens;
+    private final ArtifactTickets artifactTickets;
 
-    public AuthInterceptor(TokenStore tokens) {
+    public AuthInterceptor(TokenStore tokens, ArtifactTickets artifactTickets) {
         this.tokens = tokens;
+        this.artifactTickets = artifactTickets;
     }
 
     @Override
@@ -29,11 +31,19 @@ public class AuthInterceptor implements HandlerInterceptor {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
+        String path = request.getRequestURI();
+        // 产物查看票据即凭据（登录后签发/60s/单工件/用后即焚）：同源 iframe 渲染火焰图专用，
+        // 仅放行 GET /api/diag/artifact/{id}?bt=票据，其余请求仍走登录态
+        if ("GET".equalsIgnoreCase(request.getMethod()) && path.startsWith("/api/diag/artifact/")) {
+            String bt = request.getParameter("bt");
+            if (bt != null && artifactTickets.consume(bt, artifactIdOf(path))) {
+                return true;
+            }
+        }
         String header = request.getHeader("Authorization");
         String token = header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
         AuthContext auth = tokens.get(token)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录或登录已过期"));
-        String path = request.getRequestURI();
         if (path.startsWith("/api/admin/")) {
             // 管理端（用户台账 / 参数中心）读写均仅管理员
             require(auth, PermissionCodes.ADMIN_USER);
@@ -49,6 +59,19 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (!auth.hasPermission(permission)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "权限不足（" + auth.roleName() + " 无 " + permission + "）");
+        }
+    }
+
+    /** /api/diag/artifact/{id} 路径中的工件 id；非纯数字段返回 -1 */
+    private static long artifactIdOf(String path) {
+        String seg = path.substring("/api/diag/artifact/".length());
+        if (seg.isEmpty() || !seg.chars().allMatch(Character::isDigit)) {
+            return -1;
+        }
+        try {
+            return Long.parseLong(seg);
+        } catch (NumberFormatException e) {
+            return -1;
         }
     }
 

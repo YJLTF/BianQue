@@ -38,6 +38,12 @@ export function profileStop(instanceId: string) {
     Promise<{ artifactId: number; path: string; sizeBytes: number; url: string }>;
 }
 
+/** 签发产物查看票据（一次性/60s）：iframe 无法携带 Bearer 头，blob 载荷会继承页面 CSP 被浏览器拦截 */
+export function artifactTicket(id: number) {
+  return http.get(`/diag/artifact/${id}/ticket`) as unknown as
+    Promise<{ ticket: string; url: string }>;
+}
+
 export interface CompareMetric {
   key: string;
   targetMean: number;

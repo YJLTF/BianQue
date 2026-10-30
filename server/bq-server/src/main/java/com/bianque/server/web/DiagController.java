@@ -30,16 +30,19 @@ public class DiagController {
     private final com.bianque.server.service.ProfileService profile;
     private final com.bianque.server.service.CompareService compare;
     private final com.bianque.server.store.DiagArtifactJpa artifacts;
+    private final com.bianque.server.auth.ArtifactTickets artifactTickets;
 
     public DiagController(DiagService diag, com.bianque.server.repo.FleetRepository fleet,
                           com.bianque.server.service.ProfileService profile,
                           com.bianque.server.service.CompareService compare,
-                          com.bianque.server.store.DiagArtifactJpa artifacts) {
+                          com.bianque.server.store.DiagArtifactJpa artifacts,
+                          com.bianque.server.auth.ArtifactTickets artifactTickets) {
         this.diag = diag;
         this.fleet = fleet;
         this.profile = profile;
         this.compare = compare;
         this.artifacts = artifacts;
+        this.artifactTickets = artifactTickets;
     }
 
     @PostMapping("/execute")
@@ -81,6 +84,15 @@ public class DiagController {
                 .header("Content-Type", "text/html; charset=utf-8")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(a.content == null ? "" : a.content);
+    }
+
+    /** 签发产物查看票据（一次性/60s/单工件）：iframe 无法携带 Bearer 头，
+        blob 载荷又会继承页面 CSP 被浏览器拦截（frame-src/script-src）——同源 URL + 短票据两全 */
+    @GetMapping("/artifact/{id}/ticket")
+    public Map<String, Object> artifactTicket(@PathVariable long id) {
+        artifacts.findById(id).orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "工件不存在或已过期清理"));
+        return Map.of("ticket", artifactTickets.issue(id), "url", "/api/diag/artifact/" + id);
     }
 
     // ---- 双实例基线对比（火山图）----
