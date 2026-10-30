@@ -1,21 +1,14 @@
-# 扁鹊平台服务端镜像（多阶段：Maven 构建 → JRE 运行）
-# 构建上下文 = 仓库根目录（docker compose -f deploy/docker-compose.prod.yml build server）
-FROM maven:3.9-eclipse-temurin-21 AS build
-WORKDIR /src
-# 先拷 pom 单独走依赖层，源码不变时命中缓存
-COPY server/pom.xml ./
-COPY server/bq-core/pom.xml bq-core/
-COPY server/bq-server/pom.xml bq-server/
-COPY server/bq-agent/pom.xml bq-agent/
-RUN mvn -B -q -pl bq-server -am dependency:go-offline || true
-COPY server/ ./
-RUN mvn -B -q -pl bq-server,bq-agent -am package -DskipTests
-
+# 扁鹊平台服务端镜像（宿主构建产物装载：定位是内网快速移植运行，不在容器内编译）
+# 构建上下文 = 仓库根目录。装载前先在宿主出包（开发机 Maven 走本地镜像源，清 target 全量编译约 1 分钟）：
+#   cd server && mvn -B -pl bq-server,bq-agent -am package -DskipTests
+# 然后：docker build -f deploy/docker/Dockerfile.server -t bianque/server:${BQ_VERSION} .
+# 交付前复核探针字节码基线：unzip -p server/bq-agent/target/bq-agent.jar com/bianque/agent/AgentMain.class
+#   第 7~8 字节应为 0x37（major 55 = Java 11；防宿主 IDE 增量产物混入高版本字节码）
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /src/bq-server/target/bq-server-*.jar app.jar
+COPY server/bq-server/target/bq-server-*.jar app.jar
 # 节点探针包随镜像分发：容器化部署时 GET /api/agent/download 直接可用
-COPY --from=build /src/bq-agent/target/bq-agent.jar /app/agents/bq-agent.jar
+COPY server/bq-agent/target/bq-agent.jar /app/agents/bq-agent.jar
 # 文档中心按相对路径探测：docs/ 一并打入（78 页离线文档随镜像分发）
 COPY docs/arthas-docs/ /app/docs/arthas-docs/
 EXPOSE 8080

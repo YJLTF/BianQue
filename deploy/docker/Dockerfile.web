@@ -1,13 +1,8 @@
-# 扁鹊前端镜像（多阶段：Vite 构建 → Nginx 托管 + 反代）
-# 构建上下文 = 仓库根目录
-FROM node:20 AS build
-WORKDIR /src
-COPY web/package.json web/package-lock.json ./
-RUN npm ci
-COPY web/ ./
-RUN npm run build
-
+# 扁鹊前端镜像（宿主构建产物装载：Nginx 托管 + 反代，不在容器内 npm 构建）
+# 构建上下文 = 仓库根目录。装载前先在宿主出包：
+#   cd web && npm ci && npm run build
+# 然后：docker build -f deploy/docker/Dockerfile.web -t bianque/web:${BQ_VERSION} .
 FROM nginx:1.27-alpine
 COPY deploy/docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /src/dist /usr/share/nginx/html
+COPY web/dist/ /usr/share/nginx/html
 EXPOSE 80

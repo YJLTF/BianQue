@@ -72,7 +72,7 @@ bianque/
 cd deploy
 cp .env.example .env            # 按需修改令牌/密码/LLM（生产必改 AGENT_TOKEN）
 docker compose -f docker-compose.prod.yml up -d --build
-# 浏览器打开 http://<主机>/ ；首次构建 5~15 分钟，详见 deploy/README.md
+# 镜像为宿主构建产物装载（v1.1.1 起）：先按 deploy/README「构建发布」出包再 --build，秒级装载
 ```
 
 **② 离线部署（已有交付包，目标机无需构建）**：

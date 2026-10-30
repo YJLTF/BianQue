@@ -34,14 +34,38 @@ docker compose -f docker-compose.prod.yml up -d   # 镜像已就位，无需 --b
 目标主机探针 bq-agent ──出站 HTTP(5s 心跳)──> http://<平台>:8080/api/agent/**
 ```
 
-**前置**：Docker 20+ 与 Docker Compose v2；无需 JDK/Node（镜像内多阶段构建）。
+**前置**：Docker 20+ 与 Docker Compose v2。镜像为**宿主构建产物装载**（v1.1.1 起，内网快速移植定位，不在容器内编译）：
+用 `--build` 部署的机器需先完成下方「构建发布」①② 出包，装载秒级；仅部署已有镜像（⓪ 交付包）则只需 Docker。
 
 ```bash
 cd deploy
 cp .env.example .env                # 修改 AGENT_TOKEN 等配置（compose 自动读取）
 docker compose -f docker-compose.prod.yml up -d --build
-# 首次构建需联网拉取 Maven/npm 依赖，约 5~15 分钟；之后命中缓存秒级
 ```
+
+## ⓪.1 构建发布（开发机出镜像）
+
+宿主全量构建（清 target 规避 IDE 增量产物混入）→ 三镜像秒级装载 → `docker save` 导出离线包：
+
+```bash
+# ① 服务端 + 探针出包（清 target 全量编译；JDK 21 环境，本地镜像源下约 12s）
+cd server && mvn -B -pl bq-server,bq-agent -am clean package -DskipTests && cd ..
+# ② 前端 dist
+cd web && npm ci && npm run build && cd ..
+# ③ 装载（构建上下文 = 仓库根）
+docker build -f deploy/docker/Dockerfile.server -t bianque/server:${BQ_VERSION:-1.1.1} .
+docker build -f deploy/docker/Dockerfile.web    -t bianque/web:${BQ_VERSION:-1.1.1} .
+docker build -f deploy/docker/Dockerfile.probe  -t bianque/probe:${BQ_VERSION:-1.1.1} .
+# ④ 交付前复核探针字节码基线（major 55 = Java 11；防宿主 IDE 产物混入高版本字节码）
+unzip -p server/bq-agent/target/bq-agent.jar com/bianque/agent/AgentMain.class | od -A d -t x1 | head -1
+# ⑤ 导出离线包（五镜像，交付清单/SHA256 见根 README「发布交付」）
+docker save bianque/server:1.1.1 bianque/web:1.1.1 bianque/probe:1.1.1 mysql:8.4 redis:7.4 \
+  | gzip > dist/bianque-images-1.1.1.tar.gz
+```
+
+> 历史口径（v1.1.0 及以前）为容器内多阶段构建：不依赖宿主构建环境，但冷构建需在容器内联网爬全部依赖
+> （实测 20+ 分钟）；已按「快速发布运行」定位改为宿主装载式。需要容器内全量复现构建时，检出对应
+> 历史 Dockerfile 即可。
 
 | 环境变量 | 默认 | 说明 |
 |---|---|---|

@@ -1,10 +1,13 @@
 # 白名单式裁剪：三个镜像构建上下文均为仓库根目录，只放行构建所需路径
+# 镜像 = 宿主构建产物装载（见 deploy/README「构建发布」）：只放行 jar 包与前端 dist，
+# 中间产物（target 类文件等）不进上下文
 *
 !server/
-server/**/target
+server/**/target/**
+!server/bq-server/target/*.jar
+!server/bq-agent/target/*.jar
 !web/
 web/node_modules
-web/dist
 web/dev-server.log
 !deploy/
 deploy/*
